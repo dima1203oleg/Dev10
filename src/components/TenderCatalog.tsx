@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Tender, AppSection } from '../types';
+import { TenderDetailModal } from './TenderDetailModal';
 import { 
   FolderSearch, 
   Search, 
@@ -11,7 +12,8 @@ import {
   ArrowRight,
   ExternalLink,
   MapPin,
-  Calendar
+  Calendar,
+  FileText
 } from 'lucide-react';
 
 interface TenderCatalogProps {
@@ -30,10 +32,11 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'HIGH_RISK' | 'CLEAN' | 'BOQ_READY'>('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [activeModalTenderId, setActiveModalTenderId] = useState<string | null>(null);
 
   // New tender form state
   const [newTitle, setNewTitle] = useState('');
-  const [newNumber, setNewNumber] = useState(`UA-2024-${Math.floor(100000 + Math.random() * 900000)}-a`);
+  const [newNumber, setNewNumber] = useState(`UA-2026-${Date.now().toString().slice(-6)}-a`);
   const [newCustomer, setNewCustomer] = useState('');
   const [newBudget, setNewBudget] = useState('25000000');
   const [newRegion, setNewRegion] = useState('м. Київ');
@@ -47,8 +50,9 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
 
     if (!matchesSearch) return false;
 
-    if (filterType === 'HIGH_RISK') return t.foulScore >= 60;
-    if (filterType === 'CLEAN') return t.foulScore < 40;
+    const hasFoulScore = t.foulScore !== null && t.foulScore !== undefined;
+    if (filterType === 'HIGH_RISK') return hasFoulScore && (t.foulScore ?? 0) >= 60;
+    if (filterType === 'CLEAN') return hasFoulScore && (t.foulScore ?? 0) < 40;
     if (filterType === 'BOQ_READY') return !!t.multiAgentAnalysis;
 
     return true;
@@ -190,8 +194,10 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
       {/* Tender Cards List */}
       <div className="space-y-3">
         {filteredTenders.map((tender) => {
-          const isHighRisk = tender.foulScore >= 60;
-          const isClean = tender.foulScore < 40;
+          const hasScore = tender.foulScore !== null && tender.foulScore !== undefined;
+          const scoreVal = tender.foulScore ?? 0;
+          const isHighRisk = hasScore && scoreVal >= 60;
+          const isClean = hasScore && scoreVal < 40;
 
           return (
             <div
@@ -210,14 +216,16 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                   </span>
 
                   <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center space-x-1 ${
-                    isHighRisk 
+                    !hasScore
+                      ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                      : isHighRisk 
                       ? 'bg-red-500/20 text-red-300 border border-red-500/40' 
                       : isClean 
                       ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' 
                       : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                   }`}>
                     <ShieldAlert className="w-3 h-3" />
-                    <span>Foul Score: {tender.foulScore}/100</span>
+                    <span>Foul Score: {hasScore ? `${scoreVal}/100` : 'Не аналізовано'}</span>
                   </span>
 
                   {tender.violations.length > 0 && (
@@ -244,6 +252,15 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
 
               {/* Actions */}
               <div className="flex items-center space-x-2 self-end lg:self-center">
+                <button
+                  onClick={() => setActiveModalTenderId(tender.id)}
+                  className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer"
+                  title="Переглянути офіційні деталі та файли з Prozorro"
+                >
+                  <FileText className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Деталі</span>
+                </button>
+
                 <button
                   onClick={() => {
                     onSelectTender(tender);
@@ -384,6 +401,22 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Real Prozorro Tender Detail Modal */}
+      {activeModalTenderId && (
+        <TenderDetailModal
+          tenderId={activeModalTenderId}
+          onClose={() => setActiveModalTenderId(null)}
+          onRunAudit={(tender) => {
+            onSelectTender(tender);
+            onNavigate('foultender');
+          }}
+          onOpenWarRoom={(tender) => {
+            onSelectTender(tender);
+            onNavigate('warroom');
+          }}
+        />
       )}
 
     </div>

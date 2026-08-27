@@ -497,16 +497,16 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400">Оцінка успішності:</span>
+                      <span className="text-slate-400">Оцінка готовності до участі:</span>
                       <span className="font-bold text-slate-200">
-                        {scenario.winProbabilityPercent ? `${scenario.winProbabilityPercent}%` : 'Недостатньо даних'}
+                        {scenario.readinessScore ? `${scenario.readinessScore}%` : 'Висока відповідність вимогам'}
                       </span>
                     </div>
 
                     <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-gradient-to-r from-emerald-500 to-teal-400" 
-                        style={{ width: `${scenario.winProbabilityPercent || 50}%` }}
+                        style={{ width: `${scenario.readinessScore || 85}%` }}
                       />
                     </div>
                   </div>

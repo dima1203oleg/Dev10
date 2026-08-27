@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Tender, CompanyProfile, BidDecision } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { TenderDetailModal } from './TenderDetailModal';
 import { 
   Radar, 
   Sparkles, 
@@ -21,7 +22,8 @@ import {
   HelpCircle,
   ChevronRight,
   ChevronDown,
-  Download
+  Download,
+  FileText
 } from 'lucide-react';
 
 interface TenderRadarModuleProps {
@@ -46,6 +48,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
   const [minBudget, setMinBudget] = useState<number>(0);
   const [maxBudget, setMaxBudget] = useState<number>(100000000);
   const [expandedWhyTenderId, setExpandedWhyTenderId] = useState<string | null>(null);
+  const [activeModalTenderId, setActiveModalTenderId] = useState<string | null>(null);
   
   const [isSearching, setIsSearching] = useState(false);
 
@@ -459,6 +462,15 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
 
                   <div className="flex items-center space-x-2">
                     <button
+                      onClick={() => setActiveModalTenderId(tender.id)}
+                      className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-teal-300 text-xs font-semibold flex items-center space-x-1 border border-slate-700 transition-all cursor-pointer"
+                      title="Переглянути офіційні деталі та документацію з Prozorro"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-teal-400" />
+                      <span>Деталі</span>
+                    </button>
+
+                    <button
                       onClick={() => setExpandedWhyTenderId(isExpanded ? null : tender.id)}
                       className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center space-x-1 border border-slate-700 transition-all cursor-pointer"
                     >
@@ -556,6 +568,21 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
           );
         })}
       </div>
+
+      {/* Real Prozorro Tender Detail Modal */}
+      {activeModalTenderId && (
+        <TenderDetailModal
+          tenderId={activeModalTenderId}
+          onClose={() => setActiveModalTenderId(null)}
+          onRunAudit={(tender) => {
+            onSelectTender(tender);
+          }}
+          onOpenWarRoom={(tender) => {
+            onSelectTender(tender);
+            onNavigateToWarRoom(tender);
+          }}
+        />
+      )}
 
     </div>
   );

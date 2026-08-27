@@ -1,4 +1,4 @@
-export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type RiskLevel = 'NOT_ANALYZED' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type DecisionType = 'GO' | 'GO_WITH_CONDITIONS' | 'NO_GO';
 export type SystemMode = 'SOLO' | 'TEAM';
 export type EvidenceStatus = 'VERIFIED' | 'INFERRED' | 'CALCULATED' | 'UNKNOWN' | 'CONTRADICTED';
@@ -36,20 +36,34 @@ export interface BoQItem {
   notes?: string;
 }
 
+export interface Evidence {
+  id: string;
+  sourceType: 'PROZORRO_API' | 'TENDER_DOC_PDF' | 'STATE_REGISTER' | 'COURT_AMCU_DECISION' | 'COMPANY_VAULT' | 'CALCULATED_ENGINE';
+  sourceUrl?: string;
+  documentId?: string;
+  page?: number;
+  section?: string;
+  exactQuote: string;
+  retrievedAt: string;
+  hash?: string;
+  verificationStatus: EvidenceStatus;
+}
+
 export interface Violation {
   id: string;
   type: 'DISCRIMINATORY_REQUIREMENT' | 'UNREALISTIC_TIMELINE' | 'PRICING_ANOMALY' | 'COLLUSION_RISK' | 'TECHNICAL_LOCKIN';
   severity: RiskLevel;
   title: string;
   description: string;
+  exactQuote?: string;
   legalBasis: string;
   amcuPrecedent?: string;
   affectedClause?: string;
+  evidence?: Evidence[];
 }
 
 export interface AmcuAppealRecommendation {
   recommended: boolean;
-  winProbabilityPercent?: number;
   prospectsText?: string;
   appealGrounds: string;
   estimatedAmcuFeeUah: number;
@@ -151,7 +165,7 @@ export interface PriceStrategyScenario {
   discountPercent: number;
   estimatedMarginUah: number;
   estimatedMarginPercent: number;
-  winProbabilityPercent: number;
+  readinessScore?: number;
   riskDescription: string;
   historicalDiscountContext: string;
 }
@@ -290,7 +304,7 @@ export interface Tender {
   status: 'ACTIVE' | 'AUDIT_FLAGGED' | 'BID_IN_PREPARATION' | 'COMPLETED' | 'AMCU_FILED';
   category: string;
   dk021Code?: string;
-  foulScore: number; // 0 - 100
+  foulScore?: number | null; // 0 - 100, null if not analyzed yet
   riskLevel: RiskLevel;
   summary: string;
   tenderText?: string;

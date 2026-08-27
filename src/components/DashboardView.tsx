@@ -35,7 +35,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const totalBudget = tenders.reduce((acc, t) => acc + t.budgetUah, 0);
   const highRiskTenders = tenders.filter(t => t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL');
   const cleanTenders = tenders.filter(t => t.riskLevel === 'LOW');
-  const avgFoulScore = Math.round(tenders.reduce((acc, t) => acc + t.foulScore, 0) / (tenders.length || 1));
+  const analyzedTenders = tenders.filter(t => t.foulScore !== null && t.foulScore !== undefined);
+  const avgFoulScore = analyzedTenders.length > 0 
+    ? Math.round(analyzedTenders.reduce((acc, t) => acc + (t.foulScore ?? 0), 0) / analyzedTenders.length)
+    : 0;
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -465,8 +468,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <div className="space-y-3">
           {tenders.map((tender) => {
-            const isHighRisk = tender.foulScore >= 60;
-            const isClean = tender.foulScore < 40;
+            const hasScore = tender.foulScore !== null && tender.foulScore !== undefined;
+            const scoreVal = tender.foulScore ?? 0;
+            const isHighRisk = hasScore && scoreVal >= 60;
+            const isClean = hasScore && scoreVal < 40;
 
             return (
               <div
@@ -485,7 +490,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     {/* Foul Score Badge */}
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full font-bold inline-flex items-center space-x-1 ${
-                        isHighRisk
+                        !hasScore
+                          ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                          : isHighRisk
                           ? 'bg-red-500/20 text-red-300 border border-red-500/40'
                           : isClean
                           ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
@@ -493,7 +500,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       }`}
                     >
                       <ShieldAlert className="w-3 h-3" />
-                      <span>Foul Score: {tender.foulScore}/100</span>
+                      <span>Foul Score: {hasScore ? `${scoreVal}/100` : 'Не аналізовано'}</span>
                     </span>
 
                     {tender.multiAgentAnalysis && (

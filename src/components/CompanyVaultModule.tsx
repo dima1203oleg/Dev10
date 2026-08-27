@@ -56,7 +56,7 @@ export const CompanyVaultModule: React.FC<CompanyVaultModuleProps> = ({
       id: 'doc-v-' + Date.now(),
       title: newDocTitle,
       category: newDocCategory,
-      fileNumber: newDocNumber || '№ ' + Math.floor(1000 + Math.random() * 9000),
+      fileNumber: newDocNumber || '№ Doc-' + Date.now().toString().slice(-4),
       issueDate: new Date().toISOString().split('T')[0],
       expiryDate: newDocExpiry || undefined,
       issuer: newDocIssuer || 'Орган сертифікації / ДПС',

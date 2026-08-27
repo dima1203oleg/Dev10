@@ -162,3 +162,84 @@ export function calculatePersonalRadarMatch(
     reasons
   };
 }
+
+/**
+ * Fetch complete live tender details directly from Prozorro REST API including documents, timeline & items
+ */
+export async function fetchProzorroTenderFullDetail(tenderId: string): Promise<any> {
+  const detailRes = await fetch(`${PROZORRO_BASE_URL}/${tenderId}`);
+  if (!detailRes.ok) {
+    throw new Error(`Prozorro API returned status ${detailRes.status} for tender ${tenderId}`);
+  }
+  const json = await detailRes.json();
+  const data = json.data;
+  if (!data) {
+    throw new Error(`No data returned from Prozorro for tender ${tenderId}`);
+  }
+
+  // Extract structured documents
+  const documents = (data.documents || []).map((doc: any) => ({
+    id: doc.id,
+    title: doc.title || "Документ ТД",
+    format: doc.format || "application/pdf",
+    url: doc.url || "#",
+    datePublished: doc.datePublished || new Date().toISOString(),
+    documentType: doc.documentType || "tenderDocumentation"
+  }));
+
+  // Extract procurement items (BoQ / Goods / Services)
+  const items = (data.items || []).map((item: any, idx: number) => ({
+    id: item.id || `item-${idx + 1}`,
+    description: item.description || "Предмет закупівлі",
+    quantity: item.quantity || 1,
+    unit: item.unit?.name || item.unit?.code || "од",
+    cpvCode: item.classification?.id || "45000000-7",
+    cpvName: item.classification?.description || "Будівельні роботи",
+    deliveryAddress: item.deliveryAddress ? `${item.deliveryAddress.locality || ''}, ${item.deliveryAddress.streetAddress || ''}` : "Україна"
+  }));
+
+  // Extract timeline periods
+  const timeline = {
+    tenderPeriod: data.tenderPeriod,
+    enquiryPeriod: data.enquiryPeriod,
+    clarificationPeriod: data.clarificationPeriod,
+    auctionPeriod: data.auctionPeriod
+  };
+
+  return {
+    raw: data,
+    structured: {
+      id: data.id,
+      tenderNumber: data.tenderID || `UA-${data.id.substring(0, 8)}`,
+      title: data.title || "Без назви",
+      description: data.description || "",
+      procurementMethod: data.procurementMethodType || "open",
+      value: {
+        amount: data.value?.amount || 0,
+        currency: data.value?.currency || "UAH",
+        valueAddedTaxIncluded: data.value?.valueAddedTaxIncluded ?? true
+      },
+      customer: {
+        name: data.procuringEntity?.name || "Невідомий замовник",
+        edrpou: data.procuringEntity?.identifier?.id || "00000000",
+        address: data.procuringEntity?.address?.streetAddress || "",
+        locality: data.procuringEntity?.address?.locality || "",
+        region: data.procuringEntity?.address?.region || "Україна",
+        contactPerson: data.procuringEntity?.contactPoint?.name || "",
+        contactEmail: data.procuringEntity?.contactPoint?.email || "",
+        contactPhone: data.procuringEntity?.contactPoint?.telephone || ""
+      },
+      documents,
+      items,
+      timeline,
+      status: data.status || "active",
+      numberOfBids: data.bids?.length || 0,
+      bidders: (data.bids || []).map((bid: any) => ({
+        id: bid.id,
+        name: bid.tenderers?.[0]?.name || "Учасник",
+        edrpou: bid.tenderers?.[0]?.identifier?.id || "",
+        status: bid.status || "active"
+      }))
+    }
+  };
+}

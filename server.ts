@@ -8,7 +8,7 @@ import { getOrCreateUser } from "./src/db/users.ts";
 import { db } from "./src/db/index.ts";
 import { tenders as tendersTable, companyProfiles, complaints } from "./src/db/schema.ts";
 import { eq, and } from "drizzle-orm";
-import { fetchProzorroRecentTenders, calculatePersonalRadarMatch } from "./src/connectors/prozorro.ts";
+import { fetchProzorroRecentTenders, calculatePersonalRadarMatch, fetchProzorroTenderFullDetail } from "./src/connectors/prozorro.ts";
 
 dotenv.config();
 
@@ -140,6 +140,21 @@ app.get("/api/prozorro/radar", requireAuth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error("Personal Tender Radar error:", error);
     res.status(500).json({ error: "Failed to generate Tender Radar feed" });
+  }
+});
+
+// API: Real Prozorro Deep Tender Details & Documentation Fetch
+app.get("/api/prozorro/tender/:id", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: "Missing tender ID" });
+    }
+    const fullDetail = await fetchProzorroTenderFullDetail(id);
+    res.json(fullDetail);
+  } catch (error) {
+    console.error("Prozorro Tender Full Detail error:", error);
+    res.status(500).json({ error: "Failed to fetch full tender details from Prozorro" });
   }
 });
 
