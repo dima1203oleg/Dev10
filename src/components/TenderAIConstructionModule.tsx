@@ -410,7 +410,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                       </div>
                     </div>
                     <span className="text-[10px] font-bold px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      {analysis.agents.bidManager.winProbability ? `Оцінка успішності: ${analysis.agents.bidManager.winProbability}%` : 'Недостатньо історичних даних'}
+                      {analysis.agents.bidManager.readinessScore ? `Оцінка готовності: ${analysis.agents.bidManager.readinessScore}%` : 'Недостатньо історичних даних'}
                     </span>
                   </div>
 

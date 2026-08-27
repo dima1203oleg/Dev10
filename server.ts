@@ -284,7 +284,7 @@ app.get("/api/health", async (_req, res) => {
 });
 
 // API: FoulTender - Anti-Corruption & Discriminatory Requirement Audit
-app.post("/api/foultender/audit", async (req, res) => {
+app.post("/api/foultender/audit", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { tenderTitle, tenderId, customer, budget, tenderText, category } = req.body;
 
@@ -352,7 +352,7 @@ ${tenderText || "Вимоги до учасників: наявність вла
 });
 
 // API: FoulTender - Generate Formal AMCU Complaint
-app.post("/api/foultender/generate-complaint", async (req, res) => {
+app.post("/api/foultender/generate-complaint", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { tenderId, tenderTitle, customer, complainantName, edrpou, violations, specificDemand } = req.body;
 
@@ -396,7 +396,7 @@ app.post("/api/foultender/generate-complaint", async (req, res) => {
 });
 
 // API: TenderAI Construction SaaS - Multi-Agent Analysis & BoQ Evaluation
-app.post("/api/tenderai/multi-agent-analyze", async (req, res) => {
+app.post("/api/tenderai/multi-agent-analyze", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { tenderTitle, budget, boqItems, projectScope, specifications } = req.body;
 
@@ -469,7 +469,7 @@ app.post("/api/tenderai/multi-agent-analyze", async (req, res) => {
       "status": "RECOMMENDED" | "NOT_RECOMMENDED",
       "summary": "Фінальна цінова стратегія на аукціоні",
       "recommendedBidPrice": number,
-      "winProbability": number
+      "readinessScore": number
     }
   }
 }`;
@@ -490,7 +490,7 @@ app.post("/api/tenderai/multi-agent-analyze", async (req, res) => {
 });
 
 // API: Multi-Agent Interactive Chat
-app.post("/api/tenderai/agent-chat", async (req, res) => {
+app.post("/api/tenderai/agent-chat", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { message, agentRole, tenderContext } = req.body;
 
@@ -529,7 +529,7 @@ app.post("/api/tenderai/agent-chat", async (req, res) => {
 });
 
 // API: Match Company Vault with Tender Requirements (Gap Analysis)
-app.post("/api/company/audit-vault-match", async (req, res) => {
+app.post("/api/company/audit-vault-match", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { companyProfile, tenderTitle, tenderRequirements, tenderText } = req.body;
     const ai = getGeminiClient();
@@ -587,7 +587,7 @@ ${JSON.stringify(tenderRequirements || tenderText)}
 });
 
 // API: Competitor Intelligence & Collusion Risk Engine
-app.post("/api/tenderai/collusion-detect", async (req, res) => {
+app.post("/api/tenderai/collusion-detect", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { tenderId, tenderTitle, competitors, history } = req.body;
     const ai = getGeminiClient();
@@ -642,7 +642,7 @@ ${JSON.stringify(history || {})}
 });
 
 // API: Version Diff Analyzer for Tender Documentation
-app.post("/api/tenderai/version-diff", async (req, res) => {
+app.post("/api/tenderai/version-diff", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { tenderId, version1Text, version2Text } = req.body;
     const ai = getGeminiClient();
@@ -701,7 +701,7 @@ ${version2Text || "Змінені умови: додано вимогу про �
 });
 
 // API: Pre-Submission Readiness Audit & Scorecard
-app.post("/api/tenderai/readiness-audit", async (req, res) => {
+app.post("/api/tenderai/readiness-audit", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { tender, companyProfile, bidPackage } = req.body;
     const ai = getGeminiClient();
@@ -755,7 +755,7 @@ app.post("/api/tenderai/readiness-audit", async (req, res) => {
 });
 
 // API: Ingest Tender (Prozorro URL / Text / Specification)
-app.post("/api/tenderai/prozorro-ingest", async (req, res) => {
+app.post("/api/tenderai/prozorro-ingest", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { urlOrId, tenderText, category } = req.body;
     const ai = getGeminiClient();

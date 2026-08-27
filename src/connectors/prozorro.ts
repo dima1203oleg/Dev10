@@ -107,7 +107,7 @@ export async function fetchProzorroRecentTenders(
 }
 
 /**
- * Calculate Personal Tender Radar Match Score based on Company Profile
+ * Calculate Personal Tender Radar Match Score dynamically based on Company Profile & Vault Data
  */
 export function calculatePersonalRadarMatch(
   tender: ProzorroTenderItem,
@@ -122,37 +122,122 @@ export function calculatePersonalRadarMatch(
   };
   reasons: string[];
 } {
-  let companyFit = 70;
-  let legalReadiness = 80;
-  let capacityFit = 75;
-  let budgetFeasibility = 85;
-  const reasons: string[] = ["Перевірено через Prozorro API"];
+  const reasons: string[] = ["Джерело даних: Офіційний REST API Prozorro"];
 
-  if (companyProfile) {
-    // Check EDRPOU / KVED / CPV
-    if (companyProfile.edrpou) {
-      companyFit += 10;
-      reasons.push(`Профіль підприємства ЄДРПОУ ${companyProfile.edrpou} заповнено`);
-    }
-
-    // Budget check
-    if (companyProfile.vaultData) {
-      const vault = companyProfile.vaultData;
-      if (vault.staffCount && vault.staffCount > 5) {
-        capacityFit += 10;
-      }
-      if (vault.equipmentCount && vault.equipmentCount > 3) {
-        capacityFit += 10;
-      }
-    }
+  if (!companyProfile) {
+    return {
+      fitScore: 0,
+      factors: {
+        companyFit: 0,
+        legalReadiness: 0,
+        capacityFit: 0,
+        budgetFeasibility: 0
+      },
+      reasons: ["Профіль компанії не налаштовано (Необхідно заповнити Company Vault)"]
+    };
   }
 
+  const vault = companyProfile.vaultData || {};
+
+  // 1. Company Activity & Region Fit (CPV / KVED / Region)
+  let companyFit = 0;
+  if (companyProfile.edrpou) {
+    companyFit += 25;
+    reasons.push(`Підприємство верифіковано в ЄДРПОУ (${companyProfile.edrpou})`);
+  }
+  if (companyProfile.companyName) {
+    companyFit += 15;
+  }
+  // Region matching
+  const tenderRegion = tender.region || tender.customerCity || "Україна";
+  if (!companyProfile.preferredRegion || companyProfile.preferredRegion === "Всі регіони" || companyProfile.preferredRegion === tenderRegion) {
+    companyFit += 30;
+    reasons.push(`Регіональна відповідність: ${tenderRegion}`);
+  } else {
+    companyFit += 10;
+    reasons.push(`Міжрегіональний тендер (${tenderRegion})`);
+  }
+  // CPV / Category matching
+  if (vault.kveds && vault.kveds.length > 0) {
+    companyFit += 30;
+    reasons.push(`Заявлено ${vault.kveds.length} КВЕД(ів) у цифровому сейфі`);
+  } else {
+    companyFit += 15;
+  }
+
+  // 2. Legal Readiness (Licenses, Certificates, Clean Record)
+  let legalReadiness = 0;
+  if (companyProfile.edrpou && companyProfile.edrpou.length === 8) {
+    legalReadiness += 30;
+  }
+  if (vault.licensesCount && vault.licensesCount > 0) {
+    legalReadiness += 35;
+    reasons.push(`Наявно ${vault.licensesCount} діючих ліцензій/сертифікатів`);
+  } else {
+    legalReadiness += 15;
+    reasons.push(`⚠ Не завантажено специфічні ліцензії в Company Vault`);
+  }
+  if (vault.taxCleanStatus !== false) {
+    legalReadiness += 35;
+    reasons.push(`Відсутня податкова заборгованість (ст. 17 ЗУ)`);
+  }
+
+  // 3. Capacity & Experience Fit (Staff, Machinery, Similar Contracts)
+  let capacityFit = 0;
+  const staffCount = vault.staffCount || vault.employees?.length || 0;
+  if (staffCount >= 10) {
+    capacityFit += 40;
+    reasons.push(`Повний штат фахівців: ${staffCount} осіб`);
+  } else if (staffCount > 0) {
+    capacityFit += 25;
+    reasons.push(`Штат працівників: ${staffCount} осіб`);
+  } else {
+    capacityFit += 10;
+    reasons.push(`⚠ Не вказано кількість штатного персоналу`);
+  }
+
+  const equipmentCount = vault.equipmentCount || vault.machinery?.length || 0;
+  if (equipmentCount >= 5) {
+    capacityFit += 30;
+    reasons.push(`Технічно-матеріальна база: ${equipmentCount} одиниць`);
+  } else if (equipmentCount > 0) {
+    capacityFit += 15;
+  }
+
+  const experienceContracts = vault.similarContractsCount || vault.pastContracts?.length || 0;
+  if (experienceContracts >= 3) {
+    capacityFit += 30;
+    reasons.push(`Підтверджено ${experienceContracts} аналогичних договорів`);
+  } else if (experienceContracts > 0) {
+    capacityFit += 15;
+  }
+
+  // 4. Budget Feasibility
+  let budgetFeasibility = 0;
+  const budget = tender.budgetUah || 0;
+  const maxBudget = companyProfile.maxTenderBudget || 100000000;
+  const minBudget = companyProfile.minTenderBudget || 0;
+
+  if (budget >= minBudget && budget <= maxBudget) {
+    budgetFeasibility = 100;
+    reasons.push(`Бюджет тендера (${(budget / 1000000).toFixed(2)} млн грн) в межах фінансового профілю`);
+  } else if (budget > maxBudget) {
+    budgetFeasibility = 40;
+    reasons.push(`⚠ Бюджет (${(budget / 1000000).toFixed(2)} млн грн) перевищує встановлений максимум (${(maxBudget / 1000000).toFixed(2)} млн грн)`);
+  } else {
+    budgetFeasibility = 60;
+  }
+
+  // Calculate weighted overall score
   const overallScore = Math.round(
-    companyFit * 0.3 + legalReadiness * 0.25 + capacityFit * 0.25 + budgetFeasibility * 0.2
+    companyFit * 0.30 +
+    legalReadiness * 0.25 +
+    capacityFit * 0.25 +
+    budgetFeasibility * 0.20
   );
 
   return {
-    fitScore: Math.min(100, Math.max(10, overallScore)),
+    fitScore: Math.min(100, Math.max(0, overallScore)),
     factors: {
       companyFit: Math.min(100, companyFit),
       legalReadiness: Math.min(100, legalReadiness),

@@ -87,7 +87,7 @@ export interface AgentReport {
   requiredCertificates?: string[];
   corruptionRiskScore?: number;
   recommendedBidPrice?: number;
-  winProbability?: number;
+  readinessScore?: number;
 }
 
 export interface MultiAgentReport {
