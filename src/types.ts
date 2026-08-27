@@ -49,7 +49,8 @@ export interface Violation {
 
 export interface AmcuAppealRecommendation {
   recommended: boolean;
-  winProbabilityPercent: number;
+  winProbabilityPercent?: number;
+  prospectsText?: string;
   appealGrounds: string;
   estimatedAmcuFeeUah: number;
 }

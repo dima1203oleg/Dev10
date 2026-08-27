@@ -7,7 +7,8 @@ import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
 import { db } from "./src/db/index.ts";
 import { tenders as tendersTable, companyProfiles, complaints } from "./src/db/schema.ts";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { fetchProzorroRecentTenders, calculatePersonalRadarMatch } from "./src/connectors/prozorro.ts";
 
 dotenv.config();
 
@@ -56,7 +57,7 @@ app.get("/api/data", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// API: Save Tender
+// API: Save Tender (Scoped by userId + tenderNumber)
 app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = req.user;
@@ -65,10 +66,15 @@ app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
     
     const { tenderNumber, title, customer, budgetUah, status, foulScore, riskLevel, summary, detailedData } = req.body;
     
-    // Check if it already exists by tenderNumber
-    const existing = await db.select().from(tendersTable).where(eq(tendersTable.tenderNumber, tenderNumber));
+    // Scoped check by both userId AND tenderNumber for multi-tenant isolation
+    const existing = await db.select().from(tendersTable).where(
+      and(
+        eq(tendersTable.userId, dbUser.id),
+        eq(tendersTable.tenderNumber, tenderNumber)
+      )
+    );
     if (existing.length > 0) {
-      return res.json(existing[0]); // Return existing instead of duplicating
+      return res.json(existing[0]); // Return user's existing tender
     }
     
     const newTender = await db.insert(tendersTable).values({
@@ -77,10 +83,10 @@ app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
       title,
       customer,
       budgetUah,
-      status,
-      foulScore,
-      riskLevel,
-      summary,
+      status: status || 'ACTIVE',
+      foulScore: foulScore !== undefined ? foulScore : null, // null until analyzed
+      riskLevel: riskLevel || 'NOT_ANALYZED',
+      summary: summary || 'Імпортовано з Prozorro. Чкає аналізу.',
       detailedData
     }).returning();
     
@@ -91,65 +97,49 @@ app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// API: Real Prozorro Search Integration
+// API: Real Prozorro Search Integration (Strictly No Fake FoulScore)
 app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { query } = req.query;
+    const qString = query && typeof query === 'string' ? query : undefined;
     
-    // Fetch a list of recent tenders from Prozorro
-    const response = await fetch("https://public.api.openprocurement.org/api/2.5/tenders?descending=1&limit=20");
-    const json = await response.json();
-    
-    if (!json.data) {
-      return res.json({ tenders: [] });
-    }
-    
-    // Fetch details for the first 5 to avoid long wait
-    const detailedTenders = [];
-    for (const item of json.data.slice(0, 5)) {
-      try {
-        const detailRes = await fetch(`https://public.api.openprocurement.org/api/2.5/tenders/${item.id}`);
-        const detailJson = await detailRes.json();
-        const data = detailJson.data;
-        
-        // Match query if provided
-        if (query && typeof query === 'string') {
-          const q = query.toLowerCase();
-          const titleMatches = (data.title || "").toLowerCase().includes(q);
-          const customerMatches = (data.procuringEntity?.name || "").toLowerCase().includes(q);
-          if (!titleMatches && !customerMatches) {
-            continue; // Skip this one
-          }
-        }
-        
-        // Map to our Tender format
-        detailedTenders.push({
-          id: data.id,
-          tenderNumber: data.tenderID,
-          title: data.title || "Без назви",
-          customer: data.procuringEntity?.name || "Невідомий замовник",
-          customerEdrpou: data.procuringEntity?.identifier?.id || "00000000",
-          customerCity: data.procuringEntity?.address?.locality || "Київ",
-          budgetUah: data.value?.amount || 0,
-          deadline: data.tenderPeriod?.endDate || new Date().toISOString(),
-          status: 'ACTIVE',
-          category: data.mainProcurementCategory || "Загальні",
-          foulScore: Math.floor(Math.random() * 30) + 5, // Simulated initial low-risk score
-          riskLevel: "LOW",
-          summary: "Імпортовано з Prozorro. Для виявлення корупційних ризиків запустіть AI Аналіз (FoulTender).",
-          boqItems: [],
-          violations: [],
-          requirements: []
-        });
-      } catch (err) {
-        console.error("Failed to fetch details for", item.id);
-      }
-    }
-    
-    res.json({ tenders: detailedTenders });
+    const tenders = await fetchProzorroRecentTenders(6, qString);
+    res.json({ tenders });
   } catch (error) {
     console.error("Prozorro API error:", error);
-    res.status(500).json({ error: "Failed to fetch from Prozorro" });
+    res.status(500).json({ error: "Failed to fetch from Prozorro API" });
+  }
+});
+
+// API: Personal Tender Radar (Matches Prozorro Feed against User's Company Vault)
+app.get("/api/prozorro/radar", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+
+    const userProfiles = await db.select().from(companyProfiles).where(eq(companyProfiles.userId, dbUser.id));
+    const profile = userProfiles.length > 0 ? userProfiles[0] : null;
+
+    const rawTenders = await fetchProzorroRecentTenders(8);
+
+    const radarFeed = rawTenders.map((tender) => {
+      const matchResult = calculatePersonalRadarMatch(tender, profile);
+      return {
+        ...tender,
+        fitScore: matchResult.fitScore,
+        fitFactors: matchResult.factors,
+        radarReasons: matchResult.reasons
+      };
+    });
+
+    // Sort feed by highest fit score first
+    radarFeed.sort((a, b) => (b.fitScore || 0) - (a.fitScore || 0));
+
+    res.json({ radarFeed });
+  } catch (error) {
+    console.error("Personal Tender Radar error:", error);
+    res.status(500).json({ error: "Failed to generate Tender Radar feed" });
   }
 });
 
@@ -245,13 +235,36 @@ function handleAiError(res: express.Response, error: any, defaultMsg: string) {
   return res.status(500).json({ error: errMsg || defaultMsg });
 }
 
-// Health check endpoint
-app.get("/api/health", (_req, res) => {
-  const hasKey = !!process.env.GEMINI_API_KEY;
-  res.json({
-    status: "ok",
-    app: "TenderAI & FoulTender Suite",
-    geminiConfigured: hasKey,
+// Health check endpoint with deep diagnostics
+app.get("/api/health", async (_req, res) => {
+  const hasGeminiKey = !!process.env.GEMINI_API_KEY;
+  let dbCheck = "ok";
+  let prozorroCheck = "reachable";
+
+  try {
+    await db.select().from(tendersTable).limit(1);
+  } catch (err) {
+    dbCheck = "error";
+  }
+
+  try {
+    const pRes = await fetch("https://public.api.openprocurement.org/api/2.5/tenders?limit=1");
+    if (!pRes.ok) prozorroCheck = "degraded";
+  } catch (err) {
+    prozorroCheck = "unreachable";
+  }
+
+  const isHealthy = dbCheck === "ok" && hasGeminiKey;
+
+  res.status(200).json({
+    status: isHealthy ? "ok" : "degraded",
+    app: "TenderAI & FoulTender Suite v3.1",
+    timestamp: new Date().toISOString(),
+    checks: {
+      database: dbCheck,
+      gemini: hasGeminiKey ? "configured" : "missing_key",
+      prozorro: prozorroCheck
+    }
   });
 });
 
@@ -268,6 +281,10 @@ app.post("/api/foultender/audit", async (req, res) => {
     const prompt = `Виступай у ролі експертного аудитора антикорупційної платформи "FoulTender" та провідного юриста з публічних закупівель України (Prozorro, АМКУ, ДАСУ).
 Здійсни детальний юридичний та антикорупційний аудит тендеру на предмет дискримінаційних вимог, корупційних пасток, завищення цін та обмеження конкуренції.
 
+ВИМОГИ ДО ДОКАЗОВОЇ БАЗИ (EVIDENCE-FIRST):
+1. Кожне виявлене порушення повинно обов'язково містити цитату з тексту тендеру ("exactQuote") та посилання на конкретні статті закону (ЗУ "Про публічні закупівлі" ст. 5 "Принципи здійснення закупівель", ст. 16 "Кваліфікаційні критерії", ст. 22 "Тендерна документація").
+2. Не вигадуй номерів рішень АМКУ, якщо немає точного підтвердження. Посилайся на узагальнену практику Колегії АМКУ.
+
 Дані тендеру:
 - Назва: ${tenderTitle || "Будівельно-монтажні роботи"}
 - ID закупівлі: ${tenderId || "UA-2024-..."}
@@ -283,20 +300,21 @@ ${tenderText || "Вимоги до учасників: наявність вла
 {
   "foulScore": number (від 0 до 100, де 100 - критичний корупційний/дискримінаційний ризик),
   "riskLevel": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
-  "summary": "Короткий висновок аудитора українською мовою",
+  "summary": "Короткий висновок аудитора українською мовою з підтвердженням за джерелами",
   "violations": [
     {
       "type": "DISCRIMINATORY_REQUIREMENT" | "UNREALISTIC_TIMELINE" | "PRICING_ANOMALY" | "COLLUSION_RISK" | "TECHNICAL_LOCKIN",
       "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
       "title": "Назва порушення",
       "description": "Детальний опис у чому полягає дискримінація або порушення",
-      "legalBasis": "Стаття закону України (наприклад ст. 5 або 22 ЗУ 'Про публічні закупівлі')",
-      "amcuPrecedent": "Практика АМКУ або ДАСУ з даного питання"
+      "exactQuote": "Цитата або уривок з тексту ТД",
+      "legalBasis": "Конкретна стаття та частина ЗУ 'Про публічні закупівлі' (наприклад ст. 5 ч. 4)",
+      "amcuPrecedent": "Практика АМКУ з даного типу дискримінації"
     }
   ],
   "amcuAppealRecommendation": {
     "recommended": boolean,
-    "winProbabilityPercent": number (від 0 до 100),
+    "prospectsText": "Високий юридичний потенціал (Потребує підтвердження документальними доказами)",
     "appealGrounds": "Чіткі підстави для подання скарги до Колегії АМКУ",
     "estimatedAmcuFeeUah": number (розрахункова плата за подання скарги)
   }
