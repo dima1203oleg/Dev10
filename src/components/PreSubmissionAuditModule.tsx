@@ -58,14 +58,8 @@ export const PreSubmissionAuditModule: React.FC<PreSubmissionAuditModuleProps> =
     }
   };
 
-  const totalScore = readiness?.totalScore || 84;
-  const categories = readiness?.categories || {
-    documentsVault: 92,
-    qualificationArt16: 85,
-    costAndBoQ: 90,
-    legalDraftContract: 75,
-    technicalSpecs: 80
-  };
+  const totalScore = readiness?.totalScore ?? null;
+  const categories = readiness?.categories ?? null;
 
   const checklist = readiness?.criticalChecklist || [];
   const blockingIssues = checklist.filter(c => !c.passed && c.severity === 'BLOCKING');
@@ -91,11 +85,11 @@ export const PreSubmissionAuditModule: React.FC<PreSubmissionAuditModuleProps> =
           <div className="flex items-center gap-4 bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex-shrink-0">
             <div className="text-center">
               <div className="text-xs text-slate-400">Tender Readiness Score</div>
-              <div className={`text-3xl font-extrabold ${totalScore >= 90 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {totalScore}/100
+              <div className={`text-3xl font-extrabold ${totalScore !== null ? (totalScore >= 90 ? 'text-emerald-400' : 'text-amber-400') : 'text-slate-500'}`}>
+                {totalScore !== null ? `${totalScore}/100` : 'UNVERIFIED'}
               </div>
-              <div className={`text-xs font-bold mt-0.5 ${blockingIssues.length === 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {blockingIssues.length === 0 ? 'ГОТОВО ДО ПОДАННЯ' : `БЛОКУЮЧИХ РИЗИКІВ: ${blockingIssues.length}`}
+              <div className={`text-xs font-bold mt-0.5 ${totalScore === null ? 'text-slate-400' : (blockingIssues.length === 0 ? 'text-emerald-400' : 'text-rose-400')}`}>
+                {totalScore === null ? 'ПОТРЕБУЄ АУДИТУ' : (blockingIssues.length === 0 ? 'ГОТОВО ДО ПОДАННЯ' : `БЛОКУЮЧИХ РИЗИКІВ: ${blockingIssues.length}`)}
               </div>
             </div>
             <div className="h-10 w-[1px] bg-slate-800" />
@@ -112,47 +106,49 @@ export const PreSubmissionAuditModule: React.FC<PreSubmissionAuditModuleProps> =
       </div>
 
       {/* Category Progress Gauges */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
-          <div className="text-xs text-slate-400">Документи Vault</div>
-          <div className="text-xl font-bold text-emerald-400">{categories.documentsVault}%</div>
-          <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.documentsVault}%` }} />
+      {categories && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+            <div className="text-xs text-slate-400">Документи Vault</div>
+            <div className="text-xl font-bold text-emerald-400">{categories.documentsVault}%</div>
+            <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.documentsVault}%` }} />
+            </div>
           </div>
-        </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
-          <div className="text-xs text-slate-400">Кваліфікація (ст. 16)</div>
-          <div className="text-xl font-bold text-emerald-400">{categories.qualificationArt16}%</div>
-          <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.qualificationArt16}%` }} />
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+            <div className="text-xs text-slate-400">Кваліфікація (ст. 16)</div>
+            <div className="text-xl font-bold text-emerald-400">{categories.qualificationArt16}%</div>
+            <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.qualificationArt16}%` }} />
+            </div>
           </div>
-        </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
-          <div className="text-xs text-slate-400">Кошторис & АНЦ (BoQ)</div>
-          <div className="text-xl font-bold text-emerald-400">{categories.costAndBoQ}%</div>
-          <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.costAndBoQ}%` }} />
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+            <div className="text-xs text-slate-400">Кошторис & АНЦ (BoQ)</div>
+            <div className="text-xl font-bold text-emerald-400">{categories.costAndBoQ}%</div>
+            <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.costAndBoQ}%` }} />
+            </div>
           </div>
-        </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
-          <div className="text-xs text-slate-400">Проєкт договору</div>
-          <div className="text-xl font-bold text-amber-400">{categories.legalDraftContract}%</div>
-          <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-amber-500 h-full rounded-full" style={{ width: `${categories.legalDraftContract}%` }} />
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+            <div className="text-xs text-slate-400">Проєкт договору</div>
+            <div className="text-xl font-bold text-amber-400">{categories.legalDraftContract}%</div>
+            <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-amber-500 h-full rounded-full" style={{ width: `${categories.legalDraftContract}%` }} />
+            </div>
           </div>
-        </div>
 
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
-          <div className="text-xs text-slate-400">Технічні специфікації</div>
-          <div className="text-xl font-bold text-emerald-400">{categories.technicalSpecs}%</div>
-          <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.technicalSpecs}%` }} />
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
+            <div className="text-xs text-slate-400">Технічні специфікації</div>
+            <div className="text-xl font-bold text-emerald-400">{categories.technicalSpecs}%</div>
+            <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.technicalSpecs}%` }} />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Blocking Issues Alert Banner */}
       {blockingIssues.length > 0 && (

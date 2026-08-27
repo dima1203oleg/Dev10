@@ -70,9 +70,9 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
       region: newRegion,
       status: 'ACTIVE',
       category: newCategory,
-      foulScore: 45,
-      riskLevel: 'MEDIUM',
-      summary: 'Новий тендер додано до системи для проведення комплексного аналізу FoulTender та TenderAI BoQ.',
+      foulScore: undefined,
+      riskLevel: 'LOW',
+      summary: 'Новий тендер додано до системи для проведення аналізу.',
       tenderText: 'Вимоги до учасників: наявність досвіду, МТБ та кваліфікованого персоналу згідно ст. 16 ЗУ «Про публічні закупівлі».',
       boqItems: [
         {
@@ -81,9 +81,9 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
           description: 'Основні будівельно-монтажні роботи за проєктом',
           unit: 'компл',
           quantity: 1,
-          standardPriceUah: parseFloat(newBudget) || 25000000,
-          marketPriceUah: (parseFloat(newBudget) || 25000000) * 0.88,
-          laborHours: 500,
+          standardPriceUah: parseFloat(newBudget) || 0,
+          marketPriceUah: parseFloat(newBudget) || 0,
+          laborHours: 0,
           anomaly: 'NORMAL',
         }
       ],

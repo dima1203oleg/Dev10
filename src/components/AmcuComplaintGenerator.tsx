@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Tender, AmcuComplaintDoc } from '../types';
+import { Tender, AmcuComplaintDoc, CompanyProfile } from '../types';
 import { 
   FileText, 
   Gavel, 
@@ -17,18 +17,20 @@ import {
 
 interface AmcuComplaintGeneratorProps {
   currentTender: Tender;
+  company?: CompanyProfile;
   complaints: AmcuComplaintDoc[];
   onAddComplaint: (complaint: AmcuComplaintDoc) => void;
 }
 
 export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
   currentTender,
+  company,
   complaints,
   onAddComplaint,
 }) => {
   const [selectedComplaint, setSelectedComplaint] = useState<AmcuComplaintDoc | null>(complaints[0] || null);
-  const [complainantName, setComplainantName] = useState('ТОВ «УкрБудЕкспертиза»');
-  const [complainantEdrpou, setComplainantEdrpou] = useState('41928374');
+  const [complainantName, setComplainantName] = useState(company?.shortName || company?.fullName || 'Учасник закупівель');
+  const [complainantEdrpou, setComplainantEdrpou] = useState(company?.edrpou || '00000000');
   const [specificDemand, setSpecificDemand] = useState('Зобов’язати Замовника усунути зазначені дискримінаційні вимоги шляхом внесення змін до тендерної документації.');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -234,6 +236,47 @@ export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
                   </button>
 
                   <button
+                    onClick={async () => {
+                      const { jsPDF } = await import('jspdf');
+                      const html2canvas = (await import('html2canvas')).default;
+                      
+                      const element = document.getElementById('complaint-document-text');
+                      if (element) {
+                        const originalBg = element.style.backgroundColor;
+                        const originalColor = element.style.color;
+                        const originalMaxHeight = element.style.maxHeight;
+                        const originalOverflow = element.style.overflow;
+                        
+                        element.style.backgroundColor = '#ffffff';
+                        element.style.color = '#000000';
+                        element.style.maxHeight = 'none';
+                        element.style.overflow = 'visible';
+                        
+                        try {
+                          const canvas = await html2canvas(element, { scale: 2 });
+                          const imgData = canvas.toDataURL('image/png');
+                          const pdf = new jsPDF({
+                            orientation: 'portrait',
+                            unit: 'px',
+                            format: [canvas.width, canvas.height]
+                          });
+                          pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+                          pdf.save(`Complaint_${currentTender.tenderNumber}.pdf`);
+                        } finally {
+                          element.style.backgroundColor = originalBg;
+                          element.style.color = originalColor;
+                          element.style.maxHeight = originalMaxHeight;
+                          element.style.overflow = originalOverflow;
+                        }
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 border border-indigo-500/30 text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>PDF</span>
+                  </button>
+
+                  <button
                     onClick={() => window.print()}
                     className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer"
                   >
@@ -254,7 +297,10 @@ export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
               </div>
 
               {/* Document Text Box */}
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-5 font-mono text-xs text-slate-200 whitespace-pre-wrap leading-relaxed max-h-[500px] overflow-y-auto select-text shadow-inner">
+              <div 
+                id="complaint-document-text"
+                className="bg-slate-950 border border-slate-800 rounded-xl p-5 font-mono text-xs text-slate-200 whitespace-pre-wrap leading-relaxed max-h-[500px] overflow-y-auto select-text shadow-inner"
+              >
                 {selectedComplaint.content}
               </div>
 

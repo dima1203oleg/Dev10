@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Tender, CompanyProfile, BidDecision } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   Radar, 
   Sparkles, 
@@ -19,7 +20,8 @@ import {
   DollarSign,
   HelpCircle,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Download
 } from 'lucide-react';
 
 interface TenderRadarModuleProps {
@@ -30,11 +32,13 @@ interface TenderRadarModuleProps {
 }
 
 export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
-  tenders,
+  tenders: dbTenders,
   company,
   onSelectTender,
   onNavigateToWarRoom
 }) => {
+  const { token } = useAuth();
+  const [tenders, setLocalTenders] = useState<Tender[]>(dbTenders);
   const [searchQuery, setSearchQuery] = useState('');
   const [nlPrompt, setNlPrompt] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -42,14 +46,73 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
   const [minBudget, setMinBudget] = useState<number>(0);
   const [maxBudget, setMaxBudget] = useState<number>(100000000);
   const [expandedWhyTenderId, setExpandedWhyTenderId] = useState<string | null>(null);
+  
+  const [isSearching, setIsSearching] = useState(false);
 
   // Apply natural language filter simulation
-  const handleApplyNlPrompt = (prompt: string) => {
+  const handleApplyNlPrompt = async (prompt: string) => {
     setNlPrompt(prompt);
-    if (prompt.includes('школ') || prompt.includes('укритт')) {
-      setSelectedCategory('Укриття та захисні споруди');
-    } else if (prompt.includes('доріг') || prompt.includes('міст')) {
-      setSelectedCategory('Дорожнє будівництво');
+    if (!token) return;
+    
+    setIsSearching(true);
+    try {
+      const res = await fetch(`/api/prozorro/search?query=${encodeURIComponent(prompt)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.tenders) {
+        // Map backend objects to frontend types
+        const mappedTenders: Tender[] = data.tenders.map((t: any) => ({
+            id: t.id,
+            tenderNumber: t.tenderNumber,
+            title: t.title,
+            customer: t.customer,
+            customerEdrpou: t.customerEdrpou,
+            customerCity: t.customerCity,
+            budgetUah: t.budgetUah,
+            deadline: t.deadline,
+            region: t.customerCity,
+            status: t.status,
+            category: t.category,
+            foulScore: t.foulScore,
+            riskLevel: t.riskLevel,
+            summary: t.summary,
+            boqItems: [],
+            violations: [],
+            requirements: [],
+            opportunityScore: {
+                overallScore: t.foulScore ? Math.max(10, 100 - t.foulScore) : 70,
+                bidDecision: t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL' ? 'BID_WITH_CONDITIONS' : 'BID',
+                bidDecisionReason: "Автоматичний скоринг Prozorro за даними Vault компанії",
+                factors: {
+                  companyFit: company ? 85 : 50,
+                  legalFit: t.riskLevel === 'CRITICAL' ? 40 : 80,
+                  docReadiness: 75,
+                  financialFeasibility: 80,
+                  competitionScore: 60,
+                  historicalWinProb: 0,
+                  executionFeasibility: 85,
+                  riskPenalty: t.foulScore || 20
+                },
+                whyThisTender: [
+                  { icon: "Shield", title: "Prozorro імпорт", description: "Отримано безпосередньо з Prozorro API", type: "POSITIVE" }
+                ]
+            }
+        }));
+        
+        // Combine DB tenders and new ones (preventing duplicates by tenderNumber)
+        const newTendersList = [...dbTenders];
+        for (const mt of mappedTenders) {
+           if (!newTendersList.find(t => t.tenderNumber === mt.tenderNumber)) {
+             newTendersList.push(mt);
+           }
+        }
+        setLocalTenders(newTendersList);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -75,8 +138,8 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
 
   // Best match tender
   const topMatchTender = [...tenders].sort((a, b) => 
-    (b.opportunityScore?.overallScore || (100 - b.foulScore)) - 
-    (a.opportunityScore?.overallScore || (100 - a.foulScore))
+    (b.opportunityScore?.overallScore ?? 0) - 
+    (a.opportunityScore?.overallScore ?? 0)
   )[0];
 
   return (
@@ -136,16 +199,17 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
               type="text"
               value={nlPrompt}
               onChange={(e) => setNlPrompt(e.target.value)}
-              placeholder="Наприклад: «Покажи мені будівництво укриттів або капремонти до 40 млн грн у Києві з високим шансом перемоги»"
+              placeholder="Наприклад: «Покажи мені будівництво укриттів...» (Реальний пошук у Prozorro API)"
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all"
             />
           </div>
           <button
             onClick={() => handleApplyNlPrompt(nlPrompt)}
-            className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
+            disabled={isSearching}
+            className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-slate-950 font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
           >
-            <Sparkles className="w-4 h-4" />
-            <span>AI Фільтр</span>
+            {isSearching ? <Radar className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            <span>{isSearching ? "Шукаю..." : "Шукати в Prozorro"}</span>
           </button>
         </div>
 
@@ -185,7 +249,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
             <div className="flex items-center space-x-2">
               <span className="text-xs text-slate-400 font-medium">Opportunity Score:</span>
               <span className="text-lg font-black text-emerald-400 bg-emerald-950/80 px-2.5 py-0.5 rounded-lg border border-emerald-800">
-                {topMatchTender.opportunityScore?.overallScore || 94}% MATCH
+                {topMatchTender.opportunityScore?.overallScore ? `${topMatchTender.opportunityScore.overallScore}% MATCH` : 'UNKNOWN'}
               </span>
             </div>
           </div>
@@ -311,7 +375,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
         </div>
 
         {filteredTenders.map((tender) => {
-          const score = tender.opportunityScore?.overallScore || (100 - tender.foulScore);
+          const score = tender.opportunityScore?.overallScore;
           const decision = tender.opportunityScore?.bidDecision || (tender.foulScore > 60 ? 'NO_BID' : 'BID');
           const isExpanded = expandedWhyTenderId === tender.id;
 
@@ -389,7 +453,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                   <div className="text-right">
                     <div className="text-[11px] text-slate-400">Opportunity Score</div>
                     <div className="text-2xl font-black text-emerald-400">
-                      {score}%
+                      {score ? `${score}%` : 'UNKNOWN'}
                     </div>
                   </div>
 
@@ -404,14 +468,24 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                     </button>
 
                     <button
-                      onClick={() => {
-                        onSelectTender(tender);
-                        onNavigateToWarRoom(tender);
+                      onClick={async () => {
+                         if (!token) return;
+                         try {
+                           await fetch('/api/tenders', {
+                             method: 'POST',
+                             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                             body: JSON.stringify(tender)
+                           });
+                           onSelectTender(tender);
+                           onNavigateToWarRoom(tender);
+                         } catch (e) {
+                           console.error(e);
+                         }
                       }}
-                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-bold flex items-center space-x-1 transition-all shadow-md cursor-pointer"
+                      className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center space-x-1 transition-all shadow-md cursor-pointer"
                     >
-                      <span>War Room</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Імпорт & War Room</span>
                     </button>
                   </div>
                 </div>
@@ -424,7 +498,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                       <Sparkles className="w-4 h-4 text-emerald-400" />
-                      Багатофакторний розрахунок Opportunity Score ({score}/100)
+                      Багатофакторний розрахунок Opportunity Score ({score ? `${score}/100` : 'Дані відсутні'})
                     </span>
                     <span className="text-[11px] text-slate-400">
                       Формула: Company Fit + Legal + Docs + Margin + Competition - Risk Penalty

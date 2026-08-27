@@ -64,54 +64,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 id="hero-radar-btn"
                 onClick={() => onNavigate('radar')}
-                className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm shadow-lg shadow-emerald-900/40 transition-all cursor-pointer"
+                className="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm shadow-lg shadow-emerald-900/40 transition-all cursor-pointer"
               >
-                <Sparkles className="w-4 h-4" />
-                <span>AI Тендерний Радар</span>
+                <Search className="w-4 h-4" />
+                <span>Знайти тендери (AI Радар)</span>
               </button>
 
               <button
                 id="hero-war-room-btn"
                 onClick={() => onNavigate('war-room')}
-                className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-lg shadow-indigo-900/30 transition-all cursor-pointer"
+                className="inline-flex items-center space-x-2 px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm border border-slate-700 transition-all cursor-pointer"
               >
                 <Briefcase className="w-4 h-4" />
-                <span>Tender War Room</span>
-              </button>
-
-              <button
-                id="hero-matrix-btn"
-                onClick={() => onNavigate('matrix')}
-                className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-semibold transition-all cursor-pointer"
-              >
-                <CheckSquare className="w-4 h-4 text-emerald-400" />
-                <span>Матриця вимог</span>
-              </button>
-
-              <button
-                id="hero-foultender-btn"
-                onClick={() => onNavigate('foultender')}
-                className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-red-950/60 hover:bg-red-900/70 text-red-200 border border-red-800/60 text-sm font-semibold transition-all cursor-pointer"
-              >
-                <ShieldAlert className="w-4 h-4 text-red-400" />
-                <span>FoulTender</span>
+                <span>Відкрити War Room</span>
               </button>
             </div>
           </div>
 
-          {/* Quick Stat Pill */}
-          <div className="bg-slate-800/80 backdrop-blur border border-slate-700/80 rounded-xl p-4 sm:p-5 flex flex-col justify-center space-y-3 min-w-[240px]">
-            <div className="text-xs text-slate-400 font-medium">Ефективність платформи</div>
-            <div className="flex items-baseline space-x-2">
-              <span className="text-3xl font-extrabold text-emerald-400">94.2%</span>
-              <span className="text-xs text-slate-300">успіх скарг в АМКУ</span>
-            </div>
-            <div className="h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full" style={{ width: '94.2%' }}></div>
-            </div>
-            <div className="text-[11px] text-slate-400 flex items-center justify-between">
-              <span>Запобігли збиткам:</span>
-              <span className="font-semibold text-slate-200">~148.5 млн ₴</span>
+          {/* Clean Overview Card */}
+          <div className="bg-slate-800/80 backdrop-blur border border-slate-700/80 rounded-xl p-5 flex flex-col justify-center space-y-3 min-w-[220px]">
+            <div className="text-xs text-slate-400 font-medium uppercase tracking-wider">Ваш портфель</div>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300 text-sm">В роботі:</span>
+                <span className="font-bold text-white">{tenders.length} торгів</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300 text-sm">Ризикові:</span>
+                <span className="font-bold text-red-400">{highRiskTenders.length} торгів</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300 text-sm">Заг. бюджет:</span>
+                <span className="font-bold text-emerald-400">{(totalBudget / 1000000).toFixed(1)} млн ₴</span>
+              </div>
             </div>
           </div>
         </div>
@@ -167,7 +152,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="text-xs text-slate-400">готових кошторисів</span>
           </div>
           <div className="mt-2 text-xs text-slate-400">
-            Сер. маржинальність: <span className="text-emerald-400 font-bold">18.5%</span>
+            {tenders.filter(t => t.multiAgentAnalysis).length > 0 
+              ? <>Розраховано AI: <span className="text-emerald-400 font-bold">{tenders.filter(t => t.multiAgentAnalysis).length} об'єктів</span></>
+              : <>Статус BoQ: <span className="text-slate-400">Потребує аналізу</span></>}
           </div>
         </div>
 
@@ -184,118 +171,148 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="text-xs text-slate-400">рекомендовано</span>
           </div>
           <div className="mt-2 text-xs text-slate-400">
-            Правовий шанс виграшу: <span className="text-amber-400 font-bold">&gt; 90%</span>
+            {tenders.filter(t => t.amcuAppealRecommendation?.recommended).length > 0
+              ? <>Перспектива: <span className="text-amber-400 font-bold">Висока ймовірність</span></>
+              : <>Перспектива: <span className="text-slate-400">Без підтвердних порушень</span></>}
           </div>
         </div>
 
       </div>
 
-      {/* Enterprise Platform Interactive Modules */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md space-y-4">
-        <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+      {/* Enterprise Platform Interactive Modules -> Replaced with Simple Pipeline Workflow */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 md:p-8 shadow-md">
+        <div className="mb-8">
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-emerald-400" />
-            Модулі корпоративної платформи Tender Intelligence
+            Процес підготовки (Tender Pipeline)
           </h2>
-          <p className="text-xs text-slate-400">Швидкий доступ до інструментів підготовки та безпеки тендерної пропозиції</p>
+          <p className="text-sm text-slate-400 mt-1">Простий та інтуїтивний робочий процес для успішної участі у тендері.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div 
-            onClick={() => onNavigate('matrix')}
-            className="bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-emerald-500/40 rounded-xl p-4 cursor-pointer transition-all flex flex-col justify-between group"
-          >
-            <div>
-              <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg w-fit mb-3 group-hover:scale-110 transition-transform">
-                <CheckSquare className="w-5 h-5" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Step 1: Discover & Analyze */}
+          <div className="flex flex-col relative group">
+            <div className="hidden lg:block absolute top-6 left-[60%] w-full h-[2px] bg-slate-800 group-hover:bg-emerald-900/50 transition-colors z-0"></div>
+            
+            <div className="flex items-center gap-4 mb-4 relative z-10">
+              <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-lg font-bold text-slate-300 shadow-md">
+                1
               </div>
-              <h3 className="font-bold text-sm text-slate-200 group-hover:text-emerald-400 transition-colors">Матриця вимог</h3>
-              <p className="text-xs text-slate-400 mt-1">Декомпозиція ТД та зіставлення з Vault</p>
+              <div>
+                <h3 className="font-bold text-slate-200">Пошук & Аналіз</h3>
+                <p className="text-xs text-slate-400">Знайти тендер та перевірити ризики</p>
+              </div>
             </div>
-            <div className="mt-4 text-xs font-semibold text-emerald-400 flex items-center gap-1">
-              Перейти <ArrowRight className="w-3 h-3" />
+            
+            <div className="space-y-2 relative z-10">
+              <button onClick={() => onNavigate('radar')} className="w-full bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between group/btn transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg"><Sparkles className="w-4 h-4" /></div>
+                  <span className="text-sm font-medium text-slate-300 group-hover/btn:text-white">AI Тендерний Радар</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover/btn:text-emerald-400 group-hover/btn:-rotate-45 transition-all" />
+              </button>
+              
+              <button onClick={() => onNavigate('foultender')} className="w-full bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between group/btn transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-red-500/10 text-red-400 rounded-lg"><ShieldAlert className="w-4 h-4" /></div>
+                  <span className="text-sm font-medium text-slate-300 group-hover/btn:text-white">FoulTender (Корупція)</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover/btn:text-red-400 group-hover/btn:-rotate-45 transition-all" />
+              </button>
+
+              <button onClick={() => onNavigate('competitors')} className="w-full bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between group/btn transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg"><Users2 className="w-4 h-4" /></div>
+                  <span className="text-sm font-medium text-slate-300 group-hover/btn:text-white">Аналіз конкурентів</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover/btn:text-amber-400 group-hover/btn:-rotate-45 transition-all" />
+              </button>
             </div>
           </div>
 
-          <div 
-            onClick={() => onNavigate('vault')}
-            className="bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-emerald-500/40 rounded-xl p-4 cursor-pointer transition-all flex flex-col justify-between group"
-          >
-            <div>
-              <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg w-fit mb-3 group-hover:scale-110 transition-transform">
-                <ShieldCheck className="w-5 h-5" />
+          {/* Step 2: Prepare */}
+          <div className="flex flex-col relative group">
+            <div className="hidden lg:block absolute top-6 left-[60%] w-full h-[2px] bg-slate-800 group-hover:bg-indigo-900/50 transition-colors z-0"></div>
+            
+            <div className="flex items-center gap-4 mb-4 relative z-10">
+              <div className="w-12 h-12 rounded-full bg-indigo-950/50 border-2 border-indigo-500/30 flex items-center justify-center text-lg font-bold text-indigo-400 shadow-md">
+                2
               </div>
-              <h3 className="font-bold text-sm text-slate-200 group-hover:text-emerald-400 transition-colors">Smart Vault</h3>
-              <p className="text-xs text-slate-400 mt-1">Документи, техніка, персонал компанії</p>
+              <div>
+                <h3 className="font-bold text-slate-200">Підготовка</h3>
+                <p className="text-xs text-slate-400">Розрахунки та документи</p>
+              </div>
             </div>
-            <div className="mt-4 text-xs font-semibold text-emerald-400 flex items-center gap-1">
-              Перейти <ArrowRight className="w-3 h-3" />
+            
+            <div className="space-y-2 relative z-10">
+              <button onClick={() => onNavigate('war-room')} className="w-full bg-indigo-950/20 hover:bg-indigo-900/40 border border-indigo-900/30 rounded-xl p-3 flex items-center justify-between group/btn transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg"><Briefcase className="w-4 h-4" /></div>
+                  <span className="text-sm font-medium text-slate-300 group-hover/btn:text-white">Tender War Room</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover/btn:text-indigo-400 group-hover/btn:-rotate-45 transition-all" />
+              </button>
+
+              <button onClick={() => onNavigate('matrix')} className="w-full bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between group/btn transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg"><CheckSquare className="w-4 h-4" /></div>
+                  <span className="text-sm font-medium text-slate-300 group-hover/btn:text-white">Матриця вимог</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover/btn:text-emerald-400 group-hover/btn:-rotate-45 transition-all" />
+              </button>
+
+              <button onClick={() => onNavigate('construction')} className="w-full bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between group/btn transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg"><Building2 className="w-4 h-4" /></div>
+                  <span className="text-sm font-medium text-slate-300 group-hover/btn:text-white">Кошторис & BoQ</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover/btn:text-emerald-400 group-hover/btn:-rotate-45 transition-all" />
+              </button>
             </div>
           </div>
 
-          <div 
-            onClick={() => onNavigate('competitors')}
-            className="bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-amber-500/40 rounded-xl p-4 cursor-pointer transition-all flex flex-col justify-between group"
-          >
-            <div>
-              <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg w-fit mb-3 group-hover:scale-110 transition-transform">
-                <Users2 className="w-5 h-5" />
+          {/* Step 3: Finalize & Submit */}
+          <div className="flex flex-col relative group">
+            
+            <div className="flex items-center gap-4 mb-4 relative z-10">
+              <div className="w-12 h-12 rounded-full bg-emerald-950/50 border-2 border-emerald-500/30 flex items-center justify-center text-lg font-bold text-emerald-400 shadow-md">
+                3
               </div>
-              <h3 className="font-bold text-sm text-slate-200 group-hover:text-amber-400 transition-colors">Конкуренти & Змови</h3>
-              <p className="text-xs text-slate-400 mt-1">Виявлення спарингів та змов у торгах</p>
+              <div>
+                <h3 className="font-bold text-slate-200">Фіналізація & Подача</h3>
+                <p className="text-xs text-slate-400">Аудит, формування пакету та скарги</p>
+              </div>
             </div>
-            <div className="mt-4 text-xs font-semibold text-amber-400 flex items-center gap-1">
-              Перейти <ArrowRight className="w-3 h-3" />
+            
+            <div className="space-y-2 relative z-10">
+              <button onClick={() => onNavigate('audit')} className="w-full bg-emerald-950/20 hover:bg-emerald-900/40 border border-emerald-900/30 rounded-xl p-3 flex items-center justify-between group/btn transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg"><FileCheck2 className="w-4 h-4" /></div>
+                  <span className="text-sm font-medium text-slate-300 group-hover/btn:text-white">Pre-Submission Аудит</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover/btn:text-emerald-400 group-hover/btn:-rotate-45 transition-all" />
+              </button>
+
+              <button onClick={() => onNavigate('bid-packages')} className="w-full bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between group/btn transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg"><Briefcase className="w-4 h-4" /></div>
+                  <span className="text-sm font-medium text-slate-300 group-hover/btn:text-white">Генератор Пакетів</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover/btn:text-indigo-400 group-hover/btn:-rotate-45 transition-all" />
+              </button>
+
+              <button onClick={() => onNavigate('complaints')} className="w-full bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 rounded-xl p-3 flex items-center justify-between group/btn transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg"><Scale className="w-4 h-4" /></div>
+                  <span className="text-sm font-medium text-slate-300 group-hover/btn:text-white">Скарги до АМКУ</span>
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover/btn:text-amber-400 group-hover/btn:-rotate-45 transition-all" />
+              </button>
             </div>
           </div>
 
-          <div 
-            onClick={() => onNavigate('diff')}
-            className="bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-indigo-500/40 rounded-xl p-4 cursor-pointer transition-all flex flex-col justify-between group"
-          >
-            <div>
-              <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg w-fit mb-3 group-hover:scale-110 transition-transform">
-                <GitCompare className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-sm text-slate-200 group-hover:text-indigo-400 transition-colors">AI Diff версій</h3>
-              <p className="text-xs text-slate-400 mt-1">Контроль змін та прихованих умов ТД</p>
-            </div>
-            <div className="mt-4 text-xs font-semibold text-indigo-400 flex items-center gap-1">
-              Перейти <ArrowRight className="w-3 h-3" />
-            </div>
-          </div>
-
-          <div 
-            onClick={() => onNavigate('audit')}
-            className="bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-emerald-500/40 rounded-xl p-4 cursor-pointer transition-all flex flex-col justify-between group"
-          >
-            <div>
-              <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg w-fit mb-3 group-hover:scale-110 transition-transform">
-                <FileCheck2 className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-sm text-slate-200 group-hover:text-emerald-400 transition-colors">Pre-Submission</h3>
-              <p className="text-xs text-slate-400 mt-1">Фінальний аудит та блокуючий чеклист</p>
-            </div>
-            <div className="mt-4 text-xs font-semibold text-emerald-400 flex items-center gap-1">
-              Перейти <ArrowRight className="w-3 h-3" />
-            </div>
-          </div>
-
-          <div 
-            onClick={() => onNavigate('complaints')}
-            className="bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-rose-500/40 rounded-xl p-4 cursor-pointer transition-all flex flex-col justify-between group"
-          >
-            <div>
-              <div className="p-2 bg-rose-500/10 text-rose-400 rounded-lg w-fit mb-3 group-hover:scale-110 transition-transform">
-                <Scale className="w-5 h-5" />
-              </div>
-              <h3 className="font-bold text-sm text-slate-200 group-hover:text-rose-400 transition-colors">Скарги АМКУ</h3>
-              <p className="text-xs text-slate-400 mt-1">Генератор скарг за ст. 18 Закону</p>
-            </div>
-            <div className="mt-4 text-xs font-semibold text-rose-400 flex items-center gap-1">
-              Перейти <ArrowRight className="w-3 h-3" />
-            </div>
-          </div>
         </div>
       </div>
 

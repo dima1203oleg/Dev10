@@ -20,7 +20,8 @@ export type AppSection =
   | 'multiagent-chat' 
   | 'complaints' 
   | 'bid-packages'
-  | 'services';
+  | 'services'
+  | 'analytics';
 
 export interface BoQItem {
   id: string;

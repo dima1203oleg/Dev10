@@ -273,8 +273,10 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
               {/* AMCU Win chance */}
               {activeAmcu && activeAmcu.recommended && (
                 <div className="bg-slate-900/80 border border-slate-700/80 rounded-xl px-4 py-3 text-right">
-                  <div className="text-[11px] text-slate-400">Ймовірність виграшу в АМКУ</div>
-                  <div className="text-xl font-black text-emerald-400">{activeAmcu.winProbabilityPercent}%</div>
+                  <div className="text-[11px] text-slate-400">Перспектива оскарження в АМКУ</div>
+                  <div className="text-sm font-bold text-emerald-400">
+                    {activeAmcu.winProbabilityPercent ? `${activeAmcu.winProbabilityPercent}%` : 'Високий юридичний потенціал (Недостатньо історичної статистики)'}
+                  </div>
                 </div>
               )}
             </div>

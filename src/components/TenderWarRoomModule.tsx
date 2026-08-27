@@ -233,8 +233,14 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
                 <Building2 className="w-4 h-4 text-blue-400" />
               </div>
               <div className="mt-3">
-                <div className="text-lg font-bold text-white">4 розділи робіт</div>
-                <p className="text-xs text-slate-400 mt-0.5">Маржа 21.4% (8.25 млн ₴)</p>
+                <div className="text-lg font-bold text-white">
+                  {currentTender.boqItems?.length ? `${currentTender.boqItems.length} позицій кошторису` : 'Кошторисний аналіз'}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {currentTender.multiAgentAnalysis?.agents?.bidManager?.recommendedBidPrice
+                    ? `Реком. ціна: ${currentTender.multiAgentAnalysis.agents.bidManager.recommendedBidPrice.toLocaleString()} ₴`
+                    : 'Декомпозиція АВК-5 / BoQ'}
+                </p>
               </div>
               <div className="mt-3 text-xs text-blue-400 font-semibold flex items-center gap-1">
                 Відкрити АВК-5 аналізатор <ArrowRight className="w-3 h-3" />
@@ -250,8 +256,12 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
                 <Users2 className="w-4 h-4 text-amber-400" />
               </div>
               <div className="mt-3">
-                <div className="text-lg font-bold text-white">2 спаринг-партнери</div>
-                <p className="text-xs text-slate-400 mt-0.5">Ризик змови: 78/100</p>
+                <div className="text-lg font-bold text-white">
+                  {currentTender.collusionAnalysis?.primarySuspects?.length ? `${currentTender.collusionAnalysis.primarySuspects.length} підозрілих учасники` : 'Граф аномалій'}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Ризик змови: {currentTender.collusionAnalysis?.collusionRiskScore !== undefined ? `${currentTender.collusionAnalysis.collusionRiskScore}/100` : 'ПОТРЕБУЄ СКАНИ'}
+                </p>
               </div>
               <div className="mt-3 text-xs text-amber-400 font-semibold flex items-center gap-1">
                 Перевірити граф зв'язків <ArrowRight className="w-3 h-3" />
@@ -267,8 +277,12 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
                 <Scale className="w-4 h-4 text-red-400" />
               </div>
               <div className="mt-3">
-                <div className="text-lg font-bold text-white">92% шанс виграшу</div>
-                <p className="text-xs text-slate-400 mt-0.5">Готовий проєкт скарги ст. 18</p>
+                <div className="text-lg font-bold text-white">
+                  {currentTender.foulScore ? `${Math.max(0, 100 - currentTender.foulScore)}% шанс оскарження` : 'Аналіз дискримінації'}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {currentTender.foulScore && currentTender.foulScore > 50 ? 'Виявлено порушення ТД' : 'Готовий проєкт скарги ст. 18'}
+                </p>
               </div>
               <div className="mt-3 text-xs text-red-400 font-semibold flex items-center gap-1">
                 Згенерувати скаргу <ArrowRight className="w-3 h-3" />
@@ -483,14 +497,16 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-400">Ймовірність перемоги:</span>
-                      <span className="font-bold text-slate-200">{scenario.winProbabilityPercent}%</span>
+                      <span className="text-slate-400">Оцінка успішності:</span>
+                      <span className="font-bold text-slate-200">
+                        {scenario.winProbabilityPercent ? `${scenario.winProbabilityPercent}%` : 'Недостатньо даних'}
+                      </span>
                     </div>
 
                     <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
                       <div 
                         className="h-full bg-gradient-to-r from-emerald-500 to-teal-400" 
-                        style={{ width: `${scenario.winProbabilityPercent}%` }}
+                        style={{ width: `${scenario.winProbabilityPercent || 50}%` }}
                       />
                     </div>
                   </div>

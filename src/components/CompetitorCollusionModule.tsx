@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Tender, CompetitorProfile, CollusionAnalysis } from '../types';
-import { INITIAL_COMPETITORS } from '../data/mockTenders';
 import { 
   Users2, 
   ShieldAlert, 
@@ -13,7 +12,8 @@ import {
   Ban,
   CheckCircle,
   FileSearch,
-  Eye
+  Eye,
+  AlertCircle
 } from 'lucide-react';
 
 interface CompetitorCollusionModuleProps {
@@ -24,15 +24,17 @@ interface CompetitorCollusionModuleProps {
 
 export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps> = ({
   currentTender,
-  competitors = INITIAL_COMPETITORS,
+  competitors = [],
   onNavigateToAmcu,
 }) => {
   const [competitorList, setCompetitorList] = useState<CompetitorProfile[]>(competitors);
   const [isScanning, setIsScanning] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [collusionData, setCollusionData] = useState<CollusionAnalysis | undefined>(currentTender.collusionAnalysis);
 
   const handleRunCollusionScan = async () => {
     setIsScanning(true);
+    setErrorMessage(null);
     try {
       const response = await fetch('/api/tenderai/collusion-detect', {
         method: 'POST',
@@ -43,27 +45,37 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
           competitors: competitorList
         })
       });
-      if (!response.ok) throw new Error('Помилка аналізу змов');
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Помилка аналізу змов. Спробуйте ще раз.');
+      }
       const data = await response.json();
       setCollusionData({
         tenderId: currentTender.id,
-        collusionRiskScore: data.collusionRiskScore || 78,
-        riskLevel: data.riskLevel || 'HIGH',
-        primarySuspects: data.primarySuspects || ['ТОВ «Столичний Моноліт Буд»', 'ТОВ «КиївБудКомплект-2020»'],
+        collusionRiskScore: data.collusionRiskScore ?? 0,
+        riskLevel: data.riskLevel || 'LOW',
+        primarySuspects: data.primarySuspects || [],
         anomaliesDetected: data.anomaliesDetected || [],
         coBiddingGraph: data.coBiddingGraph || []
       });
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("Collusion scan error:", e);
+      setErrorMessage(e.message || 'AI_UNAVAILABLE');
     } finally {
       setIsScanning(false);
     }
   };
 
-  const riskScore = collusionData?.collusionRiskScore || 78;
+  const riskScore = collusionData?.collusionRiskScore ?? 0;
 
   return (
     <div id="competitor-collusion-module" className="space-y-6">
+      {errorMessage && (
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 flex items-center gap-3 text-rose-300">
+          <AlertCircle className="w-5 h-5 flex-shrink-0" />
+          <p className="text-sm font-medium">{errorMessage}</p>
+        </div>
+      )}
       {/* Header Banner */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">

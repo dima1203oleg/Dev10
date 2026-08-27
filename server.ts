@@ -3,6 +3,11 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
+import { getOrCreateUser } from "./src/db/users.ts";
+import { db } from "./src/db/index.ts";
+import { tenders as tendersTable, companyProfiles, complaints } from "./src/db/schema.ts";
+import { eq } from "drizzle-orm";
 
 dotenv.config();
 
@@ -10,6 +15,144 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json({ limit: "10mb" }));
+
+// Auth sync endpoint
+app.post("/api/auth/sync", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user || !user.email) {
+      return res.status(400).json({ error: "Missing user email" });
+    }
+    
+    const dbUser = await getOrCreateUser(user.uid, user.email);
+    res.json({ status: "ok", user: dbUser });
+  } catch (error) {
+    console.error("Auth sync error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// API: Get Data (Tenders, Profile, etc)
+app.get("/api/data", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    
+    // Fetch all user's tenders
+    let userTenders = await db.select().from(tendersTable).where(eq(tendersTable.userId, dbUser.id));
+    
+    // Fetch company profile
+    const userProfiles = await db.select().from(companyProfiles).where(eq(companyProfiles.userId, dbUser.id));
+    
+    res.json({
+      tenders: userTenders,
+      profile: userProfiles.length > 0 ? userProfiles[0] : null
+    });
+  } catch (error) {
+    console.error("Data fetch error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// API: Save Tender
+app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    
+    const { tenderNumber, title, customer, budgetUah, status, foulScore, riskLevel, summary, detailedData } = req.body;
+    
+    // Check if it already exists by tenderNumber
+    const existing = await db.select().from(tendersTable).where(eq(tendersTable.tenderNumber, tenderNumber));
+    if (existing.length > 0) {
+      return res.json(existing[0]); // Return existing instead of duplicating
+    }
+    
+    const newTender = await db.insert(tendersTable).values({
+      userId: dbUser.id,
+      tenderNumber,
+      title,
+      customer,
+      budgetUah,
+      status,
+      foulScore,
+      riskLevel,
+      summary,
+      detailedData
+    }).returning();
+    
+    res.json(newTender[0]);
+  } catch (error) {
+    console.error("Save tender error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// API: Real Prozorro Search Integration
+app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { query } = req.query;
+    
+    // Fetch a list of recent tenders from Prozorro
+    const response = await fetch("https://public.api.openprocurement.org/api/2.5/tenders?descending=1&limit=20");
+    const json = await response.json();
+    
+    if (!json.data) {
+      return res.json({ tenders: [] });
+    }
+    
+    // Fetch details for the first 5 to avoid long wait
+    const detailedTenders = [];
+    for (const item of json.data.slice(0, 5)) {
+      try {
+        const detailRes = await fetch(`https://public.api.openprocurement.org/api/2.5/tenders/${item.id}`);
+        const detailJson = await detailRes.json();
+        const data = detailJson.data;
+        
+        // Match query if provided
+        if (query && typeof query === 'string') {
+          const q = query.toLowerCase();
+          const titleMatches = (data.title || "").toLowerCase().includes(q);
+          const customerMatches = (data.procuringEntity?.name || "").toLowerCase().includes(q);
+          if (!titleMatches && !customerMatches) {
+            continue; // Skip this one
+          }
+        }
+        
+        // Map to our Tender format
+        detailedTenders.push({
+          id: data.id,
+          tenderNumber: data.tenderID,
+          title: data.title || "Без назви",
+          customer: data.procuringEntity?.name || "Невідомий замовник",
+          customerEdrpou: data.procuringEntity?.identifier?.id || "00000000",
+          customerCity: data.procuringEntity?.address?.locality || "Київ",
+          budgetUah: data.value?.amount || 0,
+          deadline: data.tenderPeriod?.endDate || new Date().toISOString(),
+          status: 'ACTIVE',
+          category: data.mainProcurementCategory || "Загальні",
+          foulScore: Math.floor(Math.random() * 30) + 5, // Simulated initial low-risk score
+          riskLevel: "LOW",
+          summary: "Імпортовано з Prozorro. Для виявлення корупційних ризиків запустіть AI Аналіз (FoulTender).",
+          boqItems: [],
+          violations: [],
+          requirements: []
+        });
+      } catch (err) {
+        console.error("Failed to fetch details for", item.id);
+      }
+    }
+    
+    res.json({ tenders: detailedTenders });
+  } catch (error) {
+    console.error("Prozorro API error:", error);
+    res.status(500).json({ error: "Failed to fetch from Prozorro" });
+  }
+});
+
 
 // Lazy Google GenAI initialization
 function getGeminiClient(): GoogleGenAI | null {
@@ -25,6 +168,81 @@ function getGeminiClient(): GoogleGenAI | null {
       },
     },
   });
+}
+
+// Helper to execute Gemini requests with model fallbacks & transient retry
+async function generateContentWithFallback(
+  ai: GoogleGenAI,
+  params: {
+    contents: any;
+    config?: any;
+    primaryModel?: string;
+  }
+) {
+  const modelsToTry = Array.from(
+    new Set([
+      params.primaryModel || "gemini-3.6-flash",
+      "gemini-3.6-flash",
+      "gemini-3.7-flash",
+      "gemini-3.1-flash-lite",
+      "gemini-flash-latest"
+    ])
+  );
+
+  let lastError: any = null;
+
+  for (const modelName of modelsToTry) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: params.contents,
+          config: params.config,
+        });
+        return response;
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = String(err?.message || err || "");
+        const isTransient =
+          err?.status === 503 ||
+          err?.code === 503 ||
+          errMsg.includes("503") ||
+          errMsg.includes("high demand") ||
+          errMsg.includes("UNAVAILABLE") ||
+          errMsg.includes("overloaded") ||
+          err?.status === 429 ||
+          err?.code === 429;
+
+        console.warn(
+          `[Gemini] Call to '${modelName}' (attempt ${attempt + 1}) failed (${errMsg}). ${
+            isTransient ? "Retrying or switching fallback..." : ""
+          }`
+        );
+
+        if (isTransient && attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+        } else {
+          break;
+        }
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+function handleAiError(res: express.Response, error: any, defaultMsg: string) {
+  const errMsg = String(error?.message || error || "");
+  const is503 = error?.status === 503 || error?.code === 503 || errMsg.includes("503") || errMsg.includes("high demand") || errMsg.includes("UNAVAILABLE");
+  
+  if (is503) {
+    return res.status(503).json({
+      error: "ШІ-сервіс тимчасово перевантажений (503 UNAVAILABLE). Будь ласка, спробуйте ще раз через кілька секунд.",
+      code: "AI_UNAVAILABLE"
+    });
+  }
+  
+  return res.status(500).json({ error: errMsg || defaultMsg });
 }
 
 // Health check endpoint
@@ -44,44 +262,7 @@ app.post("/api/foultender/audit", async (req, res) => {
 
     const ai = getGeminiClient();
     if (!ai) {
-      // Fallback deterministic intelligent audit response if key is temporarily missing
-      return res.json({
-        foulScore: 78,
-        riskLevel: "HIGH",
-        summary: `Виявлено високий рівень ризику дискримінації та необґрунтованого звуження конкуренції у закупівлі "${tenderTitle || tenderId}".`,
-        violations: [
-          {
-            type: "DISCRIMINATORY_REQUIREMENT",
-            severity: "HIGH",
-            title: "Штучне обмеження сертифікації виробника",
-            description: "Вимога надати оригінал сертифікату ISO 9001:2015, виданого виключно акредитованим органом у конкретній області не раніше ніж за 5 днів до кінця подання.",
-            legalBasis: "Порушення ч. 4 ст. 5 та ч. 4 ст. 22 Закону України «Про публічні закупівлі» (недискримінація учасників).",
-            amcuPrecedent: "Рішення Колегії АМКУ № 14221-р/пк-пз: Замовника зобов'язано усунути аналогічну дискримінаційну вимогу.",
-          },
-          {
-            type: "UNREALISTIC_TIMELINE",
-            severity: "HIGH",
-            title: "Нереальні терміни виконання будівельно-монтажних робіт",
-            description: "Встановлено строк виконання капітальних робіт 14 календарних днів при обсязі кошторису понад 45 млн грн, що вказує на ймовірну наявність вже виконаних робіт 'підрядником-фаворитом'.",
-            legalBasis: "Ознака створення штучних переваг для заздалегідь визначеного учасника.",
-            amcuPrecedent: "Практика ДАСУ щодо моніторингу закупівель з ознаками фіктивних строків.",
-          },
-          {
-            type: "PRICING_ANOMALY",
-            severity: "MEDIUM",
-            title: "Завищення вартості ключових будівельних матеріалів на 22-35%",
-            description: "Орієнтовна ціна на бетонну суміш В25 та арматуру А500С у технічній специфікації перевищує середньоринковий індекс регіону на 28%.",
-            legalBasis: "Неефективне та нераціональне використання бюджетних коштів (ст. 5 ЗУ 'Про публічні закупівлі').",
-            amcuPrecedent: "Рекомендовано звернення до Держаудитслужби (ДАСУ).",
-          }
-        ],
-        amcuAppealRecommendation: {
-          recommended: true,
-          winProbabilityPercent: 88,
-          appealGrounds: "Оскарження дискримінаційних положень ТД до Постійно діючої адміністративної колегії АМКУ з розгляду скарг про порушення законодавства у сфері публічних закупівель.",
-          estimatedAmcuFeeUah: 85000,
-        }
-      });
+      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
     }
 
     const prompt = `Виступай у ролі експертного аудитора антикорупційної платформи "FoulTender" та провідного юриста з публічних закупівель України (Prozorro, АМКУ, ДАСУ).
@@ -121,8 +302,7 @@ ${tenderText || "Вимоги до учасників: наявність вла
   }
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await generateContentWithFallback(ai, {
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -134,7 +314,7 @@ ${tenderText || "Вимоги до учасників: наявність вла
     return res.json(parsed);
   } catch (error: any) {
     console.error("FoulTender Audit Error:", error);
-    res.status(500).json({ error: error.message || "Помилка аналізу тендеру" });
+    return handleAiError(res, error, "Помилка аналізу тендеру");
   }
 });
 
@@ -145,42 +325,7 @@ app.post("/api/foultender/generate-complaint", async (req, res) => {
 
     const ai = getGeminiClient();
     if (!ai) {
-      return res.json({
-        complaintText: `ПОСТІЙНО ДІЮЧІЙ АДМІНІСТРАТИВНІЙ КОЛЕГІЇ
-АНТИМОНОПОЛЬНОГО КОМІТЕТУ УКРАЇНИ З РОЗГЛЯДУ СКАРГ
-ПРО ПОРУШЕННЯ ЗАКОНОДАВСТВА У СФЕРІ ПУБЛІЧНИХ ЗАКУПІВЕЛЬ
-вул. Митрополита Василя Липківського, 45, м. Київ, 03035
-
-Скаржник: ${complainantName || "ТОВ «БудСтандарт-Альянс»"} (Код ЄДРПОУ: ${edrpou || "39182736"})
-Суб'єкт оскарження (Замовник): ${customer || "Департамент інфраструктури та будівництва"}
-Ідентифікатор закупівлі: ${tenderId || "UA-2024-08-20-003412-a"}
-Назва закупівлі: «${tenderTitle || "Капітальний ремонт будівлі"}»
-
-СКАРГА
-щодо встановлення дискримінаційних умов у тендерній документації
-
-1. ОБСТАВИНИ СПРАВИ ТА СУТЬ ПОРУШЕНЬ:
-Замовником у Додатку 2 до Тендерної документації встановлено вимоги, які грубо порушують засади публічних закупівель, визначені статтею 5 Закону України «Про публічні закупівлі», зокрема принцип недискримінації учасників та добросовісної конкуренції.
-
-Встановлені дискримінаційні вимоги:
-${(violations || ["Штучне звуження кола учасників шляхом встановлення непропорційних вимог до відстані виробничих потужностей"]).map((v: string, i: number) => `${i + 1}. ${v}`).join("\n")}
-
-2. ПРАВОВЕ ОБҐРУНТУВАННЯ:
-Відповідно до частини 4 статті 22 Закону, тендерна документація не повинна містити вимог, що обмежують конкуренцію та призводять до дискримінації учасників. Встановлені Замовником критерії штучно обмежують коло потенційних учасників та прописані під єдиного наперед визначеного постачальника.
-
-3. ВИМОГИ СКАРЖНИКА:
-Керуючись ст. 5, 18, 22 Закону України «Про публічні закупівлі»,
-
-ПРОСИМО:
-1. Прийняти скаргу до розгляду.
-2. Зобов’язати Замовника (${customer}) усунути дискримінаційні вимоги та внести зміни до тендерної документації щодо закупівлі ${tenderId}.`,
-        legalReferences: [
-          "Частина 4 статті 5 ЗУ «Про публічні закупівлі»",
-          "Частина 4 статті 22 ЗУ «Про публічні закупівлі»",
-          "Стаття 18 ЗУ «Про публічні закупівлі» (Порядок оскарження)"
-        ],
-        estimatedFee: 85000
-      });
+      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
     }
 
     const prompt = `Склади професійну юридичну Скаргу до Постійно діючої адміністративної колегії Антимонопольного комітету України (АМКУ) з розгляду скарг про порушення законодавства у сфері публічних закупівель.
@@ -202,8 +347,7 @@ ${(violations || ["Штучне звуження кола учасників ш�
   "estimatedFee": number (розмір плати за подання скарги в грн)
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await generateContentWithFallback(ai, {
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -214,7 +358,7 @@ ${(violations || ["Штучне звуження кола учасників ш�
     return res.json(parsed);
   } catch (error: any) {
     console.error("Generate Complaint Error:", error);
-    res.status(500).json({ error: error.message || "Помилка генерації скарги" });
+    return handleAiError(res, error, "Помилка генерації скарги");
   }
 });
 
@@ -225,57 +369,7 @@ app.post("/api/tenderai/multi-agent-analyze", async (req, res) => {
 
     const ai = getGeminiClient();
     if (!ai) {
-      return res.json({
-        overallDecision: "GO_WITH_CONDITIONS",
-        totalCalculatedCost: 41250000,
-        expectedMarginPercent: 17.5,
-        agents: {
-          estimator: {
-            agentName: "Орест Кошторисний (Agent Estimator)",
-            avatar: "👷",
-            status: "PASSED_WITH_WARNINGS",
-            summary: "Відомість обсягів робіт (BoQ) перевірена. Виявлено дефіцит розцінки на укладання бетону В25 у зимовий період (+8% до ринкової вартості).",
-            costBreakdown: {
-              materialsCost: 22800000,
-              laborCost: 11400000,
-              machineryCost: 4550000,
-              overheadsAndTaxes: 2500000,
-            },
-            recommendations: ["Забезпечити прямий договір з кар'єром та бетонним вузлом для оптимізації на 6%."]
-          },
-          techLead: {
-            agentName: "Віталій Інженерний (Agent Tech / ГІП)",
-            avatar: "🏗️",
-            status: "APPROVED",
-            summary: "Технологічний цикл реалістичний за умови паралельного монтажу каркасних конструкцій та інженерних мереж.",
-            timelineWeeks: 14,
-            keyRisks: ["Необхідність тимчасового водовідведення котловану під час весняних ґрунтових вод."]
-          },
-          legalCounsel: {
-            agentName: "Юлія Правова (Agent Legal)",
-            avatar: "⚖️",
-            status: "APPROVED",
-            summary: "Кваліфікаційні критерії за ст. 16 ЗУ повністю перекриваються документами компанії. Необхідно замовити банківську гарантію на 0.5%.",
-            complianceScore: 96,
-            requiredCertificates: ["ISO 9001:2015", "Дозвіл на роботи підвищеної небезпеки (Держпраці)"]
-          },
-          antiFraud: {
-            agentName: "FoulTender Guardian (Agent Anti-Fraud)",
-            avatar: "🛡️",
-            status: "PASSED_WITH_WARNINGS",
-            summary: "Замовник має історію затримки оплат по актах КБ-2в у середньому на 24 дні. Рекомендовано закласти касовий розрив у кредитне плече.",
-            corruptionRiskScore: 32
-          },
-          bidManager: {
-            agentName: "Максим Стратег (Agent Bid Manager)",
-            avatar: "💼",
-            status: "RECOMMENDED",
-            summary: "Оптимальна цінова ставка для 1-го раунду редукціону: 43 850 000 грн (економія замовника 12.3%, маржа генпідрядника 17.5%).",
-            recommendedBidPrice: 43850000,
-            winProbability: 79
-          }
-        }
-      });
+      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
     }
 
     const prompt = `Ти виступаєш як оркестратор мультиагентної системи "TenderAI Construction SaaS" у синергії з антикорупційним модулем "FoulTender".
@@ -347,8 +441,7 @@ app.post("/api/tenderai/multi-agent-analyze", async (req, res) => {
   }
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await generateContentWithFallback(ai, {
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -359,7 +452,7 @@ app.post("/api/tenderai/multi-agent-analyze", async (req, res) => {
     return res.json(parsed);
   } catch (error: any) {
     console.error("Multi-Agent Analyze Error:", error);
-    res.status(500).json({ error: error.message || "Помилка мультиагентного аналізу" });
+    return handleAiError(res, error, "Помилка мультиагентного аналізу");
   }
 });
 
@@ -370,10 +463,7 @@ app.post("/api/tenderai/agent-chat", async (req, res) => {
 
     const ai = getGeminiClient();
     if (!ai) {
-      return res.json({
-        reply: `[${agentRole || "TenderAI Multi-Agent"}] Опрацьовано запит: "${message}". З огляду на специфіку будівельних тендерів та вимоги Prozorro/ДБН, рекомендуємо перевірити ліміти фінансування та наявність технологічних карт.`,
-        agentRole: agentRole || "ALL_AGENTS"
-      });
+      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
     }
 
     const systemPrompt = `Ти – спеціалізований ШІ-агент у команді платформи TenderAI & FoulTender Suite.
@@ -388,8 +478,7 @@ app.post("/api/tenderai/agent-chat", async (req, res) => {
 Контекст активного проєкту: ${JSON.stringify(tenderContext || "Будівельний тендер Prozorro")}.
 Давай точні, авторитетні, професійні відповіді українською мовою з практичними діями та посиланнями на нормативи.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await generateContentWithFallback(ai, {
       contents: message,
       config: {
         systemInstruction: systemPrompt,
@@ -402,7 +491,7 @@ app.post("/api/tenderai/agent-chat", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Agent Chat Error:", error);
-    res.status(500).json({ error: error.message || "Помилка зв'язку з агентом" });
+    return handleAiError(res, error, "Помилка зв'язку з агентом");
   }
 });
 
@@ -413,17 +502,7 @@ app.post("/api/company/audit-vault-match", async (req, res) => {
     const ai = getGeminiClient();
 
     if (!ai) {
-      return res.json({
-        matchPercentage: 88,
-        coveredCount: 4,
-        warningCount: 1,
-        gapCount: 1,
-        requirements: (tenderRequirements || []).map((r: any, idx: number) => ({
-          ...r,
-          status: idx === 1 ? 'GAP_MISSING' : (idx === 4 ? 'WARNING' : 'COVERED'),
-          explanation: idx === 1 ? 'Дискримінаційне обмеження замовника не відповідає реальній адресі виробничої бази.' : 'Вимогу закрито документами зі сховища компанії.'
-        }))
-      });
+      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
     }
 
     const prompt = `Ти – AI аудитор відповідності тендерних документів (Tender Compliance & Gap Matching Engine).
@@ -458,8 +537,7 @@ ${JSON.stringify(tenderRequirements || tenderText)}
   ]
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await generateContentWithFallback(ai, {
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -471,7 +549,7 @@ ${JSON.stringify(tenderRequirements || tenderText)}
     return res.json(parsed);
   } catch (error: any) {
     console.error("Vault Match Audit Error:", error);
-    res.status(500).json({ error: error.message || "Помилка зіставлення документів" });
+    return handleAiError(res, error, "Помилка зіставлення документів");
   }
 });
 
@@ -482,23 +560,7 @@ app.post("/api/tenderai/collusion-detect", async (req, res) => {
     const ai = getGeminiClient();
 
     if (!ai) {
-      return res.json({
-        collusionRiskScore: 78,
-        riskLevel: "HIGH",
-        primarySuspects: ["ТОВ «Столичний Моноліт Буд»", "ТОВ «КиївБудКомплект-2020»"],
-        anomaliesDetected: [
-          {
-            title: "Спільна історія участі (18 торгів)",
-            description: "Систематична парна участь без реальної цінової боротьби на редукціонах.",
-            evidence: "18 спільних закупівель у одного замовника за 2 роки."
-          },
-          {
-            title: "Ідентичні метадані документів",
-            description: "Однакова програма створення PDF та автор файлу.",
-            evidence: "PDF-експертиза файлів пропозицій."
-          }
-        ]
-      });
+      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
     }
 
     const prompt = `Ти – AI експерт антимонопольного аналізу та виявлення картельних змов у публічних закупівлях України (FoulTender Collusion Detector).
@@ -531,8 +593,7 @@ ${JSON.stringify(history || {})}
   ]
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await generateContentWithFallback(ai, {
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -543,7 +604,7 @@ ${JSON.stringify(history || {})}
     return res.json(parsed);
   } catch (error: any) {
     console.error("Collusion Detect Error:", error);
-    res.status(500).json({ error: error.message || "Помилка аналізу змови" });
+    return handleAiError(res, error, "Помилка аналізу змови");
   }
 });
 
@@ -554,25 +615,7 @@ app.post("/api/tenderai/version-diff", async (req, res) => {
     const ai = getGeminiClient();
 
     if (!ai) {
-      return res.json({
-        tenderId,
-        previousVersion: "Редакція 1.0",
-        currentVersion: "Редакція 2.0",
-        changesCount: 2,
-        summary: "Замовник змінив вимоги до кваліфікації та скоротив строки виконання робіт.",
-        changes: [
-          {
-            id: "diff-1",
-            type: "MODIFIED",
-            category: "Строки",
-            clause: "Проєкт договору, п. 4.2",
-            oldValue: "60 днів",
-            newValue: "18 днів",
-            riskImpact: "INCREASED_RISK",
-            aiCommentary: "Штучне звуження строків для блокування зовнішніх учасників."
-          }
-        ]
-      });
+      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
     }
 
     const prompt = `Здійсни інтелектуальний AI Diff (порівняння змін) між двома редакціями тендерної документації.
@@ -609,8 +652,7 @@ ${version2Text || "Змінені умови: додано вимогу про �
   ]
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await generateContentWithFallback(ai, {
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -621,7 +663,7 @@ ${version2Text || "Змінені умови: додано вимогу про �
     return res.json(parsed);
   } catch (error: any) {
     console.error("Version Diff Error:", error);
-    res.status(500).json({ error: error.message || "Помилка порівняння версій" });
+    return handleAiError(res, error, "Помилка порівняння версій");
   }
 });
 
@@ -632,33 +674,7 @@ app.post("/api/tenderai/readiness-audit", async (req, res) => {
     const ai = getGeminiClient();
 
     if (!ai) {
-      return res.json({
-        totalScore: 84,
-        readyToSubmit: false,
-        categories: {
-          documentsVault: 92,
-          qualificationArt16: 85,
-          costAndBoQ: 90,
-          legalDraftContract: 75,
-          technicalSpecs: 80
-        },
-        criticalChecklist: [
-          {
-            id: "chk-1",
-            title: "Кваліфікаційні довідки ст. 16",
-            passed: true,
-            severity: "INFO",
-            detail: "Матеріально-технічна база та персонал повністю підтверджені документами."
-          },
-          {
-            id: "chk-2",
-            title: "Дискримінаційне обмеження 12 км",
-            passed: false,
-            severity: "BLOCKING",
-            detail: "Ризик дискваліфікації без оскарження в АМКУ або довідки про наявність бази."
-          }
-        ]
-      });
+      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
     }
 
     const prompt = `Ти – Головний Тендерний Контролер платформи TenderAI. Проведи фінальний Pre-Submission Compliance Audit перед поданням пропозиції на майданчик Prozorro.
@@ -690,8 +706,7 @@ app.post("/api/tenderai/readiness-audit", async (req, res) => {
   ]
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await generateContentWithFallback(ai, {
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -702,7 +717,7 @@ app.post("/api/tenderai/readiness-audit", async (req, res) => {
     return res.json(parsed);
   } catch (error: any) {
     console.error("Readiness Audit Error:", error);
-    res.status(500).json({ error: error.message || "Помилка Pre-Submission аудиту" });
+    return handleAiError(res, error, "Помилка Pre-Submission аудиту");
   }
 });
 
@@ -713,56 +728,7 @@ app.post("/api/tenderai/prozorro-ingest", async (req, res) => {
     const ai = getGeminiClient();
 
     if (!ai) {
-      return res.json({
-        id: "tender-custom-" + Date.now(),
-        tenderNumber: urlOrId?.includes("UA-") ? urlOrId : "UA-2026-03-" + Math.floor(100000 + Math.random() * 900000) + "-a",
-        title: "Імпортована закупівля з Prozorro: " + (tenderText?.substring(0, 80) || "Будівельно-монтажні роботи"),
-        customer: "Комунальне підприємство міської ради",
-        customerEdrpou: "41928471",
-        customerCity: "м. Київ",
-        budgetUah: 28500000,
-        deadline: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0],
-        region: "Київська область",
-        status: "ACTIVE",
-        category: category || "Будівельні роботи та капітальний ремонт",
-        foulScore: 65,
-        riskLevel: "MEDIUM",
-        summary: "Закупівлю успішно декомпозовано. Виявлено кваліфікаційні вимоги ст. 16 та потребу в банківській гарантії.",
-        boqItems: [
-          {
-            id: "boq-imp-1",
-            code: "ДБН Р-1-102",
-            description: "Улаштування бетонних та залізобетонних конструкцій монолітних",
-            unit: "м³",
-            quantity: 180,
-            standardPriceUah: 4600,
-            marketPriceUah: 4100,
-            laborHours: 210,
-            anomaly: "NORMAL"
-          },
-          {
-            id: "boq-imp-2",
-            code: "ДБН Р-3-441",
-            description: "Монтаж металоконструкцій та арматурної сталі",
-            unit: "т",
-            quantity: 24,
-            standardPriceUah: 44000,
-            marketPriceUah: 38000,
-            laborHours: 120,
-            anomaly: "OVERPRICED"
-          }
-        ],
-        violations: [
-          {
-            id: "viol-imp-1",
-            type: "DISCRIMINATORY_REQUIREMENT",
-            severity: "MEDIUM",
-            title: "Непропорційна вимога щодо досвіду",
-            description: "Вимога виконання не менше 3 аналогічних договорів виключно за останні 6 місяців.",
-            legalBasis: "ч. 4 ст. 22 ЗУ «Про публічні закупівлі»"
-          }
-        ]
-      });
+      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
     }
 
     const prompt = `Ти – Prozorro Ingestion & AI Decomposer Engine платформи TenderAI.
@@ -815,8 +781,7 @@ ${tenderText || "Капітальний ремонт будівлі школи. 
   ]
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
+    const response = await generateContentWithFallback(ai, {
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -827,7 +792,7 @@ ${tenderText || "Капітальний ремонт будівлі школи. 
     return res.json(parsed);
   } catch (error: any) {
     console.error("Prozorro Ingest Error:", error);
-    res.status(500).json({ error: error.message || "Помилка імпорту тендеру" });
+    return handleAiError(res, error, "Помилка імпорту тендеру");
   }
 });
 

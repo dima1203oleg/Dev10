@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Tender, BidPackage } from '../types';
+import { Tender, BidPackage, CompanyProfile } from '../types';
 import { 
   Briefcase, 
   FileCheck2, 
@@ -16,17 +16,19 @@ import {
 
 interface BidPackageGeneratorProps {
   currentTender: Tender;
+  company?: CompanyProfile;
   bidPackages: BidPackage[];
   onAddBidPackage: (pkg: BidPackage) => void;
 }
 
 export const BidPackageGenerator: React.FC<BidPackageGeneratorProps> = ({
   currentTender,
+  company,
   bidPackages,
   onAddBidPackage,
 }) => {
   const [selectedPkg, setSelectedPkg] = useState<BidPackage | null>(bidPackages[0] || null);
-  const [companyName, setCompanyName] = useState('ТОВ «УкрБудЕкспертиза»');
+  const [companyName, setCompanyName] = useState(company?.shortName || company?.fullName || 'Учасник закупівель');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   // Generate new package

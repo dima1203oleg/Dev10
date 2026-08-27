@@ -43,14 +43,14 @@ export const CompanyVaultModule: React.FC<CompanyVaultModuleProps> = ({
   const [newDocExpiry, setNewDocExpiry] = useState('');
 
   // Count expiring / expired docs
-  const expiringDocs = company.vaultDocuments.filter(d => d.status === 'EXPIRING_SOON' || d.status === 'EXPIRED');
-  const expiringStaff = company.staff.filter(s => s.status === 'EXPIRING_SOON' || s.status === 'EXPIRED');
-  const expiringEquipment = company.equipment.filter(e => e.status === 'EXPIRING_SOON' || e.status === 'EXPIRED');
+  const expiringDocs = (company?.vaultDocuments || []).filter(d => d.status === 'EXPIRING_SOON' || d.status === 'EXPIRED');
+  const expiringStaff = (company?.staff || []).filter(s => s.status === 'EXPIRING_SOON' || s.status === 'EXPIRED');
+  const expiringEquipment = (company?.equipment || []).filter(e => e.status === 'EXPIRING_SOON' || e.status === 'EXPIRED');
   const totalExpiringAlerts = expiringDocs.length + expiringStaff.length + expiringEquipment.length;
 
   const handleAddDocument = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDocTitle) return;
+    if (!newDocTitle || !company) return;
 
     const newDoc: VaultDocument = {
       id: 'doc-v-' + Date.now(),
@@ -67,7 +67,7 @@ export const CompanyVaultModule: React.FC<CompanyVaultModuleProps> = ({
 
     onUpdateCompany({
       ...company,
-      vaultDocuments: [newDoc, ...company.vaultDocuments]
+      vaultDocuments: [newDoc, ...(company.vaultDocuments || [])]
     });
 
     setNewDocTitle('');
@@ -77,7 +77,7 @@ export const CompanyVaultModule: React.FC<CompanyVaultModuleProps> = ({
     setShowAddDocModal(false);
   };
 
-  const filteredDocs = company.vaultDocuments.filter(doc => {
+  const filteredDocs = (company?.vaultDocuments || []).filter(doc => {
     const matchesSearch = doc.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           doc.fileNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           doc.issuer.toLowerCase().includes(searchTerm.toLowerCase());
