@@ -40,6 +40,7 @@ export default function App() {
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
   const [complaints, setComplaints] = useState<AmcuComplaintDoc[]>([]);
   const [bidPackages, setBidPackages] = useState<BidPackage[]>([]);
+  const [starredTenders, setStarredTenders] = useState<Set<string>>(new Set());
   
   const [dbLoading, setDbLoading] = useState(false);
 
@@ -90,6 +91,9 @@ export default function App() {
           }));
           setTenders(mappedTenders);
           setCurrentTender(mappedTenders[0]);
+        }
+        if (data.favorites) {
+          setStarredTenders(new Set(data.favorites.map((id: any) => id.toString())));
         }
         if (data.profile) {
           const rawProfile = data.profile;
@@ -259,6 +263,31 @@ export default function App() {
       }
       return prev.map(t => (t.id === tender.id || t.tenderNumber === tender.tenderNumber) ? { ...t, ...tender } : t);
     });
+  };
+
+  const toggleFavorite = async (tenderId: string) => {
+    if (!token) return;
+    
+    const isStarred = starredTenders.has(tenderId);
+    const method = isStarred ? 'DELETE' : 'POST';
+    
+    try {
+      const res = await fetch(`/api/tenders/${tenderId}/favorite`, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (res.ok) {
+        setStarredTenders(prev => {
+          const next = new Set(prev);
+          if (isStarred) next.delete(tenderId);
+          else next.add(tenderId);
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error("Toggle favorite error:", err);
+    }
   };
 
   const handleNavigateSection = (sec: string) => {
@@ -457,7 +486,16 @@ export default function App() {
             </div>
         ) : (
             <>
-              {currentSection === 'dashboard' && <DashboardView tenders={tenders} onSelectTender={handleSelectTender} onNavigate={handleNavigateSection} />}
+              {currentSection === 'dashboard' && (
+                <DashboardView 
+                  tenders={tenders} 
+                  starredTenders={starredTenders}
+                  onSelectTender={handleSelectTender} 
+                  onNavigate={handleNavigateSection}
+                  onToggleFavorite={toggleFavorite}
+                  token={token}
+                />
+              )}
               {currentSection === 'team' && (
                 <TeamWorkspaceModule 
                   tenders={tenders} 

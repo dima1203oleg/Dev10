@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
 import { db } from "./src/db/index.ts";
-import { users, tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments, organizations, teamMembers, teamTasks, teamComments, auditLogs } from "./src/db/schema.ts";
+import { users, tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments, organizations, teamMembers, teamTasks, teamComments, auditLogs, favorites } from "./src/db/schema.ts";
 import { eq, and } from "drizzle-orm";
 import multer from 'multer';
 import { LocalStorageProvider } from './src/lib/storage.ts';
@@ -132,9 +132,13 @@ app.get("/api/data", requireAuth, async (req: AuthRequest, res) => {
     const userProfiles = await db.select().from(companyProfiles).where(eq(companyProfiles.userId, dbUser.id));
     const profile = userProfiles.length > 0 ? userProfiles[0] : null;
     
+    // Fetch favorites
+    const userFavorites = await db.select().from(favorites).where(eq(favorites.userId, dbUser.id));
+    
     res.json({
       tenders: userTenders,
-      profile: profile
+      profile: profile,
+      favorites: userFavorites.map(f => f.tenderId)
     });
   } catch (error) {
     console.error("Data fetch error:", error);
@@ -862,6 +866,103 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error("Prozorro API search endpoint error:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// API: Toggle Favorite Status
+app.post("/api/tenders/:id/favorite", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const tenderId = parseInt(req.params.id);
+
+    const existing = await db.select().from(favorites).where(
+      and(
+        eq(favorites.userId, dbUser.id),
+        eq(favorites.tenderId, tenderId)
+      )
+    );
+
+    if (existing.length === 0) {
+      await db.insert(favorites).values({
+        userId: dbUser.id,
+        tenderId
+      });
+    }
+
+    res.json({ status: "favorited" });
+  } catch (err) {
+    console.error("Favorite error:", err);
+    res.status(500).json({ error: "Failed to favorite tender" });
+  }
+});
+
+app.delete("/api/tenders/:id/favorite", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const tenderId = parseInt(req.params.id);
+
+    await db.delete(favorites).where(
+      and(
+        eq(favorites.userId, dbUser.id),
+        eq(favorites.tenderId, tenderId)
+      )
+    );
+
+    res.json({ status: "unfavorited" });
+  } catch (err) {
+    console.error("Unfavorite error:", err);
+    res.status(500).json({ error: "Failed to unfavorite tender" });
+  }
+});
+
+// API: Portfolio Analytics (Honesty first: calculate from DB)
+app.get("/api/analytics/portfolio", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    
+    const userTenders = await db.select().from(tendersTable).where(eq(tendersTable.userId, dbUser.id));
+    
+    // Calculate aggregates
+    const totalBudget = userTenders.reduce((sum, t) => sum + (Number(t.budgetUah) || 0), 0);
+    
+    const riskDistribution = {
+      'LOW': 0,
+      'MEDIUM': 0,
+      'HIGH': 0,
+      'CRITICAL': 0,
+      'NOT_ANALYZED': 0
+    };
+    
+    const statusDistribution: Record<string, number> = {};
+    
+    userTenders.forEach(t => {
+      const risk = t.riskLevel || 'NOT_ANALYZED';
+      if (riskDistribution.hasOwnProperty(risk)) {
+        (riskDistribution as any)[risk]++;
+      } else {
+        riskDistribution['NOT_ANALYZED']++;
+      }
+      
+      const status = t.status || 'ACTIVE';
+      statusDistribution[status] = (statusDistribution[status] || 0) + 1;
+    });
+    
+    res.json({
+      totalCount: userTenders.length,
+      totalBudget,
+      riskDistribution: Object.entries(riskDistribution).map(([name, value]) => ({ name, value })),
+      statusDistribution: Object.entries(statusDistribution).map(([name, value]) => ({ name, value })),
+      lastUpdated: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error("Analytics fetch error:", err);
+    res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
 

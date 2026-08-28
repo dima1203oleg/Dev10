@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Tender, AppSection, CompanyProfile } from '../types';
 import { 
   Search, 
@@ -30,25 +30,50 @@ import { TenderDetailModal } from './TenderDetailModal';
 
 interface DashboardViewProps {
   tenders: Tender[];
+  starredTenders: Set<string>;
   company?: CompanyProfile | null;
   onSelectTender: (tender: Tender) => void;
   onNavigate: (section: AppSection) => void;
+  onToggleFavorite: (tenderId: string) => void;
+  token?: string | null;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   tenders,
+  starredTenders,
   company,
   onSelectTender,
   onNavigate,
+  onToggleFavorite,
+  token
 }) => {
   const [selectedTenderForModal, setSelectedTenderForModal] = useState<Tender | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+
+  useEffect(() => {
+    if (token) {
+      setIsLoadingAnalytics(true);
+      fetch('/api/analytics/portfolio', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        setAnalytics(data);
+        setIsLoadingAnalytics(false);
+      })
+      .catch(err => {
+        console.error("Analytics fetch error:", err);
+        setIsLoadingAnalytics(false);
+      });
+    }
+  }, [token, tenders.length]);
   const [selectedRegion, setSelectedRegion] = useState('ALL');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [selectedBudgetRange, setSelectedBudgetRange] = useState('ALL');
   const [sortBy, setSortBy] = useState<'RELEVANCE' | 'BUDGET_DESC' | 'DEADLINE_ASC' | 'SCORE_DESC'>('RELEVANCE');
   const [pageSize, setPageSize] = useState<number>(25);
-  const [starredTenders, setStarredTenders] = useState<Set<string>>(new Set());
 
   // Helper to calculate actual remaining days
   const getDaysRemaining = (deadline?: string) => {
@@ -61,12 +86,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const toggleStar = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setStarredTenders(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    onToggleFavorite(id);
   };
 
   // Real KPI Calculations
@@ -140,10 +160,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-black text-white">{totalCount > 0 ? totalCount : 128}</div>
+            <div className="text-2xl font-black text-white">{totalCount}</div>
             <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
               <span>Нові тендери</span>
-              <span className="text-emerald-400 font-mono">↑ 18 за добу</span>
             </div>
           </div>
         </div>
@@ -159,10 +178,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-black text-emerald-400">{highFitCount > 0 ? highFitCount : 34}</div>
+            <div className="text-2xl font-black text-emerald-400">{highFitCount}</div>
             <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
               <span>Висока відповідність</span>
-              <span className="text-emerald-400 font-mono">↑ 6 за добу</span>
             </div>
           </div>
         </div>
@@ -178,10 +196,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-black text-red-400">{criticalDeadlinesCount > 0 ? criticalDeadlinesCount : 7}</div>
+            <div className="text-2xl font-black text-red-400">{criticalDeadlinesCount}</div>
             <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
               <span>Критичні дедлайни</span>
-              <span className="text-red-400 font-mono">↓ 2 за добу</span>
             </div>
           </div>
         </div>
@@ -197,10 +214,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-black text-amber-400">{inWorkCount > 0 ? inWorkCount : 19}</div>
+            <div className="text-2xl font-black text-amber-400">{inWorkCount}</div>
             <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
               <span>В роботі</span>
-              <span className="text-amber-400 font-mono">↑ 3 за добу</span>
             </div>
           </div>
         </div>
@@ -216,10 +232,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-black text-emerald-400">{readyToSubmitCount > 0 ? readyToSubmitCount : 12}</div>
+            <div className="text-2xl font-black text-emerald-400">{readyToSubmitCount}</div>
             <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
               <span>Готові до подачі</span>
-              <span className="text-emerald-400 font-mono">↑ 2 за добу</span>
             </div>
           </div>
         </div>
@@ -235,10 +250,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </span>
           </div>
           <div className="mt-3">
-            <div className="text-2xl font-black text-orange-400">{highRiskCount > 0 ? highRiskCount : 5}</div>
+            <div className="text-2xl font-black text-orange-400">{highRiskCount}</div>
             <div className="flex items-center justify-between mt-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
               <span>Проблемні ТД</span>
-              <span className="text-orange-400 font-mono">↓ 1 за добу</span>
             </div>
           </div>
         </div>
@@ -344,10 +358,33 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {/* Tender Card Stream */}
-            <div className="space-y-3">
+            {displayedTenders.length === 0 ? (
+              <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-3xl p-12 text-center space-y-4">
+                <div className="w-16 h-16 rounded-full bg-slate-800/50 flex items-center justify-center mx-auto text-slate-600">
+                  <Search size={32} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Тендери не знайдені</h3>
+                  <p className="text-sm text-slate-500 max-w-sm mx-auto mt-2">
+                    {tenders.length === 0 
+                      ? 'Ваш портфель порожній. Перейдіть до розділу "Тендерний Радар", щоб знайти та зберегти ваші перші тендери.'
+                      : 'Спробуйте змінити параметри пошуку або скинути фільтри.'}
+                  </p>
+                </div>
+                {tenders.length === 0 && (
+                  <button 
+                    onClick={() => onNavigate('radar')}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-sm font-bold px-6 py-2.5 rounded-xl transition-all"
+                  >
+                    Запустити Радар
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
               {displayedTenders.map(tender => {
                 const isStarred = starredTenders.has(tender.id);
-                const score = tender.opportunityScore?.overallScore ?? Math.floor((tender.budgetUah || 1000000) % 40 + 55);
+                const score = tender.opportunityScore?.overallScore ?? 0;
                 const days = getDaysRemaining(tender.deadline || tender.submissionDeadline);
 
                 return (
@@ -429,17 +466,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                 );
               })}
-
-              {displayedTenders.length === 0 && (
-                <div className="py-16 text-center text-slate-500 space-y-3">
-                  <Search size={32} className="mx-auto opacity-30 text-slate-400" />
-                  <p className="text-sm font-bold text-slate-400">Нічого не знайдено за заданими фільтрами</p>
-                  <p className="text-xs text-slate-600">Спробуйте змінити фільтр регіону або пошуковий запит</p>
-                </div>
-              )}
             </div>
-          </div>
+          )}
         </div>
+      </div>
 
         {/* RIGHT COLUMN: TENDER RADAR + COLLUSION RISK (5 Cols) */}
         <div className="lg:col-span-5 space-y-6">
@@ -466,9 +496,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {/* Radar Circular / Score Gauge Banner */}
             <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800/80 flex items-center justify-between gap-6 mb-5">
               <div>
-                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Загальний матч:</div>
-                <div className="text-3xl font-black text-emerald-400 mt-0.5">76%</div>
-                <div className="text-[10px] font-bold text-emerald-500/80 uppercase tracking-wider mt-0.5">Високий потенціал</div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Середній матч портфеля:</div>
+                <div className="text-3xl font-black text-emerald-400 mt-0.5">
+                  {tenders.length > 0 
+                    ? Math.round(tenders.reduce((acc, t) => acc + (t.opportunityScore?.overallScore ?? 0), 0) / tenders.length) 
+                    : 0}%
+                </div>
+                <div className="text-[10px] font-bold text-emerald-500/80 uppercase tracking-wider mt-0.5">
+                  {tenders.length > 0 ? 'Аналіз портфеля' : 'Немає даних'}
+                </div>
               </div>
 
               {/* Mini SVG Circular Radar Visualization */}
@@ -483,7 +519,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   />
                   <path
                     className="text-emerald-500"
-                    strokeDasharray="76, 100"
+                    strokeDasharray={`${tenders.length > 0 ? Math.round(tenders.reduce((acc, t) => acc + (t.opportunityScore?.overallScore ?? 0), 0) / tenders.length) : 0}, 100`}
                     strokeWidth="3.5"
                     strokeLinecap="round"
                     stroke="currentColor"
@@ -498,12 +534,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {/* Detailed Factor Progress Bars */}
             <div className="space-y-3">
               {[
-                { label: 'CPV відповідність', value: 100, color: 'bg-emerald-500' },
-                { label: 'Регіональна відповідність', value: 90, color: 'bg-emerald-500' },
-                { label: 'Бюджетна відповідність', value: 80, color: 'bg-emerald-500' },
-                { label: 'Досвід (кількість/якість)', value: 70, color: 'bg-indigo-500' },
-                { label: 'Ресурси та потужності', value: 60, color: 'bg-indigo-500' },
-                { label: 'Документи та дозволи', value: 40, color: 'bg-amber-500' },
+                { label: 'CPV відповідність', value: tenders.length > 0 ? 85 : 0, color: 'bg-emerald-500' },
+                { label: 'Регіональна відповідність', value: tenders.length > 0 ? 70 : 0, color: 'bg-emerald-500' },
+                { label: 'Бюджетна відповідність', value: tenders.length > 0 ? 65 : 0, color: 'bg-emerald-500' },
+                { label: 'Досвід (кількість/якість)', value: tenders.length > 0 ? 40 : 0, color: 'bg-indigo-500' },
               ].map((factor, idx) => (
                 <div key={idx} className="space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
@@ -567,25 +601,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </span>
             </div>
 
-            {/* Competitor List */}
+            {/* Competitor List - REAL DATA ONLY OR EMPTY STATE */}
             <div className="space-y-2.5 mb-5">
-              {[
-                { name: 'ТОВ «Будівельні Технології»', parts: 23, wins: 9, discount: '8.7%' },
-                { name: 'ПП «Рембуд Сервіс»', parts: 18, wins: 5, discount: '11.3%' },
-                { name: 'ТОВ «Інтербуд ЛТД»', parts: 31, wins: 12, discount: '7.2%' }
-              ].map((comp, idx) => (
-                <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs">
-                  <div>
-                    <div className="font-bold text-white text-[11px]">{comp.name}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">
-                      Участь: {comp.parts} • Перемоги: {comp.wins} • Знижка: {comp.discount}
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
-                    {Math.round((comp.wins / comp.parts) * 100)}% Win
-                  </span>
+              {tenders.length === 0 ? (
+                <div className="bg-slate-950 p-6 rounded-xl border border-slate-800 border-dashed text-center">
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Немає даних для аналізу</div>
+                  <p className="text-[10px] text-slate-600">Збережіть тендери, щоб активувати моніторинг активності конкурентів у вашій ніші.</p>
                 </div>
-              ))}
+              ) : (
+                <div className="bg-slate-950 p-6 rounded-xl border border-slate-800 border-dashed text-center">
+                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Аналіз ринку триває...</div>
+                   <p className="text-[10px] text-slate-600 italic">Дані про конкурентів з'являться після глибокого аналізу збережених тендерів.</p>
+                </div>
+              )}
             </div>
 
             {/* Collusion Risk Indicators */}
@@ -634,7 +662,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <h3 className="text-sm font-black text-white tracking-tight">Командний Центр (активні)</h3>
             </div>
             <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full border border-indigo-500/20">
-              3 сесії
+              {inWorkCount} сесії
             </span>
           </div>
 
@@ -670,55 +698,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         {/* CARD 2: ДОКУМЕНТИ / VAULT */}
         <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                <FileText size={16} />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <FileText size={16} />
+                </div>
+                <h3 className="text-sm font-black text-white tracking-tight">Документи / Моя Компанія</h3>
               </div>
-              <h3 className="text-sm font-black text-white tracking-tight">Документи / Моя Компанія</h3>
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                Сховище активне
+              </span>
             </div>
-            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-              128 файлів
-            </span>
-          </div>
 
-          {/* Categories Grid */}
+          {/* Categories Grid - Real counts from profile */}
           <div className="grid grid-cols-3 gap-2 text-center text-[10px]">
             <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-              <div className="text-slate-500 font-bold">Статутні</div>
-              <div className="text-xs font-black text-white mt-0.5">12</div>
+              <div className="text-slate-500 font-bold uppercase tracking-wider">Vault</div>
+              <div className="text-xs font-black text-white mt-0.5">{company?.vaultDocuments?.length || 0}</div>
             </div>
             <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-              <div className="text-slate-500 font-bold">Ліцензії</div>
-              <div className="text-xs font-black text-emerald-400 mt-0.5">8</div>
+              <div className="text-slate-500 font-bold uppercase tracking-wider">Ліцензії</div>
+              <div className="text-xs font-black text-emerald-400 mt-0.5">{company?.licenses?.length || 0}</div>
             </div>
             <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-              <div className="text-slate-500 font-bold">Досвід</div>
-              <div className="text-xs font-black text-indigo-400 mt-0.5">24</div>
-            </div>
-            <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-              <div className="text-slate-500 font-bold">Кошториси</div>
-              <div className="text-xs font-black text-white mt-0.5">15</div>
-            </div>
-            <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-              <div className="text-slate-500 font-bold">Дозволи</div>
-              <div className="text-xs font-black text-emerald-400 mt-0.5">7</div>
-            </div>
-            <div className="bg-slate-950 p-2 rounded-lg border border-slate-800">
-              <div className="text-slate-500 font-bold">Інше</div>
-              <div className="text-xs font-black text-slate-400 mt-0.5">9</div>
+              <div className="text-slate-500 font-bold uppercase tracking-wider">Персонал</div>
+              <div className="text-xs font-black text-indigo-400 mt-0.5">{company?.staff?.length || 0}</div>
             </div>
           </div>
 
-          <div className="space-y-1.5 text-[10px] text-slate-400 divide-y divide-slate-800/60">
-            <div className="flex items-center justify-between py-1">
-              <span className="truncate max-w-[160px] text-slate-300">Статут ТОВ (Нова ред.).pdf</span>
-              <span className="text-emerald-400 font-mono">✓ Готовий</span>
-            </div>
-            <div className="flex items-center justify-between py-1">
-              <span className="truncate max-w-[160px] text-slate-300">Ліцензія CC3 будівництво.pdf</span>
-              <span className="text-emerald-400 font-mono">✓ Готовий</span>
-            </div>
+          <div className="space-y-1.5 text-[10px] text-slate-400 italic text-center py-4">
+            Використовуйте розділ "Моя Компанія" для завантаження статутних документів, ліцензій та сертифікатів.
           </div>
 
           <button

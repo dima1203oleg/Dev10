@@ -138,6 +138,19 @@ export const teamCommentsRelations = relations(teamComments, ({ one }) => ({
   task: one(teamTasks, { fields: [teamComments.taskId], references: [teamTasks.id] }),
 }));
 
+// Favorites for tenders
+export const favorites = pgTable('favorites', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  tenderId: integer('tender_id').references(() => tenders.id).notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+export const favoritesRelations = relations(favorites, ({ one }) => ({
+  user: one(users, { fields: [favorites.userId], references: [users.id] }),
+  tender: one(tenders, { fields: [favorites.tenderId], references: [tenders.id] }),
+}));
+
 // Complaints
 export const complaints = pgTable('complaints', {
   id: serial('id').primaryKey(),
