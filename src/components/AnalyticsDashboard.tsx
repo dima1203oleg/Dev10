@@ -23,6 +23,7 @@ const RISK_COLORS: Record<string, string> = {
   'Помірний': '#f59e0b', // amber-500
   'Високий': '#f97316', // orange-500
   'Критичний': '#ef4444', // red-500
+  'Не аналізовано': '#64748b', // slate-500
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -39,7 +40,10 @@ const STATUS_LABELS: Record<string, string> = {
 export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ tenders }) => {
   // Calculate metrics
   const totalBudget = useMemo(() => tenders.reduce((acc, t) => acc + (t.budgetUah || 0), 0), [tenders]);
-  const avgFoulScore = useMemo(() => tenders.length > 0 ? Math.round(tenders.reduce((acc, t) => acc + (t.foulScore || 0), 0) / tenders.length) : 0, [tenders]);
+  
+  const tendersWithFoulScore = useMemo(() => tenders.filter(t => t.foulScore !== null && t.foulScore !== undefined), [tenders]);
+  const avgFoulScore = useMemo(() => tendersWithFoulScore.length > 0 ? Math.round(tendersWithFoulScore.reduce((acc, t) => acc + (t.foulScore || 0), 0) / tendersWithFoulScore.length) : null, [tendersWithFoulScore]);
+  
   const highRiskCount = useMemo(() => tenders.filter(t => t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL' || (t.foulScore && t.foulScore >= 60)).length, [tenders]);
 
   // Risk distribution for Pie Chart in Ukrainian
@@ -48,11 +52,14 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ tenders 
       'Низький': 0,
       'Помірний': 0,
       'Високий': 0,
-      'Критичний': 0
+      'Критичний': 0,
+      'Не аналізовано': 0
     };
 
     tenders.forEach(t => {
-      if (t.riskLevel === 'CRITICAL' || (t.foulScore && t.foulScore >= 75)) {
+      if (t.foulScore === null || t.foulScore === undefined) {
+        counts['Не аналізовано']++;
+      } else if (t.riskLevel === 'CRITICAL' || (t.foulScore && t.foulScore >= 75)) {
         counts['Критичний']++;
       } else if (t.riskLevel === 'HIGH' || (t.foulScore && t.foulScore >= 50)) {
         counts['Високий']++;
@@ -87,7 +94,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ tenders 
       `"${t.category}"`,
       `"${STATUS_LABELS[t.status] || t.status}"`,
       t.foulScore || 0,
-      `"${t.riskLevel || 'LOW'}"`
+      `"${t.riskLevel || 'Не аналізовано'}"`
     ]);
 
     const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map(r => r.join(";"))].join("\n");
@@ -156,7 +163,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ tenders 
           <div className="flex justify-between items-start">
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Середній Foul Score</p>
-              <h3 className="text-2xl font-bold text-amber-400">{avgFoulScore} / 100</h3>
+              <h3 className="text-2xl font-bold text-amber-400">{avgFoulScore !== null ? `${avgFoulScore} / 100` : "—"}</h3>
             </div>
             <div className="p-2 bg-amber-500/20 rounded-lg">
               <TrendingUp className="w-5 h-5 text-amber-400" />
@@ -214,6 +221,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ tenders 
               <div className="h-full flex items-center justify-center text-slate-500">Немає даних для відображення</div>
             )}
           </div>
+          <p className="text-xs text-slate-500 mt-4 text-center">Джерело: збережені тендери користувача · Оновлено: {new Date().toISOString()}</p>
         </div>
 
         {/* Status Bar Chart */}
@@ -240,6 +248,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ tenders 
               <div className="h-full flex items-center justify-center text-slate-500">Немає даних для відображення</div>
             )}
           </div>
+          <p className="text-xs text-slate-500 mt-4 text-center">Джерело: збережені тендери користувача · Оновлено: {new Date().toISOString()}</p>
         </div>
 
       </div>

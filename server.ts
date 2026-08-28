@@ -1290,22 +1290,42 @@ app.get("/api/tenders/:tenderId/documents", requireAuth, async (req: AuthRequest
   }
 });
 
-app.post("/api/tenders/:tenderId/documents", requireAuth, async (req: AuthRequest, res) => {
+app.post("/api/tenders/:tenderId/documents", requireAuth, upload.single('file'), async (req: AuthRequest, res) => {
   try {
     const { tenderId } = req.params;
-    const { name, type, size } = req.body;
-    
-    const newDoc = await db.insert(tenderDocuments).values({
+    const { type } = req.body;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    // Validate MIME type
+    const allowedMimeTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/jpeg', 'image/png'];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      return res.status(400).json({ error: "Unsupported file type" });
+    }
+
+    // Upload to storage
+    const uploadResult = await storage.upload(file.buffer, file.originalname, file.mimetype);
+
+    // Save to database
+    const [newDoc] = await db.insert(tenderDocuments).values({
       id: crypto.randomUUID(),
       tenderId: parseInt(tenderId),
-      name,
+      orgId: req.user.orgId,
+      userId: req.user.id,
+      name: file.originalname,
       type: type || 'OTHER',
-      status: 'IDLE',
-      size: size || 0,
+      status: 'UPLOADED',
+      storageKey: uploadResult.storageKey,
+      contentHash: uploadResult.contentHash,
+      mimeType: uploadResult.mimeType,
+      size: uploadResult.size,
       uploadedAt: new Date()
     }).returning();
     
-    res.json(newDoc[0]);
+    res.json(newDoc);
   } catch (error) {
     console.error("Create document error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -1315,10 +1335,35 @@ app.post("/api/tenders/:tenderId/documents", requireAuth, async (req: AuthReques
 app.delete("/api/tenders/:tenderId/documents/:docId", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { docId } = req.params;
+    const [doc] = await db.select().from(tenderDocuments).where(eq(tenderDocuments.id, docId));
+    if (doc && doc.storageKey) {
+      await storage.delete(doc.storageKey);
+    }
     await db.delete(tenderDocuments).where(eq(tenderDocuments.id, docId));
     res.json({ status: "deleted" });
   } catch (error) {
     console.error("Delete document error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/api/tenders/:tenderId/documents/:docId/download", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { docId } = req.params;
+    const [doc] = await db.select().from(tenderDocuments).where(eq(tenderDocuments.id, docId));
+    
+    if (!doc || !doc.storageKey) {
+      return res.status(404).json({ error: "Document not found" });
+    }
+
+    const stream = await storage.download(doc.storageKey);
+    
+    res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${doc.name}"`);
+    
+    stream.pipe(res);
+  } catch (error) {
+    console.error("Download document error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -1419,9 +1464,13 @@ async function generateContentWithFallback(
 ) {
   const modelsToTry = Array.from(
     new Set([
-      params.primaryModel || "gemini-2.5-flash",
+      params.primaryModel || "gemini-3.7-flash",
+      "gemini-3.7-flash",
+      "gemini-3.1-flash-lite",
+      "gemini-2.5-flash",
       "gemini-2.0-flash",
-      "gemini-1.5-flash"
+      "gemini-flash-lite",
+      "gemini-flash-latest"
     ])
   );
 
@@ -1450,6 +1499,13 @@ async function generateContentWithFallback(
           errMsg.includes("Quota exceeded") ||
           errMsg.includes("quota");
 
+        const isNotFound =
+          err?.status === 404 ||
+          err?.code === 404 ||
+          errMsg.includes("404") ||
+          errMsg.includes("NOT_FOUND") ||
+          errMsg.includes("not found");
+
         const isTransient503 =
           err?.status === 503 ||
           err?.code === 503 ||
@@ -1460,7 +1516,7 @@ async function generateContentWithFallback(
 
         if (hasNextModel) {
           console.info(
-            `[Gemini] Модель '${modelName}' недоступна (${isQuotaExceeded ? 'квота 429' : 'помилка'}). Автоматичний перехід на '${modelsToTry[mIdx + 1]}'...`
+            `[Gemini] Модель '${modelName}' недоступна (${isNotFound ? '404 not found' : isQuotaExceeded ? 'квота 429' : 'помилка'}). Автоматичний перехід на '${modelsToTry[mIdx + 1]}'...`
           );
         } else {
           console.warn(
@@ -1468,8 +1524,8 @@ async function generateContentWithFallback(
           );
         }
 
-        // If daily quota is exceeded for this model, do not wait and retry the exact same model; switch immediately
-        if (isQuotaExceeded) {
+        // If quota exceeded or model not found, switch immediately without retrying attempt
+        if (isQuotaExceeded || isNotFound) {
           break;
         }
 
