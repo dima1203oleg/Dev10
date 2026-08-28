@@ -103,6 +103,58 @@ app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
+// API: Save/Update Company Profile (Scoped by userId)
+app.post("/api/company/profile", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+
+    const { name, edrpou, legalAddress, directorName, email, phone, vaultData } = req.body;
+
+    if (!name || !edrpou) {
+      return res.status(400).json({ error: "Назва підприємства та код ЄДРПОУ є обов'язковими." });
+    }
+
+    const existing = await db.select().from(companyProfiles).where(eq(companyProfiles.userId, dbUser.id));
+
+    let result;
+    if (existing.length > 0) {
+      result = await db.update(companyProfiles)
+        .set({
+          name,
+          edrpou,
+          legalAddress: legalAddress || null,
+          directorName: directorName || null,
+          email: email || null,
+          phone: phone || null,
+          vaultData: vaultData || null,
+          updatedAt: new Date()
+        })
+        .where(eq(companyProfiles.userId, dbUser.id))
+        .returning();
+    } else {
+      result = await db.insert(companyProfiles)
+        .values({
+          userId: dbUser.id,
+          name,
+          edrpou,
+          legalAddress: legalAddress || null,
+          directorName: directorName || null,
+          email: email || null,
+          phone: phone || null,
+          vaultData: vaultData || null
+        })
+        .returning();
+    }
+
+    res.json(result[0]);
+  } catch (error) {
+    console.error("Save company profile error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // API: Prozorro Connector Health (Production-Grade Diagnostics)
 app.get("/api/connectors/prozorro/health", async (req, res) => {
   const startTime = Date.now();

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { AppSection, Tender, BoQItem, MultiAgentReport, AmcuComplaintDoc, BidPackage, CompanyProfile, RequirementItem } from './types';
-import { Navbar } from './components/Navbar';
+import { AppSection, Tender, BoQItem, MultiAgentReport, AmcuComplaintDoc, BidPackage, CompanyProfile, RequirementItem, CollusionAnalysis, SystemMode } from './types';
+import { Sidebar } from './components/Sidebar';
+import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
 import { FoulTenderModule } from './components/FoulTenderModule';
 import { TenderAIConstructionModule } from './components/TenderAIConstructionModule';
@@ -18,7 +19,6 @@ import { TenderWarRoomModule } from './components/TenderWarRoomModule';
 import { PostTenderModule } from './components/PostTenderModule';
 import { ServicesModelModule } from './components/ServicesModelModule';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
-import { SystemMode } from './types';
 import { useAuth } from './contexts/AuthContext';
 import { Bot, User as UserIcon, ShieldAlert } from 'lucide-react';
 
@@ -71,13 +71,38 @@ export default function App() {
           setCurrentTender(mappedTenders[0]);
         }
         if (data.profile) {
-          setCompanyProfile(data.profile);
+          const rawProfile = data.profile;
+          const vault = rawProfile.vaultData || {};
+          const mappedProfile: CompanyProfile = {
+            id: rawProfile.id.toString(),
+            name: rawProfile.name || '',
+            edrpou: rawProfile.edrpou || '',
+            legalAddress: rawProfile.legalAddress || '',
+            directorName: rawProfile.directorName || '',
+            email: rawProfile.email || '',
+            phone: rawProfile.phone || '',
+            shortName: vault.shortName || rawProfile.name || '',
+            kved: vault.kved || '',
+            taxNumber: vault.taxNumber || '',
+            actualAddress: vault.actualAddress || '',
+            directorPosition: vault.directorPosition || '',
+            directorBasis: vault.directorBasis || '',
+            iban: vault.iban || '',
+            bankName: vault.bankName || '',
+            mfo: vault.mfo || '',
+            isVatPayer: vault.isVatPayer || false,
+            licenses: vault.licenses || [],
+            equipment: vault.equipment || [],
+            staff: vault.staff || [],
+            contracts: vault.contracts || [],
+            vaultDocuments: vault.vaultDocuments || []
+          };
+          setCompanyProfile(mappedProfile);
         }
       })
       .catch(console.error)
       .finally(() => setDbLoading(false));
     } else {
-      // Revert to empty state when logged out (No Mock Data)
       setTenders([]);
       setCurrentTender(null);
       setCompanyProfile(null);
@@ -96,8 +121,6 @@ export default function App() {
     );
   }
 
-  // If not logged in, we can either block access or show a demo mode.
-  // We'll show a Hero login screen to enforce the use of the DB.
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-slate-200 px-4">
@@ -145,7 +168,6 @@ export default function App() {
     );
   }
 
-  // Update BoQ for tender
   const handleUpdateTenderBoq = (tenderId: string, boqItems: BoQItem[]) => {
     setTenders(prev => prev.map(t => {
       if (t.id === tenderId) {
@@ -158,7 +180,6 @@ export default function App() {
     }
   };
 
-  // Update Multi-Agent Analysis Report for tender
   const handleUpdateTenderAnalysis = (tenderId: string, report: MultiAgentReport) => {
     setTenders(prev => prev.map(t => {
       if (t.id === tenderId) {
@@ -171,7 +192,6 @@ export default function App() {
     }
   };
 
-  // Update Requirements Matrix for tender
   const handleUpdateTenderRequirements = (tenderId: string, requirements: RequirementItem[]) => {
     setTenders(prev => prev.map(t => {
       if (t.id === tenderId) {
@@ -184,41 +204,89 @@ export default function App() {
     }
   };
 
-  // Add new complaint
+  const handleUpdateTenderCollusion = (tenderId: string, collusionAnalysis: CollusionAnalysis) => {
+    setTenders(prev => prev.map(t => {
+      if (t.id === tenderId) {
+        return { ...t, collusionAnalysis };
+      }
+      return t;
+    }));
+    if (currentTender && currentTender.id === tenderId) {
+      setCurrentTender(prev => prev ? ({ ...prev, collusionAnalysis }) : null);
+    }
+  };
+
   const handleAddComplaint = (complaint: AmcuComplaintDoc) => {
     setComplaints(prev => [complaint, ...prev]);
   };
 
-  // Add new bid package
   const handleAddBidPackage = (pkg: BidPackage) => {
     setBidPackages(prev => [pkg, ...prev]);
   };
 
-  // Add custom tender
   const handleAddNewTender = (newTender: Tender) => {
     setTenders(prev => [newTender, ...prev]);
     setCurrentTender(newTender);
   };
 
+  const handleUpdateCompany = async (updated: CompanyProfile) => {
+    setCompanyProfile(updated);
+    if (!token) return;
+    try {
+      const response = await fetch('/api/company/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          name: updated.name,
+          edrpou: updated.edrpou,
+          legalAddress: updated.legalAddress,
+          directorName: updated.directorName,
+          email: updated.email,
+          phone: updated.phone,
+          vaultData: {
+            shortName: updated.shortName,
+            kved: updated.kved,
+            taxNumber: updated.taxNumber,
+            actualAddress: updated.actualAddress,
+            directorPosition: updated.directorPosition,
+            directorBasis: updated.directorBasis,
+            iban: updated.iban,
+            bankName: updated.bankName,
+            mfo: updated.mfo,
+            isVatPayer: updated.isVatPayer,
+            licenses: updated.licenses,
+            equipment: updated.equipment,
+            staff: updated.staff,
+            contracts: updated.contracts,
+            vaultDocuments: updated.vaultDocuments
+          }
+        })
+      });
+      if (!response.ok) throw new Error('Не вдалося зберегти профіль підприємства.');
+    } catch (err) {
+      console.error('Failed to sync company profile:', err);
+    }
+  };
+
   const defaultCompany: CompanyProfile = {
-    id: 'comp-default',
-    name: 'ТОВ «Учасник закупівель»',
-    shortName: 'Учасник закупівель',
-    edrpou: 'NOT_AVAILABLE',
-    kved: 'NOT_AVAILABLE',
-    taxNumber: 'NOT_AVAILABLE',
-    legalAddress: 'NOT_AVAILABLE',
-    actualAddress: 'NOT_AVAILABLE',
-    directorName: 'NOT_AVAILABLE',
-    directorPosition: 'NOT_AVAILABLE',
-    directorBasis: 'NOT_AVAILABLE',
-    iban: 'NOT_AVAILABLE',
-    bankName: 'NOT_AVAILABLE',
-    mfo: '300711',
-    email: 'info@company.com',
-    phone: '+380440000000',
-    isVatPayer: true,
-    licenses: ['Ліцензія ДІАМ СС2/СС3'],
+    id: 'comp-unconfigured',
+    name: 'ПРОФІЛЬ НЕ НАЛАШТОВАНО',
+    shortName: 'ПРОФІЛЬ НЕ НАЛАШТОВАНО',
+    edrpou: 'PROFILE_NOT_CONFIGURED',
+    kved: 'PROFILE_NOT_CONFIGURED',
+    taxNumber: 'PROFILE_NOT_CONFIGURED',
+    legalAddress: 'PROFILE_NOT_CONFIGURED',
+    actualAddress: 'PROFILE_NOT_CONFIGURED',
+    directorName: 'PROFILE_NOT_CONFIGURED',
+    directorPosition: 'PROFILE_NOT_CONFIGURED',
+    directorBasis: 'PROFILE_NOT_CONFIGURED',
+    iban: 'PROFILE_NOT_CONFIGURED',
+    bankName: 'PROFILE_NOT_CONFIGURED',
+    mfo: 'PROFILE_NOT_CONFIGURED',
+    email: 'PROFILE_NOT_CONFIGURED',
+    phone: 'PROFILE_NOT_CONFIGURED',
+    isVatPayer: false,
+    licenses: [],
     equipment: [],
     staff: [],
     contracts: [],
@@ -226,302 +294,76 @@ export default function App() {
   };
 
   const activeCompany = companyProfile || defaultCompany;
-  const highRiskCount = tenders.filter(t => t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL').length;
   const requiresTender = ['war-room', 'matrix', 'foultender', 'construction', 'competitors', 'diff', 'audit', 'complaints', 'bid-packages', 'multiagent-chat'].includes(currentSection);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500 selection:text-black">
-      
-      {/* Top Navigation */}
-      <Navbar
-        currentSection={currentSection}
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans selection:bg-emerald-500 selection:text-black">
+      <Sidebar 
+        currentSection={currentSection} 
         onSelectSection={(sec) => {
           setCurrentSection(sec);
           window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        activeTenderCount={tenders.length}
-        highRiskCount={highRiskCount}
+        }} 
       />
+      
+      <div className="flex-1 flex flex-col min-w-0">
+        <Header />
 
-      {/* Mode Selector Sub-bar */}
-      <div className="bg-slate-900/90 border-b border-slate-800/80 px-4 py-2 text-xs">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center space-x-3">
+        <div className="bg-slate-900 border-b border-slate-800 px-6 py-2 text-xs flex items-center justify-between">
+            <div className="flex items-center space-x-3">
             <span className="text-slate-400 font-medium">Режим інтерфейсу:</span>
             <div className="inline-flex rounded-lg p-0.5 bg-slate-950 border border-slate-800">
               <button
                 onClick={() => setSystemMode('SOLO')}
                 className={`px-3 py-1 rounded-md font-semibold text-xs transition-all cursor-pointer ${
-                  systemMode === 'SOLO'
-                    ? 'bg-emerald-600 text-slate-950 font-bold shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                  systemMode === 'SOLO' ? 'bg-emerald-600 text-slate-950 font-bold shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                👤 SOLO (Власник / Тендерник)
+                SOLO
               </button>
               <button
                 onClick={() => setSystemMode('TEAM')}
                 className={`px-3 py-1 rounded-md font-semibold text-xs transition-all cursor-pointer ${
-                  systemMode === 'TEAM'
-                    ? 'bg-indigo-600 text-white font-bold shadow-sm'
-                    : 'text-slate-400 hover:text-white'
+                  systemMode === 'TEAM' ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-white'
                 }`}
               >
-                👥 TEAM (Команда: Директор • Юрист • Кошторисник)
+                TEAM
               </button>
             </div>
-          </div>
-
-          <div className="flex items-center space-x-3 text-slate-400">
-            <span>Активна компанія: <strong className="text-white">{activeCompany.shortName}</strong> (ЄДРПОУ {activeCompany.edrpou})</span>
-            <span className="hidden md:inline text-slate-600">|</span>
-            <span className="hidden md:inline text-emerald-400 font-medium">Ліцензії: СС2 / СС3 (ДІАМ)</span>
-          </div>
+            </div>
+            <div className="flex items-center space-x-3 text-slate-400">
+                <span>Активна компанія: <strong className="text-white">{activeCompany.shortName}</strong></span>
+            </div>
         </div>
+
+        <main className="flex-1 p-8">
+            {!currentTender && requiresTender ? (
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center max-w-xl mx-auto space-y-4 my-12 shadow-xl">
+                    <h3 className="text-xl font-bold text-white">Тендер не обрано</h3>
+                </div>
+            ) : (
+                <>
+                  {currentSection === 'dashboard' && <DashboardView tenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => { setCurrentSection(sec); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
+                  {currentSection === 'analytics' && <AnalyticsDashboard tenders={tenders} />}
+                  {currentSection === 'radar' && <TenderRadarModule tenders={tenders} company={activeCompany} onSelectTender={(t) => setCurrentTender(t)} onNavigateToWarRoom={(t) => { setCurrentTender(t); setCurrentSection('war-room'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
+                  {currentSection === 'war-room' && currentTender && <TenderWarRoomModule currentTender={currentTender} company={activeCompany} systemMode={systemMode} onNavigateToMatrix={() => { setCurrentSection('matrix'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToBoQ={() => { setCurrentSection('construction'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToAmcu={() => { setCurrentSection('complaints'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToAudit={() => { setCurrentSection('audit'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToCollusion={() => { setCurrentSection('competitors'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
+                  {currentSection === 'post-tender' && <PostTenderModule tenders={tenders} company={activeCompany} onNavigateToAmcu={(t) => { setCurrentTender(t); setCurrentSection('complaints'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
+                  {currentSection === 'services' && <ServicesModelModule />}
+                  {currentSection === 'matrix' && currentTender && <RequirementMatrixModule currentTender={currentTender} company={activeCompany} onUpdateTenderRequirements={handleUpdateTenderRequirements} onNavigateToAmcu={() => { setCurrentSection('complaints'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToVault={() => { setCurrentSection('vault'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
+                  {currentSection === 'vault' && <CompanyVaultModule company={activeCompany} onUpdateCompany={handleUpdateCompany} />}
+                  {currentSection === 'foultender' && currentTender && <FoulTenderModule currentTender={currentTender} allTenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => { setCurrentSection(sec); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onPrepareComplaintForTender={(t) => setCurrentTender(t)} />}
+                  {currentSection === 'construction' && currentTender && <TenderAIConstructionModule currentTender={currentTender} allTenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => { setCurrentSection(sec); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onUpdateTenderBoq={handleUpdateTenderBoq} onUpdateTenderAnalysis={handleUpdateTenderAnalysis} />}
+                  {currentSection === 'competitors' && currentTender && <CompetitorCollusionModule currentTender={currentTender} competitors={[]} onNavigateToAmcu={() => { setCurrentSection('complaints'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onUpdateTenderCollusion={handleUpdateTenderCollusion} />}
+                  {currentSection === 'diff' && currentTender && <VersionDiffModule currentTender={currentTender} onNavigateToAmcu={() => { setCurrentSection('complaints'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
+                  {currentSection === 'audit' && currentTender && <PreSubmissionAuditModule currentTender={currentTender} company={activeCompany} bidPackages={bidPackages} onNavigateToAmcu={() => { setCurrentSection('complaints'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToVault={() => { setCurrentSection('vault'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToBidPackages={() => { setCurrentSection('bid-packages'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
+                  {currentSection === 'complaints' && currentTender && <AmcuComplaintGenerator currentTender={currentTender} company={activeCompany} complaints={complaints} onAddComplaint={handleAddComplaint} />}
+                  {currentSection === 'bid-packages' && currentTender && <BidPackageGenerator currentTender={currentTender} company={activeCompany} bidPackages={bidPackages} onAddBidPackage={handleAddBidPackage} />}
+                  {currentSection === 'multiagent-chat' && currentTender && <MultiAgentChat currentTender={currentTender} />}
+                  {currentSection === 'catalog' && <TenderCatalog tenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => { setCurrentSection(sec); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onAddNewTender={handleAddNewTender} />}
+                </>
+            )}
+        </main>
       </div>
-
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {!currentTender && requiresTender ? (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center max-w-xl mx-auto space-y-4 my-12 shadow-xl">
-            <div className="w-12 h-12 rounded-full bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center mx-auto">
-              <Bot className="w-6 h-6 text-emerald-400" />
-            </div>
-            <h3 className="text-xl font-bold text-white">Тендер не обрано</h3>
-            <p className="text-sm text-slate-400">
-              Для роботи з цим інструментом оберіть закупівлю з каталогу або скористайтеся AI Радаром для пошуку та імпорту торгів з Prozorro.
-            </p>
-            <div className="flex justify-center gap-3 pt-2">
-              <button
-                onClick={() => setCurrentSection('catalog')}
-                className="px-4 py-2 bg-emerald-500 text-slate-950 font-bold text-xs rounded-xl hover:bg-emerald-400 transition-colors cursor-pointer"
-              >
-                Відкрити Каталог
-              </button>
-              <button
-                onClick={() => setCurrentSection('radar')}
-                className="px-4 py-2 bg-slate-800 text-slate-200 border border-slate-700 font-semibold text-xs rounded-xl hover:bg-slate-700 transition-colors cursor-pointer"
-              >
-                AI Радар Пошуку
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {currentSection === 'dashboard' && (
-              <DashboardView
-                tenders={tenders}
-                onSelectTender={(t) => setCurrentTender(t)}
-                onNavigate={(sec) => {
-                  setCurrentSection(sec);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {currentSection === 'analytics' && (
-              <AnalyticsDashboard tenders={tenders} />
-            )}
-
-            {currentSection === 'radar' && (
-              <TenderRadarModule
-                tenders={tenders}
-                company={activeCompany}
-                onSelectTender={(t) => setCurrentTender(t)}
-                onNavigateToWarRoom={(t) => {
-                  setCurrentTender(t);
-                  setCurrentSection('war-room');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {currentSection === 'war-room' && currentTender && (
-              <TenderWarRoomModule
-                currentTender={currentTender}
-                company={activeCompany}
-                systemMode={systemMode}
-                onNavigateToMatrix={() => {
-                  setCurrentSection('matrix');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onNavigateToBoQ={() => {
-                  setCurrentSection('construction');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onNavigateToAmcu={() => {
-                  setCurrentSection('complaints');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onNavigateToAudit={() => {
-                  setCurrentSection('audit');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onNavigateToCollusion={() => {
-                  setCurrentSection('competitors');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {currentSection === 'post-tender' && (
-              <PostTenderModule
-                tenders={tenders}
-                company={activeCompany}
-                onNavigateToAmcu={(t) => {
-                  setCurrentTender(t);
-                  setCurrentSection('complaints');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {currentSection === 'services' && (
-              <ServicesModelModule />
-            )}
-
-            {currentSection === 'matrix' && currentTender && (
-              <RequirementMatrixModule
-                currentTender={currentTender}
-                company={activeCompany}
-                onUpdateTenderRequirements={handleUpdateTenderRequirements}
-                onNavigateToAmcu={() => {
-                  setCurrentSection('complaints');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onNavigateToVault={() => {
-                  setCurrentSection('vault');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {currentSection === 'vault' && (
-              <CompanyVaultModule
-                company={activeCompany}
-                onUpdateCompany={setCompanyProfile}
-              />
-            )}
-
-            {currentSection === 'foultender' && currentTender && (
-              <FoulTenderModule
-                currentTender={currentTender}
-                allTenders={tenders}
-                onSelectTender={(t) => setCurrentTender(t)}
-                onNavigate={(sec) => {
-                  setCurrentSection(sec);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onPrepareComplaintForTender={(t) => setCurrentTender(t)}
-              />
-            )}
-
-            {currentSection === 'construction' && currentTender && (
-              <TenderAIConstructionModule
-                currentTender={currentTender}
-                allTenders={tenders}
-                onSelectTender={(t) => setCurrentTender(t)}
-                onNavigate={(sec) => {
-                  setCurrentSection(sec);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onUpdateTenderBoq={handleUpdateTenderBoq}
-                onUpdateTenderAnalysis={handleUpdateTenderAnalysis}
-              />
-            )}
-
-            {currentSection === 'competitors' && currentTender && (
-              <CompetitorCollusionModule
-                currentTender={currentTender}
-                competitors={[]}
-                onNavigateToAmcu={() => {
-                  setCurrentSection('complaints');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {currentSection === 'diff' && currentTender && (
-              <VersionDiffModule
-                currentTender={currentTender}
-                onNavigateToAmcu={() => {
-                  setCurrentSection('complaints');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {currentSection === 'audit' && currentTender && (
-              <PreSubmissionAuditModule
-                currentTender={currentTender}
-                company={activeCompany}
-                bidPackages={bidPackages}
-                onNavigateToAmcu={() => {
-                  setCurrentSection('complaints');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onNavigateToVault={() => {
-                  setCurrentSection('vault');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onNavigateToBidPackages={() => {
-                  setCurrentSection('bid-packages');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {currentSection === 'complaints' && currentTender && (
-              <AmcuComplaintGenerator
-                currentTender={currentTender}
-                company={activeCompany}
-                complaints={complaints}
-                onAddComplaint={handleAddComplaint}
-              />
-            )}
-
-            {currentSection === 'bid-packages' && currentTender && (
-              <BidPackageGenerator
-                currentTender={currentTender}
-                company={activeCompany}
-                bidPackages={bidPackages}
-                onAddBidPackage={handleAddBidPackage}
-              />
-            )}
-
-            {currentSection === 'multiagent-chat' && currentTender && (
-              <MultiAgentChat
-                currentTender={currentTender}
-              />
-            )}
-
-            {currentSection === 'catalog' && (
-              <TenderCatalog
-                tenders={tenders}
-                onSelectTender={(t) => setCurrentTender(t)}
-                onNavigate={(sec) => {
-                  setCurrentSection(sec);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onAddNewTender={handleAddNewTender}
-              />
-            )}
-          </>
-        )}
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div>
-            <strong>TenderAI & FoulTender Enterprise Platform</strong> • Повний цикл підготовки, аналітики, перевірки та антикорупційного захисту пропозицій
-          </div>
-          <div className="text-slate-600">
-            Powered by Gemini AI Multi-Agent & Evidence-First Matrix • Prozorro / АМКУ
-          </div>
-        </div>
-      </footer>
-
     </div>
   );
 }

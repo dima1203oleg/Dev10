@@ -20,12 +20,14 @@ interface CompetitorCollusionModuleProps {
   currentTender: Tender;
   competitors?: CompetitorProfile[];
   onNavigateToAmcu: () => void;
+  onUpdateTenderCollusion?: (tenderId: string, collusion: CollusionAnalysis) => void;
 }
 
 export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps> = ({
   currentTender,
   competitors = [],
   onNavigateToAmcu,
+  onUpdateTenderCollusion,
 }) => {
   const [competitorList, setCompetitorList] = useState<CompetitorProfile[]>(competitors);
   const [isScanning, setIsScanning] = useState(false);
@@ -50,14 +52,18 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
         throw new Error(errJson.error || 'Помилка аналізу змов. Спробуйте ще раз.');
       }
       const data = await response.json();
-      setCollusionData({
+      const updatedCollusion: CollusionAnalysis = {
         tenderId: currentTender.id,
         collusionRiskScore: data.collusionRiskScore ?? 0,
         riskLevel: data.riskLevel || 'LOW',
         primarySuspects: data.primarySuspects || [],
         anomaliesDetected: data.anomaliesDetected || [],
         coBiddingGraph: data.coBiddingGraph || []
-      });
+      };
+      setCollusionData(updatedCollusion);
+      if (onUpdateTenderCollusion) {
+        onUpdateTenderCollusion(currentTender.id, updatedCollusion);
+      }
     } catch (e: any) {
       console.error("Collusion scan error:", e);
       setErrorMessage(e.message || 'AI_UNAVAILABLE');
@@ -67,6 +73,22 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
   };
 
   const riskScore = collusionData?.collusionRiskScore ?? 0;
+
+  const getRiskLabel = (score: number) => {
+    if (!collusionData) return 'НЕ АНАЛІЗОВАНО';
+    if (score === 0) return 'РИЗИКУ НЕ ВИЯВЛЕНО';
+    if (score >= 70) return 'КРИТИЧНИЙ РИЗИК';
+    if (score >= 40) return 'СЕРЕДНІЙ РИЗИК';
+    return 'НИЗЬКИЙ РИЗИК';
+  };
+
+  const getRiskColor = (score: number) => {
+    if (!collusionData) return 'text-slate-400';
+    if (score === 0) return 'text-emerald-400';
+    if (score >= 70) return 'text-rose-400';
+    if (score >= 40) return 'text-amber-400';
+    return 'text-blue-400';
+  };
 
   return (
     <div id="competitor-collusion-module" className="space-y-6">
@@ -95,10 +117,12 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
           <div className="flex items-center gap-4 bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex-shrink-0">
             <div className="text-center">
               <div className="text-xs text-slate-400">Collusion Risk Index</div>
-              <div className={`text-3xl font-extrabold ${riskScore > 70 ? 'text-rose-400' : 'text-amber-400'}`}>
-                {riskScore}/100
+              <div className={`text-3xl font-extrabold ${getRiskColor(riskScore)}`}>
+                {collusionData ? `${riskScore}/100` : '—'}
               </div>
-              <div className="text-xs font-semibold text-rose-400 mt-0.5">ВИСОКИЙ РИЗИК ЗМОВИ</div>
+              <div className={`text-xs font-semibold mt-0.5 ${getRiskColor(riskScore)}`}>
+                {getRiskLabel(riskScore)}
+              </div>
             </div>
             <div className="h-10 w-[1px] bg-slate-800" />
             <button

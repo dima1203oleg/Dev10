@@ -42,6 +42,65 @@ export const CompanyVaultModule: React.FC<CompanyVaultModuleProps> = ({
   const [newDocIssuer, setNewDocIssuer] = useState('');
   const [newDocExpiry, setNewDocExpiry] = useState('');
 
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileName, setProfileName] = useState(company.name);
+  const [profileShortName, setProfileShortName] = useState(company.shortName);
+  const [profileEdrpou, setProfileEdrpou] = useState(company.edrpou);
+  const [profileKved, setProfileKved] = useState(company.kved);
+  const [profileTaxNumber, setProfileTaxNumber] = useState(company.taxNumber);
+  const [profileLegalAddress, setProfileLegalAddress] = useState(company.legalAddress);
+  const [profileActualAddress, setProfileActualAddress] = useState(company.actualAddress);
+  const [profileDirectorName, setProfileDirectorName] = useState(company.directorName);
+  const [profileDirectorPosition, setProfileDirectorPosition] = useState(company.directorPosition);
+  const [profileDirectorBasis, setProfileDirectorBasis] = useState(company.directorBasis);
+  const [profileIban, setProfileIban] = useState(company.iban);
+  const [profileBankName, setProfileBankName] = useState(company.bankName);
+  const [profileMfo, setProfileMfo] = useState(company.mfo);
+  const [profileEmail, setProfileEmail] = useState(company.email);
+  const [profilePhone, setProfilePhone] = useState(company.phone);
+
+  React.useEffect(() => {
+    if (company) {
+      setProfileName(company.name);
+      setProfileShortName(company.shortName);
+      setProfileEdrpou(company.edrpou);
+      setProfileKved(company.kved);
+      setProfileTaxNumber(company.taxNumber);
+      setProfileLegalAddress(company.legalAddress);
+      setProfileActualAddress(company.actualAddress);
+      setProfileDirectorName(company.directorName);
+      setProfileDirectorPosition(company.directorPosition);
+      setProfileDirectorBasis(company.directorBasis);
+      setProfileIban(company.iban);
+      setProfileBankName(company.bankName);
+      setProfileMfo(company.mfo);
+      setProfileEmail(company.email);
+      setProfilePhone(company.phone);
+    }
+  }, [company]);
+
+  const handleSaveProfile = () => {
+    onUpdateCompany({
+      ...company,
+      name: profileName,
+      shortName: profileShortName,
+      edrpou: profileEdrpou,
+      kved: profileKved,
+      taxNumber: profileTaxNumber,
+      legalAddress: profileLegalAddress,
+      actualAddress: profileActualAddress,
+      directorName: profileDirectorName,
+      directorPosition: profileDirectorPosition,
+      directorBasis: profileDirectorBasis,
+      iban: profileIban,
+      bankName: profileBankName,
+      mfo: profileMfo,
+      email: profileEmail,
+      phone: profilePhone,
+    });
+    setIsEditingProfile(false);
+  };
+
   // Count expiring / expired docs
   const expiringDocs = (company?.vaultDocuments || []).filter(d => d.status === 'EXPIRING_SOON' || d.status === 'EXPIRED');
   const expiringStaff = (company?.staff || []).filter(s => s.status === 'EXPIRING_SOON' || s.status === 'EXPIRED');
@@ -473,27 +532,209 @@ export const CompanyVaultModule: React.FC<CompanyVaultModuleProps> = ({
       {/* TAB 5: Profile Requisites */}
       {activeTab === 'profile' && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
-          <h2 className="text-lg font-bold text-white">Офіційні реквізити підприємства для форм Prozorro</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-            <div className="space-y-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
-              <h3 className="font-semibold text-emerald-400 text-xs uppercase tracking-wider">Юридичні реквізити</h3>
-              <div><span className="text-slate-500">Повна назва:</span> <p className="font-medium text-slate-200">{company.name}</p></div>
-              <div><span className="text-slate-500">Код ЄДРПОУ:</span> <p className="font-medium text-slate-200">{company.edrpou}</p></div>
-              <div><span className="text-slate-500">ІПН платника ПДВ:</span> <p className="font-medium text-slate-200">{company.taxNumber}</p></div>
-              <div><span className="text-slate-500">Юридична адреса:</span> <p className="font-medium text-slate-200">{company.legalAddress}</p></div>
-              <div><span className="text-slate-500">Фактична адреса:</span> <p className="font-medium text-slate-200">{company.actualAddress}</p></div>
-            </div>
-
-            <div className="space-y-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
-              <h3 className="font-semibold text-blue-400 text-xs uppercase tracking-wider">Банківські реквізити та підписант</h3>
-              <div><span className="text-slate-500">Керівник:</span> <p className="font-medium text-slate-200">{company.directorName} ({company.directorPosition})</p></div>
-              <div><span className="text-slate-500">Діє на підставі:</span> <p className="font-medium text-slate-200">{company.directorBasis}</p></div>
-              <div><span className="text-slate-500">Банк:</span> <p className="font-medium text-slate-200">{company.bankName}</p></div>
-              <div><span className="text-slate-500">IBAN:</span> <p className="font-mono text-emerald-400 font-semibold">{company.iban}</p></div>
-              <div><span className="text-slate-500">Контакти для зв'язку:</span> <p className="font-medium text-slate-200">{company.email} • {company.phone}</p></div>
-            </div>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-white">Офіційні реквізити підприємства для форм Prozorro</h2>
+            {!isEditingProfile ? (
+              <button
+                onClick={() => setIsEditingProfile(true)}
+                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/20 font-bold py-2 px-4 rounded-xl transition-all text-xs cursor-pointer"
+              >
+                <Edit3 className="w-4 h-4" /> Редагувати реквізити
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsEditingProfile(false)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2 px-4 rounded-xl transition-all text-xs cursor-pointer"
+                >
+                  Скасувати
+                </button>
+                <button
+                  onClick={handleSaveProfile}
+                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold py-2 px-4 rounded-xl transition-all text-xs cursor-pointer shadow-lg shadow-emerald-500/10"
+                >
+                  Зберегти зміни
+                </button>
+              </div>
+            )}
           </div>
+          
+          {!isEditingProfile ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+              <div className="space-y-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
+                <h3 className="font-semibold text-emerald-400 text-xs uppercase tracking-wider">Юридичні реквізити</h3>
+                <div><span className="text-slate-500">Повна назва:</span> <p className="font-medium text-slate-200">{company.name}</p></div>
+                <div><span className="text-slate-500">Коротке ім'я:</span> <p className="font-medium text-slate-200">{company.shortName}</p></div>
+                <div><span className="text-slate-500">Код ЄДРПОУ:</span> <p className="font-medium text-slate-200">{company.edrpou}</p></div>
+                <div><span className="text-slate-500">ІПН платника ПДВ:</span> <p className="font-medium text-slate-200">{company.taxNumber || 'не вказано'}</p></div>
+                <div><span className="text-slate-500">Юридична адреса:</span> <p className="font-medium text-slate-200">{company.legalAddress || 'не вказано'}</p></div>
+                <div><span className="text-slate-500">Фактична адреса:</span> <p className="font-medium text-slate-200">{company.actualAddress || 'не вказано'}</p></div>
+              </div>
+
+              <div className="space-y-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
+                <h3 className="font-semibold text-blue-400 text-xs uppercase tracking-wider">Банківські реквізити та підписант</h3>
+                <div><span className="text-slate-500">Керівник:</span> <p className="font-medium text-slate-200">{company.directorName || 'не вказано'} {company.directorPosition ? `(${company.directorPosition})` : ''}</p></div>
+                <div><span className="text-slate-500">Діє на підставі:</span> <p className="font-medium text-slate-200">{company.directorBasis || 'не вказано'}</p></div>
+                <div><span className="text-slate-500">Банк:</span> <p className="font-medium text-slate-200">{company.bankName || 'не вказано'}</p></div>
+                <div><span className="text-slate-500">IBAN:</span> <p className="font-mono text-emerald-400 font-semibold">{company.iban || 'не вказано'}</p></div>
+                <div><span className="text-slate-500">Контакти для зв'язку:</span> <p className="font-medium text-slate-200">{company.email || 'не вказано'} • {company.phone || 'не вказано'}</p></div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+              <div className="space-y-4 bg-slate-950/60 p-5 rounded-xl border border-slate-800">
+                <h3 className="font-semibold text-emerald-400 text-xs uppercase tracking-wider">Юридичні реквізити</h3>
+                
+                <div>
+                  <label className="block text-slate-400 mb-1">Повна назва підприємства *</label>
+                  <input
+                    type="text"
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1">Коротке ім'я для інтерфейсу</label>
+                  <input
+                    type="text"
+                    value={profileShortName}
+                    onChange={(e) => setProfileShortName(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">Код ЄДРПОУ *</label>
+                    <input
+                      type="text"
+                      value={profileEdrpou}
+                      onChange={(e) => setProfileEdrpou(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">ІПН платника ПДВ</label>
+                    <input
+                      type="text"
+                      value={profileTaxNumber}
+                      onChange={(e) => setProfileTaxNumber(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1">Юридична адреса</label>
+                  <input
+                    type="text"
+                    value={profileLegalAddress}
+                    onChange={(e) => setProfileLegalAddress(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1">Фактична адреса</label>
+                  <input
+                    type="text"
+                    value={profileActualAddress}
+                    onChange={(e) => setProfileActualAddress(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4 bg-slate-950/60 p-5 rounded-xl border border-slate-800">
+                <h3 className="font-semibold text-blue-400 text-xs uppercase tracking-wider">Банківські реквізити та підписант</h3>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">ПІБ Керівника</label>
+                    <input
+                      type="text"
+                      value={profileDirectorName}
+                      onChange={(e) => setProfileDirectorName(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">Посада Керівника</label>
+                    <input
+                      type="text"
+                      value={profileDirectorPosition}
+                      onChange={(e) => setProfileDirectorPosition(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1">Діє на підставі (напр. Статуту)</label>
+                  <input
+                    type="text"
+                    value={profileDirectorBasis}
+                    onChange={(e) => setProfileDirectorBasis(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-slate-400 mb-1">Назва Банку</label>
+                    <input
+                      type="text"
+                      value={profileBankName}
+                      onChange={(e) => setProfileBankName(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">МФО Банку</label>
+                    <input
+                      type="text"
+                      value={profileMfo}
+                      onChange={(e) => setProfileMfo(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 mb-1">IBAN рахунок</label>
+                  <input
+                    type="text"
+                    value={profileIban}
+                    onChange={(e) => setProfileIban(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 mb-1">Email для зв'язку</label>
+                    <input
+                      type="email"
+                      value={profileEmail}
+                      onChange={(e) => setProfileEmail(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">Телефон</label>
+                    <input
+                      type="text"
+                      value={profilePhone}
+                      onChange={(e) => setProfilePhone(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
