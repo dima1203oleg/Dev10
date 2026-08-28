@@ -53,13 +53,16 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [searchTelemetry, setSearchTelemetry] = useState<any>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [nextOffset, setNextOffset] = useState<string | null>(null);
+  const [searchId, setSearchId] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(false);
 
   // Apply natural language filter
   const handleApplyNlPrompt = async (prompt: string, isAppend = false) => {
     if (!isAppend) {
       setNlPrompt(prompt);
       setLocalTenders([]);
+      setSearchId(null);
+      setHasMore(false);
     }
     
     if (!token) return;
@@ -69,7 +72,10 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
     if (!isAppend) setSearchTelemetry(null);
 
     try {
-      const url = `/api/prozorro/search?query=${encodeURIComponent(prompt)}${isAppend && nextOffset ? `&offset=${nextOffset}` : ''}`;
+      const url = isAppend && searchId
+        ? `/api/prozorro/search?searchId=${searchId}`
+        : `/api/prozorro/search?query=${encodeURIComponent(prompt)}`;
+        
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -82,14 +88,23 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
         return;
       }
 
-      if (data.telemetry) {
-        setSearchTelemetry(data.telemetry);
-        setNextOffset(data.telemetry.nextOffset || null);
+      if (data.searchId) {
+        setSearchId(data.searchId);
+      }
+      if (data.pagination) {
+        setHasMore(data.pagination.hasMore);
+        setSearchTelemetry({
+          pagesFetched: data.pagination.pagesFetched,
+          recordsFetched: data.pagination.recordsScanned,
+          recordsReturned: data.pagination.recordsMatched,
+          durationMs: data.telemetry?.durationMs || 150
+        });
       }
       
-      if (data.tenders) {
+      const tendersToMap = data.results || data.tenders;
+      if (tendersToMap) {
         // Map backend objects to frontend types
-        const mappedTenders: Tender[] = data.tenders.map((t: any) => ({
+        const mappedTenders: Tender[] = tendersToMap.map((t: any) => ({
             id: t.id,
             tenderNumber: t.tenderId, // Correctly use tenderId (UA-...)
             title: t.title,
@@ -147,7 +162,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
   };
 
   const handleLoadMore = () => {
-    if (nlPrompt && nextOffset) {
+    if (searchId && hasMore) {
       handleApplyNlPrompt(nlPrompt, true);
     }
   };
@@ -627,12 +642,12 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
         })}
       </div>
       
-      {nextOffset && (
+      {hasMore && (
         <div className="flex justify-center pt-8 pb-12">
           <button
             onClick={handleLoadMore}
             disabled={isSearching}
-            className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-3 px-8 rounded-xl border border-slate-700 hover:border-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+            className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-3 px-8 rounded-xl border border-slate-700 hover:border-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
           >
             {isSearching ? (
               <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-400 border-t-transparent"></div>
@@ -641,6 +656,12 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
             )}
             <span>Завантажити ще результати з Prozorro</span>
           </button>
+        </div>
+      )}
+
+      {!hasMore && searchId && (
+        <div className="text-center text-xs text-slate-500 pt-4 pb-12">
+          Нових результатів у доступному діапазоні не знайдено.
         </div>
       )}
 

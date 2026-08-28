@@ -29,10 +29,10 @@ export interface BoQItem {
   description: string;
   unit: string;
   quantity: number;
-  standardPriceUah: number;
-  marketPriceUah: number;
-  laborHours: number;
-  anomaly?: 'OVERPRICED' | 'UNDERESTIMATED' | 'NORMAL' | 'SUSPICIOUS_SPEC';
+  standardPriceUah: number | null;
+  marketPriceUah: number | null;
+  laborHours: number | null;
+  anomaly?: 'OVERPRICED' | 'UNDERESTIMATED' | 'NORMAL' | 'SUSPICIOUS_SPEC' | null;
   notes?: string;
 }
 

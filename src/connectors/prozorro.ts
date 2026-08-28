@@ -72,7 +72,7 @@ export async function searchProzorroTenders(
   let currentOffset = options.offset || ""; 
 
   try {
-    let nextPageUri = `${PROZORRO_BASE_URL}?descending=1&limit=100&opt_fields=title,description,value,procuringEntity,tenderID,status,tenderPeriod,items,mainProcurementCategory`;
+    let nextPageUri = `${PROZORRO_BASE_URL}?descending=1&limit=20&opt_fields=title,description,value,procuringEntity,tenderID,status,tenderPeriod,items,mainProcurementCategory`;
     if (currentOffset) {
       nextPageUri += `&offset=${currentOffset}`;
     }
@@ -117,28 +117,84 @@ export async function searchProzorroTenders(
         const regionName = (data.procuringEntity?.address?.region || "").toLowerCase();
         const localityName = (data.procuringEntity?.address?.locality || "").toLowerCase();
         
-        // 1. Keyword/Synonym Match (Recall Enhancement & Scoring)
+        // 1. Keyword/Synonym Match (Recall Enhancement & Scoring with False-Positive Prevention)
         const qKeywords = (query.keywords || []).map((k: string) => k.toLowerCase());
         const synonyms = (query.synonyms || []).map((s: string) => s.toLowerCase());
         const allSearchTerms = [...qKeywords, ...synonyms];
         
+        // Context detection for shelter or construction/repair
+        const queryHasShelter = allSearchTerms.some(term => /укритт|бомбосх|сховищ|захисн|цивільн/i.test(term));
+        const queryHasRepairOrBuild = allSearchTerms.some(term => /ремонт|будівн|реконстр|облаштув|капітальн/i.test(term));
+
+        // Tender content checking
+        const tenderHasShelter = /укритт|бомбосх|сховищ|захисн|цивільн/i.test(title) || /укритт|бомбосх|сховищ|захисн|цивільн/i.test(description);
+        const cpv = data.items?.[0]?.classification?.id || "";
+        const cpvName = data.items?.[0]?.classification?.description || "";
+        const isConstructionCpv = cpv.startsWith("45");
+
+        // Exclusions list
+        const negativeExclusions = [
+          "харчування", "продукти", "м'ясо", "молоко", "хліб", "овочі", "масло", "сир", "риба", "сік", "соки", "крупа", "борошно", "яйця", "фрукти",
+          "охорона", "охоронні", "прибирання", "дезінфекція", "прасування",
+          "канцтовари", "папір", "олівці", "ручки", "зошити", "бланк",
+          "меблі", "стільці", "парти", "шафи", "столи", "ліжка",
+          "інтернет", "провайдер", "програмне", "it-", "it ", "ліцензії", "комп'ютер", "ноутбук", "принтер",
+          "транспорт", "перевезення", "автобус", "пасажир",
+          "вугілля", "газ", "дрова", "електроенергія", "теплопостач"
+        ];
+
+        const tenderHasNegativeExclusion = negativeExclusions.some(neg => 
+          title.includes(neg) || description.includes(neg)
+        );
+
+        // CPV-based negative exclusion
+        const isNegativeCpv = /^(15|55|90|797|301|391|72|60|34|09)/.test(cpv);
+
+        // Enforce strong rules for false positives
+        if (queryHasShelter) {
+          const isValidShelterTender = tenderHasShelter || (isConstructionCpv && /ремонт|будівн|реконстр|облаштув/i.test(title + " " + description));
+          if (!isValidShelterTender) continue; // Skip non-shelter results for shelter queries
+
+          if (tenderHasNegativeExclusion || isNegativeCpv) {
+            continue; // Skip food/services/cleaning/etc.
+          }
+        } else if (queryHasRepairOrBuild) {
+          if (tenderHasNegativeExclusion || isNegativeCpv) {
+            continue; // Skip food/services/cleaning/etc.
+          }
+        }
+
         let relevanceScore = 0;
         if (allSearchTerms.length > 0) {
-          const titleWeight = 40;
-          const descWeight = 30;
-          const customerWeight = 10;
-          
-          let matches = 0;
+          let matchedCount = 0;
           for (const term of allSearchTerms) {
-            if (title.includes(term) || description.includes(term) || customerName.includes(term)) {
-              if (title.includes(term)) relevanceScore += titleWeight;
-              if (description.includes(term)) relevanceScore += descWeight;
-              if (customerName.includes(term)) relevanceScore += customerWeight;
-              matches++;
+            let termMatched = false;
+            if (title.includes(term)) {
+              relevanceScore += 30;
+              termMatched = true;
             }
+            if (description.includes(term)) {
+              relevanceScore += 20;
+              termMatched = true;
+            }
+            if (customerName.includes(term)) {
+              relevanceScore += 10;
+              termMatched = true;
+            }
+            if (termMatched) matchedCount++;
           }
           
-          if (matches === 0) continue; 
+          if (matchedCount === 0) continue;
+
+          // Multi-term match bonus
+          if (matchedCount > 1) {
+            relevanceScore += (matchedCount - 1) * 15;
+          }
+          
+          // Direct shelter keyword match bonus if shelter was queried
+          if (queryHasShelter && tenderHasShelter) {
+            relevanceScore += 40;
+          }
         }
 
         // 2. Budget Bounds
@@ -162,8 +218,6 @@ export async function searchProzorroTenders(
         if (!locationMatch) continue;
 
         // 4. CPV
-        const cpv = data.items?.[0]?.classification?.id;
-        const cpvName = data.items?.[0]?.classification?.description || "";
         if (query.cpvCandidates?.length > 0 && cpv) {
           const cpvMatch = query.cpvCandidates.some((c: string) => cpv.startsWith(c.substring(0, 4)));
           if (!cpvMatch) continue;
@@ -200,10 +254,10 @@ export async function searchProzorroTenders(
             description: it.description,
             unit: it.unit?.name || "од",
             quantity: it.quantity,
-            standardPriceUah: amount / (data.items.length || 1),
-            marketPriceUah: amount / (data.items.length || 1),
-            laborHours: 0,
-            anomaly: 'NORMAL'
+            standardPriceUah: null,
+            marketPriceUah: null,
+            laborHours: null,
+            anomaly: null
           })),
           violations: [],
           requirements: [],
@@ -266,6 +320,7 @@ export function calculatePersonalRadarMatch(
     legalReadiness: number;
     capacityFit: number;
     budgetFeasibility: number;
+    deadlineScore?: number;
   };
   reasons: string[];
 } {

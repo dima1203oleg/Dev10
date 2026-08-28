@@ -102,7 +102,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
     onUpdateTenderBoq(currentTender.id, updated);
   };
 
-  const totalBoqCost = boqItems.reduce((acc, item) => acc + (item.quantity * item.marketPriceUah), 0);
+  const totalBoqCost = boqItems.reduce((acc, item) => acc + (item.quantity * (item.marketPriceUah || 0)), 0);
   const analysis = currentTender.multiAgentAnalysis;
 
   return (
@@ -544,7 +544,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                     <td className="p-3 font-mono text-slate-400">
                       <input
                         type="number"
-                        value={item.standardPriceUah}
+                        value={item.standardPriceUah ?? ""}
                         onChange={(e) => handleUpdateBoqItem(item.id, 'standardPriceUah', parseFloat(e.target.value) || 0)}
                         className="bg-slate-800 border border-slate-700 rounded px-2 py-1 w-24 font-mono text-slate-300 text-right"
                       />
@@ -552,13 +552,13 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                     <td className="p-3 font-mono text-emerald-400 font-bold">
                       <input
                         type="number"
-                        value={item.marketPriceUah}
+                        value={item.marketPriceUah ?? ""}
                         onChange={(e) => handleUpdateBoqItem(item.id, 'marketPriceUah', parseFloat(e.target.value) || 0)}
                         className="bg-slate-800 border border-slate-700 rounded px-2 py-1 w-24 font-mono text-emerald-400 text-right"
                       />
                     </td>
                     <td className="p-3 font-mono font-bold text-white">
-                      {(item.quantity * item.marketPriceUah).toLocaleString()}
+                      {(item.quantity * (item.marketPriceUah || 0)).toLocaleString()}
                     </td>
                     <td className="p-3">
                       {item.anomaly === 'OVERPRICED' ? (

@@ -145,10 +145,10 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
         description: it.description,
         unit: it.unit,
         quantity: it.quantity,
-        standardPriceUah: detailData.value.amount / (detailData.items.length || 1),
-        marketPriceUah: detailData.value.amount / (detailData.items.length || 1),
-        laborHours: 0,
-        anomaly: 'NORMAL' as const
+        standardPriceUah: null,
+        marketPriceUah: null,
+        laborHours: null,
+        anomaly: null
       })),
       violations: [],
     };

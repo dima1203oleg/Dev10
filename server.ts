@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
@@ -142,45 +142,139 @@ app.get("/api/connectors/prozorro/health", async (req, res) => {
   }
 });
 
-// API: Real Prozorro Search Integration with AI Query Parsing
+// Define global Search Session Map for stateful cursor pagination
+declare global {
+  var _searchSessions: Map<string, {
+    query: {
+      raw: string;
+      structured: any;
+    };
+    nextCursor: string;
+    pagesFetched: number;
+    recordsScanned: number;
+    recordsMatched: number;
+  }> | undefined;
+}
+if (!global._searchSessions) {
+  global._searchSessions = new Map();
+}
+const searchSessions = global._searchSessions;
+
+// API: Real Prozorro Search Integration with AI Query Parsing & Stateful Cursor Pagination
 app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { query, offset } = req.query;
-    const qString = query && typeof query === 'string' ? query : "";
-    const offsetString = offset && typeof offset === 'string' ? offset : undefined;
+    const { query, searchId, offset } = req.query;
+    const apiKey = process.env.GEMINI_API_KEY || "";
     
-    if (!qString && !offsetString) {
-      return res.json({ tenders: [], telemetry: null });
+    // Fetch user's company profile for personalized Opportunity Scoring
+    const dbUser = await getOrCreateUser(req.user.uid, req.user.email || "");
+    const userProfiles = await db.select().from(companyProfiles).where(eq(companyProfiles.userId, dbUser.id));
+    const company = userProfiles[0] || null;
+
+    let session: any = null;
+    let structuredQuery: any = null;
+    let rawQuery = "";
+    let nextCursor = "";
+    let isLoadMore = false;
+
+    if (searchId && typeof searchId === "string") {
+      session = searchSessions.get(searchId);
+      if (!session) {
+        return res.status(404).json({ error: "Пошукову сесію завершено або не знайдено. Будь ласка, почніть новий пошук." });
+      }
+      structuredQuery = session.query.structured;
+      rawQuery = session.query.raw;
+      nextCursor = session.nextCursor;
+      isLoadMore = true;
+    } else {
+      rawQuery = query && typeof query === "string" ? query : "";
+      if (!rawQuery) {
+        return res.json({
+          searchId: "",
+          query: { raw: "", structured: {} },
+          tenders: [],
+          results: [],
+          pagination: { hasMore: false, nextCursor: "", pagesFetched: 0, recordsScanned: 0, recordsMatched: 0 },
+          source: { name: "Prozorro", status: "SUCCESS", retrievedAt: new Date().toISOString() }
+        });
+      }
+      // AI Query Parsing
+      structuredQuery = await parseTenderQuery(rawQuery, apiKey);
     }
 
-    // 1. AI Query Parsing (Production Level)
-    const apiKey = process.env.GEMINI_API_KEY || "";
-    // If we have an offset, we don't need to re-parse the query, we just use the keywords
-    const structuredQuery = offsetString ? { keywords: qString ? [qString] : [] } : await parseTenderQuery(qString, apiKey);
+    // Call Prozorro connector using the stateful query and authoritative cursor
+    const limit = 15;
+    const searchResult = await searchProzorroTenders(structuredQuery, {
+      limit,
+      offset: isLoadMore ? nextCursor : (offset && typeof offset === "string" ? offset : undefined),
+      maxPages: 3
+    });
 
-    // 2. Real Prozorro Search
-    console.log(`[VERIFICATION] Prozorro Request: query="${qString}", offset="${offsetString || 'initial'}"`);
-    console.log(`[VERIFICATION] Parsed Query:`, JSON.stringify(structuredQuery));
-    
-    const searchResult = await searchProzorroTenders(structuredQuery, { limit: 10, offset: offsetString });
-    
-    console.log(`[VERIFICATION] Prozorro Result: fetched=${searchResult.telemetry.recordsFetched}, returned=${searchResult.tenders.length}, duration=${searchResult.telemetry.durationMs}ms`);
-    
-    if (searchResult.telemetry.sourceStatus === 'ERROR') {
-      return res.status(502).json({ 
-        error: "Prozorro API is currently unreachable or returned an error.",
-        telemetry: searchResult.telemetry 
+    if (searchResult.telemetry.sourceStatus === "ERROR") {
+      return res.status(502).json({
+        error: "Помилка підключення до Prozorro API.",
+        telemetry: searchResult.telemetry
       });
     }
 
-    res.json({ 
-      tenders: searchResult.tenders, 
-      telemetry: searchResult.telemetry,
-      parsedQuery: structuredQuery 
+    // Dynamic Personalized scoring
+    const processedTenders = searchResult.tenders.map((tender) => {
+      if (company) {
+        const radarMatch = calculatePersonalRadarMatch(tender, company);
+        return {
+          ...tender,
+          fitScore: radarMatch.fitScore,
+          fitFactors: radarMatch.factors,
+          radarReasons: radarMatch.reasons
+        };
+      }
+      return tender;
     });
+
+    const newNextCursor = searchResult.telemetry.nextOffset || "";
+    const hasMore = !!newNextCursor && processedTenders.length > 0;
+    const currentSearchId = (isLoadMore ? searchId : crypto.randomUUID()) as string;
+
+    if (!isLoadMore) {
+      searchSessions.set(currentSearchId, {
+        query: { raw: rawQuery, structured: structuredQuery },
+        nextCursor: newNextCursor,
+        pagesFetched: searchResult.telemetry.pagesFetched,
+        recordsScanned: searchResult.telemetry.recordsFetched,
+        recordsMatched: processedTenders.length
+      });
+    } else {
+      session.nextCursor = newNextCursor;
+      session.pagesFetched += searchResult.telemetry.pagesFetched;
+      session.recordsScanned += searchResult.telemetry.recordsFetched;
+      session.recordsMatched += processedTenders.length;
+    }
+
+    res.json({
+      searchId: currentSearchId,
+      query: {
+        raw: rawQuery,
+        structured: structuredQuery
+      },
+      tenders: processedTenders, // Backward-compatibility
+      results: processedTenders, // Search Contract Compliance
+      pagination: {
+        hasMore,
+        nextCursor: newNextCursor,
+        pagesFetched: isLoadMore ? session.pagesFetched : searchResult.telemetry.pagesFetched,
+        recordsScanned: isLoadMore ? session.recordsScanned : searchResult.telemetry.recordsFetched,
+        recordsMatched: isLoadMore ? session.recordsMatched : processedTenders.length
+      },
+      source: {
+        name: "Prozorro",
+        status: "SUCCESS",
+        retrievedAt: new Date().toISOString()
+      }
+    });
+
   } catch (error) {
-    console.error("Prozorro API error:", error);
-    res.status(500).json({ error: "Failed to fetch from Prozorro API" });
+    console.error("Prozorro API search endpoint error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -188,7 +282,6 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
 app.get("/api/prozorro/tender/:id/audit", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params;
-    const apiKey = process.env.GEMINI_API_KEY || "";
 
     // 1. Fetch full detail from Prozorro
     const response = await fetch(`https://public.api.openprocurement.org/api/2.5/tenders/${id}`);
@@ -197,8 +290,8 @@ app.get("/api/prozorro/tender/:id/audit", requireAuth, async (req: AuthRequest, 
     const data = tenderData.data;
 
     // 2. Perform AI Audit using Gemini
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const ai = getGeminiClient();
+    if (!ai) throw new Error("GEMINI_API_KEY is not configured");
 
     const auditPrompt = `
       Ти — провідний експерт із державних закупівель Prozorro та аудитор ризиків. 
@@ -225,8 +318,13 @@ app.get("/api/prozorro/tender/:id/audit", requireAuth, async (req: AuthRequest, 
       }
     `;
 
-    const result = await model.generateContent(auditPrompt);
-    const text = result.response.text();
+    const result = await generateContentWithFallback(ai, {
+      contents: auditPrompt,
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+    const text = result.text || "";
     
     // Simple JSON cleanup if Gemini adds markdown
     const cleanJson = text.replace(/```json|```/g, "").trim();
@@ -327,8 +425,7 @@ async function generateContentWithFallback(
 ) {
   const modelsToTry = Array.from(
     new Set([
-      params.primaryModel || "gemini-3.6-flash",
-      "gemini-3.6-flash",
+      params.primaryModel || "gemini-3.7-flash",
       "gemini-3.7-flash",
       "gemini-3.1-flash-lite",
       "gemini-flash-latest"

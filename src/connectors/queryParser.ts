@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 export interface StructuredTenderQuery {
   intent: 'TENDER_SEARCH' | 'COMPANY_ANALYSIS' | 'MARKET_OVERVIEW' | 'OTHER';
@@ -28,10 +28,13 @@ export async function parseTenderQuery(prompt: string, apiKey: string): Promise<
     throw new Error("GEMINI_API_KEY is required for Query Parsing");
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash",
-    generationConfig: { responseMimeType: "application/json" }
+  const ai = new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      }
+    }
   });
 
   const systemInstruction = `
@@ -61,12 +64,61 @@ export async function parseTenderQuery(prompt: string, apiKey: string): Promise<
     }
   `;
 
+  const modelsToTry = [
+    "gemini-3.7-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-flash-latest"
+  ];
+
+  let lastError: any = null;
+  let responseText = "";
+
+  for (const modelName of modelsToTry) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const result = await ai.models.generateContent({
+          model: modelName,
+          contents: [
+            systemInstruction,
+            `User Prompt: "${prompt}"`
+          ],
+          config: {
+            responseMimeType: "application/json"
+          }
+        });
+        responseText = result.text || "";
+        break;
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = String(err?.message || err || "");
+        console.warn(`[Gemini QueryParser] Call to '${modelName}' (attempt ${attempt + 1}) failed (${errMsg})`);
+        
+        const isTransient =
+          err?.status === 503 ||
+          err?.code === 503 ||
+          errMsg.includes("503") ||
+          errMsg.includes("high demand") ||
+          errMsg.includes("UNAVAILABLE") ||
+          errMsg.includes("overloaded") ||
+          err?.status === 429 ||
+          err?.code === 429;
+
+        if (isTransient && attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+        } else {
+          break;
+        }
+      }
+    }
+    if (responseText) {
+      break;
+    }
+  }
+
   try {
-    const result = await model.generateContent([
-      systemInstruction,
-      `User Prompt: "${prompt}"`
-    ]);
-    const responseText = result.response.text();
+    if (!responseText && lastError) {
+      throw lastError;
+    }
     const parsed = JSON.parse(responseText);
 
     // Merge keywords and variants for the search engine
