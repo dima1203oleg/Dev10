@@ -120,7 +120,9 @@ export default function App() {
             equipment: vault.equipment || [],
             staff: vault.staff || [],
             contracts: vault.contracts || [],
-            vaultDocuments: vault.vaultDocuments || []
+            vaultDocuments: vault.vaultDocuments || [],
+            signatureCliche: rawProfile.signatureCliche || vault.signatureCliche || '',
+            stampCliche: rawProfile.stampCliche || vault.stampCliche || ''
           };
           setCompanyProfile(mappedProfile);
         }
@@ -381,7 +383,9 @@ export default function App() {
             equipment: updated.equipment,
             staff: updated.staff,
             contracts: updated.contracts,
-            vaultDocuments: updated.vaultDocuments
+            vaultDocuments: updated.vaultDocuments,
+            signatureCliche: updated.signatureCliche,
+            stampCliche: updated.stampCliche
           }
         })
       });
@@ -413,7 +417,9 @@ export default function App() {
     equipment: [],
     staff: [],
     contracts: [],
-    vaultDocuments: []
+    vaultDocuments: [],
+    signatureCliche: '',
+    stampCliche: ''
   };
 
   const activeCompany = companyProfile || defaultCompany;

@@ -282,8 +282,43 @@ ${calculatedPrice.toLocaleString()} грн (з ПДВ).
                       </button>
                     </div>
 
-                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
-                      {doc.contentPreview}
+                    <div className="bg-slate-950 border border-slate-800 rounded-xl p-8 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed overflow-y-auto">
+                      <div className="mb-8">{doc.contentPreview}</div>
+                      
+                      {(company?.signatureCliche || company?.stampCliche) && (
+                        <div className="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between">
+                          <div className="flex items-center gap-8 h-16">
+                            {company?.signatureCliche && (
+                              <div className="relative w-20 h-full">
+                                <img 
+                                  src={company.signatureCliche} 
+                                  alt="Signature" 
+                                  className="max-w-full max-h-full object-contain filter brightness-110 contrast-125 mix-blend-multiply" 
+                                />
+                                <div className="absolute bottom-0 left-0 w-full border-b border-slate-700 text-[6px] text-slate-500 text-center italic">
+                                  (підпис)
+                                </div>
+                              </div>
+                            )}
+                            {company?.stampCliche && (
+                              <div className="relative w-20 h-full">
+                                <img 
+                                  src={company.stampCliche} 
+                                  alt="Stamp" 
+                                  className="max-w-full max-h-full object-contain filter brightness-110 contrast-125 mix-blend-multiply" 
+                                />
+                                <div className="absolute bottom-0 left-0 w-full text-[6px] text-slate-500 text-center italic">
+                                  М.П.
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right self-end">
+                            <div className="font-bold text-[10px] text-white uppercase tracking-wider">{company?.directorPosition || 'Директор'}</div>
+                            <div className="text-slate-500 text-[10px]">{company?.directorName || '_________________'}</div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

@@ -324,9 +324,47 @@ export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
               {/* Document Text Box */}
               <div 
                 id="complaint-document-text"
-                className="bg-slate-950 border border-slate-800 rounded-xl p-5 font-mono text-xs text-slate-200 whitespace-pre-wrap leading-relaxed max-h-[500px] overflow-y-auto select-text shadow-inner"
+                className="bg-slate-950 border border-slate-800 rounded-xl p-8 font-mono text-xs text-slate-200 whitespace-pre-wrap leading-relaxed max-h-[600px] overflow-y-auto select-text shadow-inner"
               >
-                {selectedComplaint.content}
+                <div className="mb-8">{selectedComplaint.content}</div>
+                
+                {(company?.signatureCliche || company?.stampCliche) && (
+                  <div className="mt-12 pt-8 border-t border-slate-800 flex items-center justify-between">
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-4">Підпис та печатка:</div>
+                      <div className="flex items-center gap-12 h-24">
+                        {company?.signatureCliche && (
+                          <div className="relative w-32 h-full">
+                            <img 
+                              src={company.signatureCliche} 
+                              alt="Signature" 
+                              className="max-w-full max-h-full object-contain filter brightness-110 contrast-125 mix-blend-multiply" 
+                            />
+                            <div className="absolute bottom-0 left-0 w-full border-b border-slate-700 text-[8px] text-slate-500 text-center pt-1 italic">
+                              (підпис)
+                            </div>
+                          </div>
+                        )}
+                        {company?.stampCliche && (
+                          <div className="relative w-32 h-full">
+                            <img 
+                              src={company.stampCliche} 
+                              alt="Stamp" 
+                              className="max-w-full max-h-full object-contain filter brightness-110 contrast-125 mix-blend-multiply" 
+                            />
+                            <div className="absolute bottom-0 left-0 w-full text-[8px] text-slate-500 text-center pt-1 italic">
+                              М.П.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right self-end pb-1">
+                      <div className="font-bold text-white uppercase tracking-wider">{company?.directorPosition || 'Директор'}</div>
+                      <div className="text-slate-400 mt-1">{company?.directorName || '_________________'}</div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="bg-slate-800/80 rounded-xl p-4 flex items-center justify-between text-xs">

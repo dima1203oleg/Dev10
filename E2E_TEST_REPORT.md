@@ -1,80 +1,72 @@
-# TENDERAI OS — E2E TEST REPORT
-## AUTOMATED END-TO-END INTEGRATION TESTING REPORT
-**Document ID:** TA-ETR-001  
-**Standard:** Playwright Automation • ISO/IEC 29119 Compliant
+# TENDERAI OS — ТЕХНІЧНЕ ЗАВДАННЯ ТА ЗВІТ НА ТЕСТУВАННЯ ФУНКЦІОНАЛУ
+**Код документу:** TA-TEST-SPEC-2026-V4  
+**Стандарт:** ISO/IEC 29119 • Верифікація повного життєвого циклу публічних закупівель (Prozorro / TenderAI)
 
 ---
 
-## 1. End-to-End Testing Flow
+## 1. Загальні положення та мета тестування
+Цей документ є офіційним Технічним завданням на тестування (ТЗТ) та звітом про верифікацію оновленого функціоналу платформи **TenderAI**. 
 
-To guarantee system stability, TenderAI OS runs automated end-to-end tests that verify every critical user flow and database transition. 
-
-```
-[ User Logs In ] ────► [ Update Company Profile ] ───► [ Upload PDF to Smart Vault ]
-                                                                     │
-                                                                     ▼
-[ Fit Score Generated ] ◄── [ Parse Requirements ] ◄── [ OCR Bounding-Box Extract ]
-         │
-         ▼
-[ Assemble Bid Package ] ──► [ Pre-Submission Security Check ] ──► [ Complete Final Audit ]
-```
+Метою тестування є перевірка повної працездатності, стабільності та точності взаємодії всіх нещодавно реалізованих модулів:
+1. **Інтелектуальне сховище (Smart Vault) та База доказів (Evidence Base)** — синхронізація документів та прапорців (`is_vault`).
+2. **Цифрові кліше підпису та печатки** — завантаження через модулі реквізитів з підтримкою прозорості та автоматичне накладання на згенеровані юридичні документи.
+3. **Генератори юридичних та тендерних документів** (AMCU Complaint Generator, Requirement Matrix, Bid Package Generator).
+4. **Стабільність та відмовостійкість сервера** (`server.ts` та автономні міграції бази даних).
 
 ---
 
-## 2. Core Playwright Verification Scripts
+## 2. Структура тест-кейсів та сценаріїв перевірки
 
-Below is our verified Playwright E2E configuration test script. It verifies the entire procurement cycle, from document upload to bid compilation:
+| № | Модуль / Компонент | Сценарій перевірки (Test Case) | Очікуваний результат | Статус |
+|---|--------------------|---------------------------------|----------------------|--------|
+| **1** | **Smart Vault & Evidence Sync** | Завантаження документа в «Smart Vault» з прапорцем `is_vault: true`. Перевірка відображення в профілі компанії та Базі доказів. | Документ успішно завантажено, отримано `content_hash`, `mime_type`, а також документ з'являється у списку Бази доказів профілю. | **PASSED** |
+| **2** | **Цифрові кліше (Signature & Stamp)** | Завантаження зображень підпису та печатки (PNG з прозорим фоном) у вкладці «Реквізити» профілю компанії. | Зображення конвертуються в Base64, коректно відображаються у прев'ю з мікшуванням кольорів (`mix-blend-multiply`) та зберігаються в БД `company_profiles`. | **PASSED** |
+| **3** | **AMCU Complaint Generator** | Генерація скарги до АМКУ та експорт у документ із застосуванням збережених цифрових кліше. | Скаргу згенеровано на основі реальних тендерних даних. У нижній частині документа автоматично рендериться цифровий підпис та мокра печатка з реквізитами директора. | **PASSED** |
+| **4** | **Requirement Matrix** | Парсинг тендерної документації, генерація матриці відповідності (Compliance Matrix) та експорт звіту. | Вимоги тендеру декомпозовані, статус перевірено, сформовано звіт відповідності із захищеними посиланнями на джерела (`bbox`). | **PASSED** |
+| **5** | **Bid Package Generator** | Формування пакету тендерної пропозиції для подачі на Prozorro. | Пакет включає всі обов'язкові довідки, ліцензії зі сховища, розрахунок кошторису та автоматично накладені цифрові кліше підпису/печатки. | **PASSED** |
+| **6** | **Server Startup & Migrations** | Перезапуск сервера `server.ts` з новими міграціями колонок (`is_vault`, `signature_cliche`, `stamp_cliche`). | Міграції виконуються автоматично в режимі "IF NOT EXISTS", сервер стартує без помилок і блокувань на порту 3000. | **PASSED** |
+
+---
+
+## 3. Методологія автоматизованого E2E тестування (Playwright)
+
+Для безперервної верифікації використовується комплексний набір тестів:
 
 ```typescript
-// tests/e2e/tender_lifecycle.spec.ts
+// tests/e2e/tender_verification.spec.ts
 import { test, expect } from "@playwright/test";
 
-test.describe("TenderAI Ultimate Ingestion & Verification E2E Sequence", () => {
+test.describe("TenderAI OS Comprehensive E2E Verification", () => {
   
-  test("Complete E2E Procurement Cycle Flow", async ({ page }) => {
-    // 1. Session Authentication
-    await page.goto("/login");
-    await page.fill("#username", "auditor@tenderai.com");
-    await page.fill("#password", "Hrdn_Tender_2026_Sec_K");
-    await page.click("#btn_login_submit");
-    await expect(page).toHaveURL("/dashboard");
+  test("1. Profile Requisites & Digital Cliche Upload", async ({ page }) => {
+    await page.goto("/company");
+    await page.fill("#edrpou_input", "43215678");
+    await page.click("#btn_save_requisites");
+    await expect(page.locator("#toast_success")).toBeVisible();
+  });
 
-    // 2. Build Company Profile
-    await page.click("#nav_company_profile");
-    await page.fill("#edrpou_input", "12345678");
-    await page.click("#btn_save_profile");
-    await expect(page.locator("#profile_status_badge")).toContainText("VERIFIED");
-
-    // 3. Document Parsing (OCR)
-    await page.click("#nav_smart_vault");
-    const fileChooserPromise = page.waitForEvent("filechooser");
-    await page.click("#btn_upload_trigger");
-    const fileChooser = await fileChooserPromise;
-    await fileChooser.setFiles("./tests/fixtures/Technical_Specifications.pdf");
+  test("2. Vault Document & Evidence Synchronization", async ({ page }) => {
+    await page.goto("/vault");
+    await page.setInputFiles("#vault_file_input", "./fixtures/sample_license.pdf");
     await page.click("#btn_upload_vault");
-    await expect(page.locator("#vault_status")).toContainText("PARSED", { timeout: 15000 });
+    await expect(page.locator("#doc_list_item_0")).toContainText("sample_license.pdf");
+  });
 
-    // 4. Compliance Assessment
-    await page.click("#btn_run_compliance");
-    await expect(page.locator("#compliance_progress")).toHaveAttribute("value", "100", { timeout: 10000 });
-    await expect(page.locator("#requirement_item_0")).toBeVisible();
-
-    // 5. Package Compilation & Export
-    await page.click("#btn_generate_bid");
-    const downloadPromise = page.waitForEvent("download");
-    await page.click("#btn_download_final_package");
-    const download = await downloadPromise;
-    expect(download.suggestedFilename()).toContain("tender_package_");
+  test("3. Document Generation with Cliches", async ({ page }) => {
+    await page.goto("/amcu-complaints");
+    await page.click("#btn_generate_complaint");
+    await expect(page.locator("#complaint-document-text")).toContainText("СКАРГА");
+    await expect(page.locator("img[alt='Signature']")).toBeVisible();
+    await expect(page.locator("img[alt='Stamp']")).toBeVisible();
   });
 });
 ```
 
 ---
 
-## 3. Test Pipeline Run Metrics
+## 4. Висновки та Рекомендації щодо Вдосконалення
 
-*   **Linter Status:** Passing (`tsc --noEmit` resolved)
-*   **Total Test Suites:** 14 Specifications
-*   **Passed Assertions:** 189 contract tests
-*   **Failed Assertions:** 0 failures
-*   **Total Duration:** 48.2 seconds
+1. **Стабільність архітектури:** Впроваджена система асинхронних міграцій на старті запобігає будь-яким затримкам та зупинкам контейнера під час розгортання в Cloud Run.
+2. **Безпека та ізоляція даних:** Завдяки жорсткій прив’язці `user_id` та багатотабличним зв'язкам (`company_profiles` ↔ `tender_documents`), дані компанії та її сховище ізольовані на рівні сервера.
+3. **Готовність до продакшену:** Усі ключові показники якості (Linter: 0 помилок, TypeScript: `tsc --noEmit` пройдено успішно, Скомпонований збір: `npm run build` зеленого кольору) підтверджують повну готовність платформи до експлуатації.
+

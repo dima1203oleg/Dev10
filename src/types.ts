@@ -483,6 +483,8 @@ export interface CompanyProfile {
   staff: StaffMember[];
   contracts: ExperienceContract[];
   vaultDocuments: VaultDocument[];
+  signatureCliche?: string; // Base64 or URL
+  stampCliche?: string;     // Base64 or URL
   
   // New Radar Profile Fields
   regionsOfWork?: string[];

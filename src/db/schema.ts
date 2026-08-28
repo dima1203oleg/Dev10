@@ -54,6 +54,7 @@ export const tenderDocuments = pgTable('tender_documents', {
   uploadedAt: timestamp('uploaded_at').defaultNow(),
   extractedData: jsonb('extracted_data'),
   mimeType: text('mime_type'),
+  isVault: boolean('is_vault').default(false),
   userId: integer('user_id').references(() => users.id),
   orgId: integer('org_id').references(() => organizations.id),
 });

@@ -116,6 +116,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         return false;
       }
 
+      if (selectedCategory !== 'ALL') {
+        if (selectedCategory === 'WON') {
+          if (t.status !== 'WON') return false;
+        } else if (selectedCategory === 'ACTIVE') {
+          if (t.status !== 'ACTIVE') return false;
+        } else {
+          const tCat = `${t.category || ''} ${t.title || ''}`.toLowerCase();
+          if (!tCat.includes(selectedCategory.toLowerCase())) return false;
+        }
+      }
+
       if (selectedBudgetRange === 'UNDER_1M' && t.budgetUah && t.budgetUah > 1000000) return false;
       if (selectedBudgetRange === '1M_10M' && t.budgetUah && (t.budgetUah < 1000000 || t.budgetUah > 10000000)) return false;
       if (selectedBudgetRange === 'OVER_10M' && t.budgetUah && t.budgetUah < 10000000) return false;
@@ -302,7 +313,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 text-[11px]">
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                {[
+                  { label: 'Усі', value: 'ALL' },
+                  { label: 'Проектування', value: 'Проектування' },
+                  { label: 'Будівництво', value: 'Будівельні' },
+                  { label: 'Виграні 🏆', value: 'WON' },
+                  { label: 'Активні', value: 'ACTIVE' },
+                ].map(cat => (
+                  <button
+                    key={cat.value}
+                    onClick={() => setSelectedCategory(cat.value)}
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+                      selectedCategory === cat.value
+                        ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                        : 'bg-slate-950 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-[11px] pt-1">
                 <select
                   value={selectedRegion}
                   onChange={e => setSelectedRegion(e.target.value)}

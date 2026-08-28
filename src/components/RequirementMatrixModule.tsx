@@ -363,11 +363,47 @@ ${company.name} (код ЄДРПОУ ${company.edrpou}) гарантує пов�
             </div>
 
             <div className="flex-1 overflow-auto">
-              <textarea
-                readOnly
-                value={generatedDocModal.content}
-                className="w-full h-full sm:h-[400px] bg-slate-950 border border-slate-800 rounded-2xl p-6 text-sm font-mono text-slate-200 focus:outline-none leading-relaxed"
-              />
+              <div id="generated-doc-printable" className="bg-slate-950 border border-slate-800 rounded-2xl p-8 font-mono text-xs text-slate-200 whitespace-pre-wrap leading-relaxed shadow-inner">
+                <div className="mb-12">{generatedDocModal.content}</div>
+                
+                {(company.signatureCliche || company.stampCliche) && (
+                  <div className="mt-12 pt-8 border-t border-slate-800 flex items-center justify-between">
+                    <div className="space-y-1">
+                      <div className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-4">Електронне кліше:</div>
+                      <div className="flex items-center gap-12 h-24">
+                        {company.signatureCliche && (
+                          <div className="relative w-32 h-full">
+                            <img 
+                              src={company.signatureCliche} 
+                              alt="Signature" 
+                              className="max-w-full max-h-full object-contain filter brightness-110 contrast-125 mix-blend-multiply" 
+                            />
+                            <div className="absolute bottom-0 left-0 w-full border-b border-slate-700 text-[8px] text-slate-500 text-center pt-1 italic">
+                              (підпис)
+                            </div>
+                          </div>
+                        )}
+                        {company.stampCliche && (
+                          <div className="relative w-32 h-full">
+                            <img 
+                              src={company.stampCliche} 
+                              alt="Stamp" 
+                              className="max-w-full max-h-full object-contain filter brightness-110 contrast-125 mix-blend-multiply" 
+                            />
+                            <div className="absolute bottom-0 left-0 w-full text-[8px] text-slate-500 text-center pt-1 italic">
+                              М.П.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right self-end pb-1">
+                      <div className="font-bold text-white uppercase tracking-wider">{company.directorPosition || 'Директор'}</div>
+                      <div className="text-slate-400 mt-1">{company.directorName || '_________________'}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4">
