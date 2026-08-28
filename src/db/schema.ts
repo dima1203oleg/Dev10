@@ -71,7 +71,12 @@ export const teamMembers = pgTable('team_members', {
   id: serial('id').primaryKey(),
   userId: integer('user_id').references(() => users.id).notNull(),
   orgId: integer('org_id').references(() => organizations.id).notNull(),
+  displayName: text('display_name'),
+  email: text('email'),
   role: text('role').notNull().default('MEMBER'), // 'ADMIN', 'MANAGER', 'MEMBER', 'VIEWER'
+  roleNameUk: text('role_name_uk'),
+  avatar: text('avatar'),
+  status: text('status').notNull().default('OFFLINE'), // 'ONLINE', 'AWAY', 'OFFLINE'
   joinedAt: timestamp('joined_at').defaultNow(),
 });
 

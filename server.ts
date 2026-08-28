@@ -154,29 +154,19 @@ app.get("/api/team/members", requireAuth, async (req: AuthRequest, res) => {
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
     const orgId = await getUserOrganization(dbUser.id);
 
-    const members = await db.select({
-      id: teamMembers.id,
-      userId: teamMembers.userId,
-      orgId: teamMembers.orgId,
-      role: teamMembers.role,
-      joinedAt: teamMembers.joinedAt,
-      email: users.email,
-    })
-    .from(teamMembers)
-    .innerJoin(users, eq(teamMembers.userId, users.id))
-    .where(eq(teamMembers.orgId, orgId));
+    const members = await db.select().from(teamMembers).where(eq(teamMembers.orgId, orgId));
 
     // Map to the expected UI format
     const formattedMembers = members.map(m => ({
       id: `tm-${m.id}`,
-      name: m.email?.split('@')[0] || "Учасник",
-      email: m.email,
+      name: m.displayName || m.email?.split('@')[0] || "Учасник",
+      email: m.email || "—",
       role: m.role,
-      roleNameUk: m.role === 'ADMIN' ? "Тендерний директор" : "Фахівець",
-      avatar: m.role === 'ADMIN' ? "👑" : "👤",
+      roleNameUk: m.roleNameUk || "Фахівець",
+      avatar: m.avatar || "👤",
       assignedTendersCount: 0,
       activeTasksCount: 0,
-      status: "ONLINE"
+      status: m.status || "OFFLINE"
     }));
 
     res.json(formattedMembers);
@@ -541,6 +531,7 @@ app.post("/api/company/upload-document", requireAuth, upload.single('file'), asy
 
     // 3. Save to database
     const [doc] = await db.insert(tenderDocuments).values({
+      id: crypto.randomUUID(),
       userId: dbUser.id,
       orgId,
       tenderId: null as any, // Nullable now in schema
@@ -1305,6 +1296,7 @@ app.post("/api/tenders/:tenderId/documents", requireAuth, async (req: AuthReques
     const { name, type, size } = req.body;
     
     const newDoc = await db.insert(tenderDocuments).values({
+      id: crypto.randomUUID(),
       tenderId: parseInt(tenderId),
       name,
       type: type || 'OTHER',
@@ -1323,7 +1315,7 @@ app.post("/api/tenders/:tenderId/documents", requireAuth, async (req: AuthReques
 app.delete("/api/tenders/:tenderId/documents/:docId", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { docId } = req.params;
-    await db.delete(tenderDocuments).where(eq(tenderDocuments.id, parseInt(docId)));
+    await db.delete(tenderDocuments).where(eq(tenderDocuments.id, docId));
     res.json({ status: "deleted" });
   } catch (error) {
     console.error("Delete document error:", error);
@@ -1342,12 +1334,12 @@ app.post("/api/tenders/:tenderId/documents/:docId/analyze", requireAuth, async (
 
     const id = parseInt(docId);
     // 1. Mark as processing
-    await db.update(tenderDocuments).set({ status: 'PROCESSING' }).where(eq(tenderDocuments.id, id));
+    await db.update(tenderDocuments).set({ status: 'PROCESSING' }).where(eq(tenderDocuments.id, docId));
 
     // 2. Fetch tender context for better AI analysis
     const tender = await db.select().from(tendersTable).where(eq(tendersTable.id, parseInt(tenderId)));
     const tenderData = tender[0];
-    const doc = await db.select().from(tenderDocuments).where(eq(tenderDocuments.id, id));
+    const doc = await db.select().from(tenderDocuments).where(eq(tenderDocuments.id, docId));
     const docData = doc[0];
 
     const ai = getGeminiClient();
@@ -1389,13 +1381,12 @@ app.post("/api/tenders/:tenderId/documents/:docId/analyze", requireAuth, async (
       status: 'EXTRACTED',
       type: extracted.type || docData.type,
       extractedData: extracted
-    }).where(eq(tenderDocuments.id, id)).returning();
+    }).where(eq(tenderDocuments.id, docId)).returning();
 
     res.json(updated[0]);
   } catch (error) {
     console.error("Analyze document error:", error);
-    const id = parseInt(docId);
-    await db.update(tenderDocuments).set({ status: 'ERROR' }).where(eq(tenderDocuments.id, id));
+    await db.update(tenderDocuments).set({ status: 'ERROR' }).where(eq(tenderDocuments.id, docId));
     res.status(500).json({ error: "Internal server error during analysis" });
   }
 });
