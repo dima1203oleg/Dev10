@@ -33,11 +33,13 @@ export const PreSubmissionAuditModule: React.FC<PreSubmissionAuditModuleProps> =
 }) => {
   const [readiness, setReadiness] = useState<PreSubmissionReadinessScore | undefined>(currentTender.readinessScore);
   const [isAuditing, setIsAuditing] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
 
   const activeBid = bidPackages.find(b => b.tenderId === currentTender.id) || bidPackages[0];
 
   const handleRunAudit = async () => {
     setIsAuditing(true);
+    setAuditError(null);
     try {
       const response = await fetch('/api/tenderai/readiness-audit', {
         method: 'POST',
@@ -48,11 +50,15 @@ export const PreSubmissionAuditModule: React.FC<PreSubmissionAuditModuleProps> =
           bidPackage: activeBid
         })
       });
-      if (!response.ok) throw new Error('Помилка аудиту');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Не вдалося провести аудит готовності');
+      }
       const data = await response.json();
       setReadiness(data);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setAuditError(e.message || 'Помилка зєднання з сервером під час проведення аудиту');
     } finally {
       setIsAuditing(false);
     }
@@ -104,6 +110,24 @@ export const PreSubmissionAuditModule: React.FC<PreSubmissionAuditModuleProps> =
           </div>
         </div>
       </div>
+
+      {auditError && (
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4 flex items-center justify-between text-rose-300 text-xs">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+            <div>
+              <span className="font-bold">Помилка аналізу: </span>
+              {auditError}
+            </div>
+          </div>
+          <button 
+            onClick={() => setAuditError(null)} 
+            className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1 rounded bg-slate-800"
+          >
+            Закрити
+          </button>
+        </div>
+      )}
 
       {/* Category Progress Gauges */}
       {categories && (

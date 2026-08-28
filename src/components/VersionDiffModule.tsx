@@ -24,12 +24,14 @@ export const VersionDiffModule: React.FC<VersionDiffModuleProps> = ({
 }) => {
   const [versionDiff, setVersionDiff] = useState<TenderVersionDiff | undefined>(currentTender.versionDiff);
   const [isComparing, setIsComparing] = useState(false);
+  const [diffError, setDiffError] = useState<string | null>(null);
   const [customV1Text, setCustomV1Text] = useState('');
   const [customV2Text, setCustomV2Text] = useState('');
   const [showCustomModal, setShowCustomModal] = useState(false);
 
   const handleRunAiDiff = async () => {
     setIsComparing(true);
+    setDiffError(null);
     try {
       const response = await fetch('/api/tenderai/version-diff', {
         method: 'POST',
@@ -40,12 +42,16 @@ export const VersionDiffModule: React.FC<VersionDiffModuleProps> = ({
           version2Text: customV2Text || 'Нова редакція ТД (термін 18 днів, вимога бази не далі 12 км, забезпечення 5%)'
         })
       });
-      if (!response.ok) throw new Error('Помилка diff');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Помилка порівняння версій');
+      }
       const data = await response.json();
       setVersionDiff(data);
       setShowCustomModal(false);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setDiffError(e.message || 'Не вдалося виконати порівняння редакцій');
     } finally {
       setIsComparing(false);
     }
@@ -87,6 +93,24 @@ export const VersionDiffModule: React.FC<VersionDiffModuleProps> = ({
           </div>
         </div>
       </div>
+
+      {diffError && (
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4 flex items-center justify-between text-rose-300 text-xs shadow-lg">
+          <div className="flex items-center gap-3">
+            <ShieldAlert className="w-5 h-5 text-rose-400 flex-shrink-0" />
+            <div>
+              <span className="font-bold">Помилка аналізу змін: </span>
+              {diffError}
+            </div>
+          </div>
+          <button 
+            onClick={() => setDiffError(null)} 
+            className="text-slate-400 hover:text-white text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 cursor-pointer"
+          >
+            Закрити
+          </button>
+        </div>
+      )}
 
       {versionDiff && (
         <>

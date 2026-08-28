@@ -2,7 +2,7 @@ import React from 'react';
 import { 
   Home, Target, Search, Briefcase, Scale, Calculator, 
   Users, Share2, AlertTriangle, FileText, BarChart3, Bell,
-  Settings, User, Building2
+  Settings, User, Building2, FileSpreadsheet, Calendar
 } from 'lucide-react';
 import { AppSection } from '../types';
 
@@ -19,8 +19,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onSelectSectio
     { id: 'war-room', icon: Briefcase, label: 'Командний Центр' },
     { id: 'matrix', icon: Scale, label: 'Юридичний аудит' },
     { id: 'construction', icon: Calculator, label: 'Кошторис та БОК' },
+    { id: 'cost-analysis', icon: FileSpreadsheet, label: 'Аналіз кошторису (АВК/XLS)' },
+    { id: 'gantt-chart', icon: Calendar, label: 'Діаграма Ганта' },
     { id: 'competitors', icon: Users, label: 'Конкуренти' },
-    { id: 'competitors', icon: Share2, label: 'Виявлення змов' },
     { id: 'foultender', icon: AlertTriangle, label: 'Ризики' },
     { id: 'complaints', icon: FileText, label: 'Документи та Скарги' },
     { id: 'analytics', icon: BarChart3, label: 'Аналітика' },

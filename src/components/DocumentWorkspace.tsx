@@ -241,8 +241,15 @@ export const DocumentWorkspace: React.FC<DocumentWorkspaceProps> = ({
               </div>
             </div>
 
-            <button className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-950/40 flex items-center justify-center gap-2">
-               <span>Запустити повний аудит ТД</span>
+            <button 
+              onClick={() => {
+                const idleDocs = documents.filter(d => d.status === 'IDLE');
+                idleDocs.forEach(d => onProcessAI(d.id));
+              }}
+              disabled={!documents.some(d => d.status === 'IDLE')}
+              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-950/40 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+            >
+               <span>Запустити повний аудит ТД ({documents.filter(d => d.status === 'IDLE').length})</span>
                <ArrowRight size={14} />
             </button>
           </div>

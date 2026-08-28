@@ -119,6 +119,18 @@ ${calculatedPrice.toLocaleString()} грн (з ПДВ).
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
+  const handleDownloadPackage = () => {
+    if (!selectedPkg) return;
+    const fullContent = selectedPkg.documents.map(d => `========================================\n${d.name}\nКатегорія: ${d.type}\n========================================\n\n${d.contentPreview}`).join('\n\n\n');
+    const blob = new Blob([fullContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Bid_Package_${selectedPkg.tenderNumber}_${selectedPkg.companyName.replace(/\s+/g, '_')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-8 animate-fadeIn">
       
@@ -137,14 +149,26 @@ ${calculatedPrice.toLocaleString()} грн (з ПДВ).
           </p>
         </div>
 
-        <button
-          id="create-bid-package-btn"
-          onClick={handleCreatePackage}
-          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-2 shadow-lg shadow-indigo-900/30 transition-all cursor-pointer whitespace-nowrap"
-        >
-          <Sparkles className="w-4 h-4" />
-          <span>Згенерувати новий пакет</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {selectedPkg && (
+            <button
+              onClick={handleDownloadPackage}
+              className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs sm:text-sm flex items-center space-x-2 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <Download className="w-4 h-4 text-emerald-400" />
+              <span>Завантажити пакет (.txt)</span>
+            </button>
+          )}
+
+          <button
+            id="create-bid-package-btn"
+            onClick={handleCreatePackage}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-2 shadow-lg shadow-indigo-900/30 transition-all cursor-pointer whitespace-nowrap"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Згенерувати новий пакет</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

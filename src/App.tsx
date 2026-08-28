@@ -7,7 +7,7 @@ import { AmcuComplaintGenerator } from './components/AmcuComplaintGenerator';
 import { BidPackageGenerator } from './components/BidPackageGenerator';
 import { MultiAgentChat } from './components/MultiAgentChat';
 import { TenderCatalog } from './components/TenderCatalog';
-import { CompanyVaultModule } from './components/CompanyVaultModule';
+import { CompanyProfileModule } from './components/CompanyProfileModule';
 import { RequirementMatrixModule } from './components/RequirementMatrixModule';
 import { CompetitorCollusionModule } from './components/CompetitorCollusionModule';
 import { VersionDiffModule } from './components/VersionDiffModule';
@@ -20,6 +20,8 @@ import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { DocumentWorkspace } from './components/DocumentWorkspace';
 import { CommandPaletteModal } from './components/CommandPaletteModal';
 import { TeamWorkspaceModule } from './components/TeamWorkspaceModule';
+import { CostEstimateAnalysisModule } from './components/CostEstimateAnalysisModule';
+import { GanttChartModule } from './components/GanttChartModule';
 import { useAuth } from './contexts/AuthContext';
 import { Bot, User as UserIcon, ShieldAlert, Search } from 'lucide-react';
 
@@ -368,7 +370,7 @@ export default function App() {
   };
 
   const activeCompany = companyProfile || defaultCompany;
-  const requiresTender = ['war-room', 'matrix', 'foultender', 'construction', 'competitors', 'diff', 'audit', 'complaints', 'bid-packages', 'multiagent-chat', 'documents'].includes(currentSection);
+  const requiresTender = ['war-room', 'matrix', 'foultender', 'construction', 'cost-analysis', 'gantt-chart', 'competitors', 'diff', 'audit', 'complaints', 'bid-packages', 'multiagent-chat', 'documents'].includes(currentSection);
 
   return (
     <>
@@ -378,7 +380,10 @@ export default function App() {
         hasActiveTender={!!currentTender}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         systemMode={systemMode}
-        onToggleSystemMode={(mode) => setSystemMode(mode)}
+        onToggleSystemMode={(mode) => {
+          setSystemMode(mode);
+          if (mode === 'TEAM') setCurrentSection('team');
+        }}
         sidebarContent={
           <div className="mt-auto p-4 border-t border-slate-900 hidden lg:block">
              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2">Активне підприємство</div>
@@ -462,9 +467,11 @@ export default function App() {
               {currentSection === 'post-tender' && <PostTenderModule tenders={tenders} company={activeCompany} onNavigateToAmcu={(t) => { setCurrentTender(t); setCurrentSection('complaints'); }} />}
               {currentSection === 'services' && <ServicesModelModule />}
               {currentSection === 'matrix' && currentTender && <RequirementMatrixModule currentTender={currentTender} company={activeCompany} onUpdateTenderRequirements={handleUpdateTenderRequirements} onNavigateToAmcu={() => setCurrentSection('complaints')} onNavigateToVault={() => setCurrentSection('vault')} />}
-              {currentSection === 'vault' && <CompanyVaultModule company={activeCompany} onUpdateCompany={handleUpdateCompany} />}
+              {currentSection === 'vault' && <CompanyProfileModule company={activeCompany} onUpdateCompany={handleUpdateCompany} />}
               {currentSection === 'foultender' && currentTender && <FoulTenderModule currentTender={currentTender} allTenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => setCurrentSection(sec as AppSection)} onPrepareComplaintForTender={(t) => setCurrentTender(t)} />}
               {currentSection === 'construction' && currentTender && <TenderAIConstructionModule currentTender={currentTender} allTenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => setCurrentSection(sec as AppSection)} onUpdateTenderBoq={handleUpdateTenderBoq} onUpdateTenderAnalysis={handleUpdateTenderAnalysis} />}
+              {currentSection === 'cost-analysis' && currentTender && <CostEstimateAnalysisModule currentTender={currentTender} onUpdateTenderBoq={handleUpdateTenderBoq} />}
+              {currentSection === 'gantt-chart' && currentTender && <GanttChartModule currentTender={currentTender} />}
               {currentSection === 'competitors' && currentTender && <CompetitorCollusionModule currentTender={currentTender} competitors={[]} onNavigateToAmcu={() => setCurrentSection('complaints')} onUpdateTenderCollusion={handleUpdateTenderCollusion} />}
               {currentSection === 'diff' && currentTender && <VersionDiffModule currentTender={currentTender} onNavigateToAmcu={() => setCurrentSection('complaints')} />}
               {currentSection === 'audit' && currentTender && <PreSubmissionAuditModule currentTender={currentTender} company={activeCompany} bidPackages={bidPackages} onNavigateToAmcu={() => setCurrentSection('complaints')} onNavigateToVault={() => setCurrentSection('vault')} onNavigateToBidPackages={() => setCurrentSection('bid-packages')} />}

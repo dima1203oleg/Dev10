@@ -24,7 +24,9 @@ import {
   Users,
   Shield,
   Building2,
-  Lock
+  Lock,
+  FileSpreadsheet,
+  Calendar
 } from 'lucide-react';
 
 export interface NavItem {
@@ -48,7 +50,10 @@ export const allNavItems: NavItem[] = [
   { id: 'catalog', label: 'Каталог ТД', icon: Search, group: 'GLOBAL' },
   { id: 'radar', label: 'Тендерний Радар', icon: Radar, group: 'GLOBAL' },
   { id: 'war-room', label: 'Командний Центр', icon: Briefcase, group: 'WORKSPACE' },
-  { id: 'vault', label: 'Документи / Vault', icon: FileText, group: 'GLOBAL' },
+  { id: 'construction', label: 'Кошторис та БОК', icon: Calculator, group: 'WORKSPACE' },
+  { id: 'cost-analysis', label: 'Аналіз кошторису (АВК/XLS)', icon: FileSpreadsheet, group: 'WORKSPACE' },
+  { id: 'gantt-chart', label: 'Діаграма Ганта (Графік)', icon: Calendar, group: 'WORKSPACE' },
+  { id: 'vault', label: 'Мій Профіль / Компанія', icon: FileText, group: 'GLOBAL' },
   { id: 'bid-packages', label: 'Пакет Пропозиції', icon: Package, group: 'WORKSPACE' },
   { id: 'audit', label: 'Аудит', icon: UserCheck, group: 'WORKSPACE' },
   { id: 'competitors', label: 'Конкуренти', icon: Users, group: 'WORKSPACE' },
@@ -76,7 +81,7 @@ export const ResponsiveNavigation: React.FC<ResponsiveNavigationProps> = ({
           { id: 'catalog', label: 'Каталог', icon: Search },
           { id: 'radar', label: 'Радар', icon: Radar },
           { id: 'war-room', label: 'Командний центр', icon: Briefcase },
-          { id: 'vault', label: 'Vault', icon: FileText },
+          { id: 'vault', label: 'Компанія', icon: FileText },
         ].map((item) => (
           <button
             key={item.id}

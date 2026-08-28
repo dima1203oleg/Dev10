@@ -34,10 +34,12 @@ export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
   const [specificDemand, setSpecificDemand] = useState('Зобов’язати Замовника усунути зазначені дискримінаційні вимоги шляхом внесення змін до тендерної документації.');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
 
   // Generate Complaint using Gemini backend
   const handleGenerateComplaint = async () => {
     setIsGenerating(true);
+    setGenError(null);
     try {
       const violationsList = currentTender.violations.map(v => `${v.title}: ${v.description}`);
       const res = await fetch('/api/foultender/generate-complaint', {
@@ -53,6 +55,10 @@ export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
           specificDemand: specificDemand,
         }),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Не вдалося згенерувати скаргу до АМКУ');
+      }
       const data = await res.json();
 
       const newDoc: AmcuComplaintDoc = {
@@ -72,8 +78,9 @@ export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
 
       onAddComplaint(newDoc);
       setSelectedComplaint(newDoc);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setGenError(err.message || 'Помилка під час формування скарги');
     } finally {
       setIsGenerating(false);
     }
@@ -105,6 +112,24 @@ export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
           </p>
         </div>
       </div>
+
+      {genError && (
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4 flex items-center justify-between text-rose-300 text-xs shadow-lg">
+          <div className="flex items-center gap-3">
+            <ShieldAlert className="w-5 h-5 text-rose-400 flex-shrink-0" />
+            <div>
+              <span className="font-bold">Помилка генерації: </span>
+              {genError}
+            </div>
+          </div>
+          <button 
+            onClick={() => setGenError(null)} 
+            className="text-slate-400 hover:text-white text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 cursor-pointer"
+          >
+            Закрити
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         

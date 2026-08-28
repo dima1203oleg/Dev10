@@ -39,11 +39,13 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
 }) => {
   const [boqItems, setBoqItems] = useState<BoQItem[]>(currentTender.boqItems || []);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'boq-table' | 'agent-consilium' | 'pricing-strategy'>('agent-consilium');
 
   // Trigger Multi-Agent AI Consilium
   const handleRunMultiAgentAnalysis = async () => {
     setIsAnalyzing(true);
+    setAnalysisError(null);
     try {
       const res = await fetch('/api/tenderai/multi-agent-analyze', {
         method: 'POST',
@@ -56,10 +58,15 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
           specifications: currentTender.specifications,
         }),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Помилка аналізу консиліуму AI агентів');
+      }
       const data = await res.json();
       onUpdateTenderAnalysis(currentTender.id, data);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setAnalysisError(err.message || 'Не вдалося виконати мультиагентну аналітику');
     } finally {
       setIsAnalyzing(false);
     }
@@ -145,6 +152,24 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
           </select>
         </div>
       </div>
+
+      {analysisError && (
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4 flex items-center justify-between text-rose-300 text-xs">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+            <div>
+              <span className="font-bold">Помилка аналізу: </span>
+              {analysisError}
+            </div>
+          </div>
+          <button 
+            onClick={() => setAnalysisError(null)} 
+            className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1 rounded bg-slate-800"
+          >
+            Закрити
+          </button>
+        </div>
+      )}
 
       {/* Tabs bar */}
       <div className="flex items-center justify-between border-b border-slate-800 pb-2">

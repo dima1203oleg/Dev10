@@ -524,7 +524,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="mt-5 p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2.5">
               <AlertTriangle size={16} className="text-amber-400 shrink-0 mt-0.5" />
               <div className="text-[11px] text-amber-300 leading-relaxed">
-                <strong className="font-bold">INSUFFICIENT_DATA:</strong> Документи та дозволи — неповні. Рекомендовано оновити скан-копії у Vault перед подачею.
+                <strong className="font-bold">INSUFFICIENT_DATA:</strong> Документи та дозволи — неповні. Рекомендовано оновити скан-копії у Моя Компанія перед подачею.
               </div>
             </div>
 
@@ -675,7 +675,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
                 <FileText size={16} />
               </div>
-              <h3 className="text-sm font-black text-white tracking-tight">Документи / Vault</h3>
+              <h3 className="text-sm font-black text-white tracking-tight">Документи / Моя Компанія</h3>
             </div>
             <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
               128 файлів
@@ -725,7 +725,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             onClick={() => onNavigate('vault')}
             className="w-full py-2 bg-slate-950 hover:bg-slate-800 text-emerald-400 font-bold text-xs rounded-xl border border-slate-800 transition-colors text-center block"
           >
-            Перейти до Vault →
+            Перейти до Моя Компанія →
           </button>
         </div>
 

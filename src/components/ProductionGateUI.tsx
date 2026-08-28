@@ -35,6 +35,7 @@ export const ProductionGateUI: React.FC = () => {
       case 'ai_engine': return <Cpu size={16} />;
       case 'tenant_isolation': return <Lock size={16} />;
       case 'no_fake_data': return <ShieldCheck size={16} />;
+      case 'multiplatform_aggregator': return <Globe size={16} />;
       default: return <Activity size={16} />;
     }
   };

@@ -4,7 +4,9 @@
  * https://public.api.openprocurement.org/api/2.5/tenders
  */
 
-import crypto from 'crypto';
+import { executeAdvancedProzorroSearch, ScoredProzorroTender } from './prozorroSearchEngine';
+import { evaluateCpvHierarchy } from './cpvMatcher';
+import { matchUkrainianText } from './ukrainianStemmer';
 
 export interface ProzorroTenderItem {
   id: string;
@@ -26,6 +28,14 @@ export interface ProzorroTenderItem {
   riskLevel: 'NOT_ANALYZED' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   foulScore: number | null;
   retrievedAt: string;
+  scoringBreakdown?: {
+    titleScore: number;
+    descriptionScore: number;
+    cpvScore: number;
+    exactPhraseBonus: number;
+    matchedKeywordsList: string[];
+    rawRelevance: number;
+  };
 }
 
 export interface RejectionDetails {
@@ -109,7 +119,7 @@ export async function fetchProzorroTenderFullDetail(id: string): Promise<any> {
 
 /**
  * Calculates match score between a tender and a company profile (Radar Match)
- * STRICT DETERMINISTIC ENGINE (NO FAKE / NO RANDOM / DATA TRUTH COMPLIANT)
+ * STRICT DETERMINISTIC ENGINE WITH CPV HIERARCHY & MORPHOLOGICAL MATCHING
  */
 export function calculatePersonalRadarMatch(tender: any, profile: any): {
   fitScore: number | null;
@@ -152,34 +162,42 @@ export function calculatePersonalRadarMatch(tender: any, profile: any): {
   let budgetScore = 0;
   let regionScore = 0;
   let keywordScore = 0;
-  let docScore = (vault.vaultDocuments && Array.isArray(vault.vaultDocuments) && vault.vaultDocuments.length > 0) ? 100 : 20;
-  let executionScore = (vault.staff && Array.isArray(vault.staff) && vault.staff.length > 0) ? 100 : 30;
+  let docScore = (vault.vaultDocuments && Array.isArray(vault.vaultDocuments) && vault.vaultDocuments.length > 0) ? 100 : 30;
+  let executionScore = (vault.staff && Array.isArray(vault.staff) && vault.staff.length > 0) ? 100 : 40;
 
   // 1. CPV Code Match (35 max weight)
   const tenderCpv = (tender.items?.[0]?.classification?.id || tender.category || "").trim();
   const companyCpvs = Array.isArray(vault.cpvCodes) ? vault.cpvCodes : [];
   
   if (companyCpvs.length > 0 && tenderCpv) {
-    const directMatch = companyCpvs.some((c: string) => tenderCpv.startsWith(c.substring(0, 4)));
-    const broadMatch = companyCpvs.some((c: string) => tenderCpv.substring(0, 2) === c.substring(0, 2));
+    let maxCpvEvalScore = 0;
+    let bestMatchDesc = "";
 
-    if (directMatch) {
-      cpvScore = 35;
+    for (const c of companyCpvs) {
+      const evalRes = evaluateCpvHierarchy(tenderCpv, c);
+      if (evalRes.score > maxCpvEvalScore) {
+        maxCpvEvalScore = evalRes.score;
+        bestMatchDesc = evalRes.description || "";
+      }
+    }
+
+    cpvScore = (maxCpvEvalScore / 100) * 35;
+
+    if (maxCpvEvalScore >= 90) {
       reasons.push({
-        title: "CPV-відповідність 100%",
-        description: `Код закупівлі ${tenderCpv} напряму відповідає галузевому коду вашої компанії.`,
+        title: `CPV-відповідність ${maxCpvEvalScore}%`,
+        description: `Код закупівлі ${tenderCpv} напряму збігається з профілем компанії (${bestMatchDesc}).`,
         type: "POSITIVE"
       });
-    } else if (broadMatch) {
-      cpvScore = 20;
+    } else if (maxCpvEvalScore >= 50) {
       reasons.push({
-        title: "CPV-відповідність (суміжний клас)",
-        description: `Код закупівлі ${tenderCpv} належить до суміжного напрямку діяльності компанії.`,
+        title: `CPV-відповідність ${maxCpvEvalScore}% (суміжний клас)`,
+        description: `Код закупівлі ${tenderCpv} належить до суміжної групи вашої спеціалізації.`,
         type: "NEUTRAL"
       });
     } else {
       reasons.push({
-        title: "CPV не збігається",
+        title: "CPV розбіжність",
         description: `Код ${tenderCpv} відсутній у списку профільних кодів компанії (${companyCpvs.join(', ')}).`,
         type: "WARNING"
       });
@@ -202,11 +220,11 @@ export function calculatePersonalRadarMatch(tender: any, profile: any): {
       budgetScore = 25;
       reasons.push({
         title: "Бюджетний оптимум",
-        description: `Сума закупівлі (${budget.toLocaleString('uk-UA')} грн) знаходиться у цільовому діапазоні компанії (${minBudget.toLocaleString('uk-UA')} - ${maxBudget.toLocaleString('uk-UA')} грн).`,
+        description: `Сума закупівлі (${budget.toLocaleString('uk-UA')} грн) знаходиться у цільовому діапазоні компанії (${minBudget.toLocaleString('uk-UA')} - ${maxBudget === Infinity ? 'без ліміту' : maxBudget.toLocaleString('uk-UA')} грн).`,
         type: "POSITIVE"
       });
     } else if (budget < minBudget) {
-      budgetScore = 5;
+      budgetScore = 10;
       reasons.push({
         title: "Бюджет нижче цільового",
         description: `Сума закупівлі нижче вашого мінімального порогу (${minBudget.toLocaleString('uk-UA')} грн).`,
@@ -239,28 +257,33 @@ export function calculatePersonalRadarMatch(tender: any, profile: any): {
         type: "POSITIVE"
       });
     } else {
+      regionScore = 5;
       reasons.push({
         title: "Інший регіон",
         description: `Регіон закупівлі (${tender.region || 'Не вказано'}) не входить до списку пріоритетних регіонів компанії.`,
         type: "NEUTRAL"
       });
     }
+  } else {
+    regionScore = 15;
   }
 
-  // 4. Keyword Match (20 max weight)
+  // 4. Keyword & Stem Match (20 max weight)
   const tenderText = `${tender.title || ""} ${tender.summary || ""}`.toLowerCase();
   const keywords = Array.isArray(vault.preferredKeywords) ? vault.preferredKeywords : [];
   
   if (keywords.length > 0) {
-    const matched = keywords.filter((k: string) => tenderText.includes(k.toLowerCase().trim()));
+    const matched = keywords.filter((k: string) => matchUkrainianText(tenderText, k).matched);
     if (matched.length > 0) {
       keywordScore = Math.min(20, matched.length * 10);
       reasons.push({
-        title: `Збіг ключових слів (${matched.length})`,
-        description: `Знайдено ключові маркери вашої спеціалізації: ${matched.join(", ")}.`,
+        title: `Збіг ключових маркерів (${matched.length})`,
+        description: `Знайдено ключові слова вашої спеціалізації: ${matched.join(", ")}.`,
         type: "POSITIVE"
       });
     }
+  } else {
+    keywordScore = 10;
   }
 
   const finalFitScore = Math.min(100, Math.round(cpvScore + budgetScore + regionScore + keywordScore));
@@ -277,207 +300,17 @@ export function calculatePersonalRadarMatch(tender: any, profile: any): {
       budgetFit: budgetScore > 0 ? (budgetScore / 25) * 100 : 0
     },
     reasons,
-    method: "DETERMINISTIC_MULTIFACTOR_PROZORRO_V2",
+    method: "DETERMINISTIC_MULTIFACTOR_PROZORRO_V3_STEMMED",
     calculatedAt
   };
 }
 
 /**
- * PRODUCTION READY: Multi-page search for real Prozorro tenders
- * Fetches tender list and resolves full detail objects in parallel
+ * PRODUCTION READY: Multi-page search for real Prozorro tenders using Advanced Search Engine
  */
 export async function searchProzorroTenders(
   query: any = {},
   options: SearchOptions = {}
 ): Promise<{ tenders: ProzorroTenderItem[]; telemetry: SearchTelemetry }> {
-  const startTime = Date.now();
-  const tenders: ProzorroTenderItem[] = [];
-  const maxPages = options.maxPages || 3; 
-  const targetLimit = options.limit || 25;
-  const timeoutMs = 25000; 
-  
-  let pagesFetched = 0;
-  let recordsFetched = 0;
-  let currentOffset = options.offset || ""; 
-  
-  const rejectionTelemetry: RejectionDetails = {
-    scanned: 0,
-    rejected_cpv: 0,
-    rejected_budget: 0,
-    rejected_region: 0,
-    rejected_keywords: 0,
-    rejected_negative: 0
-  };
-
-  const searchId = crypto.randomUUID();
-  let sourceStatus: 'SUCCESS' | 'ERROR' | 'PARTIAL' = 'SUCCESS';
-
-  try {
-    let nextPageUri = `${PROZORRO_BASE_URL}?descending=1&limit=25`;
-    if (currentOffset) {
-      nextPageUri += `&offset=${currentOffset}`;
-    }
-
-    const controller = new AbortController();
-    const globalTimeout = setTimeout(() => controller.abort(), timeoutMs);
-
-    while (pagesFetched < maxPages && tenders.length < targetLimit) { 
-      try {
-        const response = await fetch(nextPageUri, { signal: controller.signal });
-        if (!response.ok) {
-          sourceStatus = pagesFetched === 0 ? 'ERROR' : 'PARTIAL';
-          break;
-        }
-
-        const json = await response.json();
-        pagesFetched++;
-        
-        if (!json.data || !Array.isArray(json.data) || json.data.length === 0) break;
-        
-        recordsFetched += json.data.length;
-        rejectionTelemetry.scanned += json.data.length;
-        nextPageUri = json.next_page?.uri || "";
-        currentOffset = json.next_page?.offset || "";
-
-        // Fetch tender details in parallel batches of 15
-        const batchIds = json.data.map((item: any) => item.id).filter(Boolean);
-        const detailPromises = batchIds.map((id: string) => 
-          fetch(`${PROZORRO_BASE_URL}/${id}`, { signal: controller.signal })
-            .then(r => r.ok ? r.json() : null)
-            .then(res => res?.data || null)
-            .catch(() => null)
-        );
-
-        const detailsResults = await Promise.allSettled(detailPromises);
-        const validTenderDetails = detailsResults
-          .filter((res): res is PromiseFulfilledResult<any> => res.status === 'fulfilled' && !!res.value)
-          .map(res => res.value);
-
-        for (const data of validTenderDetails) {
-          const title = (data.title || "").toLowerCase();
-          const description = (data.description || "").toLowerCase();
-          const cpv = data.items?.[0]?.classification?.id || "";
-          const cpvDesc = (data.items?.[0]?.classification?.description || "").toLowerCase();
-          const budget = data.value?.amount !== undefined ? Number(data.value.amount) : null;
-          const currency = data.value?.currency || "UAH";
-          const isVatIncluded = data.value?.valueAddedTaxIncluded ?? true;
-          const regionName = (data.procuringEntity?.address?.region || "").toLowerCase();
-          const localityName = (data.procuringEntity?.address?.locality || "").toLowerCase();
-          
-          // Apply Filters
-          if (options.filters?.cpv && cpv && !cpv.startsWith(options.filters.cpv.substring(0, 2))) {
-            rejectionTelemetry.rejected_cpv++;
-            continue;
-          }
-          if (options.filters?.minBudget && (budget === null || budget < options.filters.minBudget)) {
-            rejectionTelemetry.rejected_budget++;
-            continue;
-          }
-          if (options.filters?.maxBudget && (budget === null || budget > options.filters.maxBudget)) {
-            rejectionTelemetry.rejected_budget++;
-            continue;
-          }
-          if (options.filters?.region) {
-            const filterReg = options.filters.region.toLowerCase();
-            if (!regionName.includes(filterReg) && !localityName.includes(filterReg)) {
-              rejectionTelemetry.rejected_region++;
-              continue;
-            }
-          }
-
-          // Keyword filtering
-          const qKeywords = (query?.keywords || []).map((k: string) => k.toLowerCase().trim()).filter((k: string) => k.length > 1);
-          let matchedKeywordCount = 0;
-          
-          if (qKeywords.length > 0) {
-            const matched = qKeywords.filter((k: string) => 
-              title.includes(k) || 
-              description.includes(k) || 
-              cpvDesc.includes(k) ||
-              localityName.includes(k) ||
-              regionName.includes(k)
-            );
-            matchedKeywordCount = matched.length;
-
-            if (matchedKeywordCount === 0) {
-              rejectionTelemetry.rejected_keywords++;
-              continue;
-            }
-          }
-
-          tenders.push({
-            id: data.id,
-            tenderId: data.tenderID || data.id,
-            title: data.title || "Без назви закупівлі",
-            customer: data.procuringEntity?.name || data.procuringEntity?.identifier?.legalName || "Замовник Prozorro",
-            customerEdrpou: data.procuringEntity?.identifier?.id || "НЕ ВКАЗАНО",
-            customerCity: data.procuringEntity?.address?.locality || data.procuringEntity?.address?.region || "Україна",
-            budgetUah: budget,
-            currency,
-            isVatIncluded,
-            deadline: data.tenderPeriod?.endDate || null,
-            datePublished: data.datePublished || data.dateModified || null,
-            region: data.procuringEntity?.address?.region || data.procuringEntity?.address?.locality || "Україна",
-            status: data.status || 'active',
-            category: data.mainProcurementCategory || (cpvDesc ? cpvDesc : "Товари та послуги"),
-            summary: data.description || data.title || "",
-            relevanceScore: matchedKeywordCount > 0 ? matchedKeywordCount * 10 + 50 : 50,
-            riskLevel: 'NOT_ANALYZED',
-            foulScore: null,
-            retrievedAt: new Date().toISOString()
-          });
-        }
-      } catch (e: any) {
-        if (e.name === 'AbortError') {
-          sourceStatus = 'PARTIAL';
-          break;
-        }
-        throw e;
-      }
-    }
-    clearTimeout(globalTimeout);
-
-    // Apply Sorting
-    if (options.sort) {
-      tenders.sort((a, b) => {
-        switch (options.sort) {
-          case 'price_asc': return (a.budgetUah || 0) - (b.budgetUah || 0);
-          case 'price_desc': return (b.budgetUah || 0) - (a.budgetUah || 0);
-          case 'date_desc': return (b.datePublished ? new Date(b.datePublished).getTime() : 0) - (a.datePublished ? new Date(a.datePublished).getTime() : 0);
-          case 'date_asc': return (a.datePublished ? new Date(a.datePublished).getTime() : 0) - (b.datePublished ? new Date(b.datePublished).getTime() : 0);
-          case 'deadline_asc': return (a.deadline ? new Date(a.deadline).getTime() : 0) - (b.deadline ? new Date(b.deadline).getTime() : 0);
-          case 'relevance': return b.relevanceScore - a.relevanceScore;
-          default: return 0;
-        }
-      });
-    }
-
-    return {
-      tenders: tenders.slice(0, targetLimit),
-      telemetry: {
-        searchId,
-        durationMs: Date.now() - startTime,
-        pagesFetched,
-        recordsFetched,
-        recordsReturned: Math.min(tenders.length, targetLimit),
-        sourceStatus,
-        nextOffset: currentOffset,
-        rejectionDetails: rejectionTelemetry
-      }
-    };
-  } catch (error) {
-    console.error("Prozorro Connector Error:", error);
-    return {
-      tenders: [],
-      telemetry: {
-        searchId,
-        durationMs: Date.now() - startTime,
-        pagesFetched,
-        recordsFetched,
-        recordsReturned: 0,
-        sourceStatus: 'ERROR',
-        rejectionDetails: rejectionTelemetry
-      }
-    };
-  }
+  return executeAdvancedProzorroSearch(query, options);
 }

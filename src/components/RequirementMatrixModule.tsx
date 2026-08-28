@@ -35,6 +35,7 @@ export const RequirementMatrixModule: React.FC<RequirementMatrixModuleProps> = (
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [isMatching, setIsMatching] = useState(false);
+  const [matchError, setMatchError] = useState<string | null>(null);
   const [generatedDocModal, setGeneratedDocModal] = useState<{ title: string; content: string } | null>(null);
 
   const requirements = currentTender.requirements || [];
@@ -48,6 +49,7 @@ export const RequirementMatrixModule: React.FC<RequirementMatrixModuleProps> = (
   // Trigger AI Matching with Gemini & Company Vault
   const handleRunAiMatching = async () => {
     setIsMatching(true);
+    setMatchError(null);
     try {
       const response = await fetch('/api/company/audit-vault-match', {
         method: 'POST',
@@ -60,13 +62,17 @@ export const RequirementMatrixModule: React.FC<RequirementMatrixModuleProps> = (
         })
       });
 
-      if (!response.ok) throw new Error('Помилка зіставлення');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Помилка зіставлення вимог з Vault');
+      }
       const data = await response.json();
       if (data.requirements) {
         onUpdateTenderRequirements(currentTender.id, data.requirements);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setMatchError(err.message || 'Не вдалося виконати AI зіставлення вимог з Vault');
     } finally {
       setIsMatching(false);
     }
@@ -195,6 +201,24 @@ ${company.name} (код ЄДРПОУ ${company.edrpou}) гарантує пов�
           </button>
         </div>
       </div>
+
+      {matchError && (
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4 flex items-center justify-between text-rose-300 text-xs">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+            <div>
+              <span className="font-bold">Помилка зіставлення: </span>
+              {matchError}
+            </div>
+          </div>
+          <button 
+            onClick={() => setMatchError(null)} 
+            className="text-slate-400 hover:text-white text-xs font-bold px-2 py-1 rounded bg-slate-800"
+          >
+            Закрити
+          </button>
+        </div>
+      )}
 
       {/* Critical Gap Alert */}
       {gapCount > 0 && (

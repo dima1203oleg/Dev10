@@ -9,6 +9,7 @@ export interface SearchFilters {
   maxBudget?: number;
   status?: string;
   customer?: string;
+  platforms?: string[];
 }
 
 export type SortOption = 'relevance' | 'price_asc' | 'price_desc' | 'date_asc' | 'date_desc' | 'deadline_asc' | 'deadline_desc';
@@ -70,6 +71,9 @@ export function useProzorroSearch() {
       if (options.filters?.cpv) url += `&cpv=${encodeURIComponent(options.filters.cpv)}`;
       if (options.filters?.minBudget) url += `&minBudget=${options.filters.minBudget}`;
       if (options.filters?.maxBudget) url += `&maxBudget=${options.filters.maxBudget}`;
+      if (options.filters?.platforms && options.filters.platforms.length > 0) {
+        url += `&platforms=${encodeURIComponent(options.filters.platforms.join(','))}`;
+      }
         
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -135,6 +139,16 @@ export function useProzorroSearch() {
             riskLevel: t.riskLevel || 'NOT_ANALYZED',
             summary: t.summary || '',
             createdDate: t.datePublished || null,
+            platformSource: t.platformSource,
+            platformCategory: t.platformCategory,
+            platformName: t.platformName,
+            platformBadge: t.platformBadge,
+            platformBadgeBgClass: t.platformBadgeBgClass,
+            platformBadgeTextClass: t.platformBadgeTextClass,
+            platformUrl: t.platformUrl,
+            contactPerson: t.contactPerson,
+            contactPhone: t.contactPhone,
+            contactEmail: t.contactEmail,
             boqItems: [],
             violations: [],
             requirements: [],

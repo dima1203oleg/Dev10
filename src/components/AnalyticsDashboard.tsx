@@ -10,7 +10,8 @@ import {
   PieChart as PieChartIcon, 
   BarChart3, 
   DollarSign, 
-  Target
+  Target,
+  Download
 } from 'lucide-react';
 
 interface AnalyticsDashboardProps {
@@ -75,16 +76,52 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ tenders 
     return Object.entries(statuses).map(([name, count]) => ({ name, count }));
   }, [tenders]);
 
+  const handleExportCSV = () => {
+    const headers = ["ID", "Номер тендеру", "Назва", "Замовник", "Бюджет (грн)", "Категорія", "Статус", "Foul Score", "Рівень ризику"];
+    const rows = tenders.map(t => [
+      `"${t.id}"`,
+      `"${t.tenderNumber}"`,
+      `"${t.title.replace(/"/g, '""')}"`,
+      `"${t.customer.replace(/"/g, '""')}"`,
+      t.budgetUah,
+      `"${t.category}"`,
+      `"${STATUS_LABELS[t.status] || t.status}"`,
+      t.foulScore || 0,
+      `"${t.riskLevel || 'LOW'}"`
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map(r => r.join(";"))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `tenders_analytics_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn">
-      <div className="flex items-center space-x-3 mb-8">
-        <div className="p-3 bg-indigo-500/20 rounded-xl">
-          <PieChartIcon className="w-6 h-6 text-indigo-400" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div className="flex items-center space-x-3">
+          <div className="p-3 bg-indigo-500/20 rounded-xl">
+            <PieChartIcon className="w-6 h-6 text-indigo-400" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Аналітика Портфеля Закупівель</h1>
+            <p className="text-sm text-slate-400">Зведена статистика збережених закупівель, бюджетів та ризиків закупівлі</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-white">Аналітика Портфеля Закупівель</h1>
-          <p className="text-sm text-slate-400">Зведена статистика збережених закупівель, бюджетів та ризиків закупівлі</p>
-        </div>
+
+        <button
+          onClick={handleExportCSV}
+          className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs sm:text-sm flex items-center space-x-2 transition-all cursor-pointer shadow-sm self-start sm:self-auto"
+        >
+          <Download className="w-4 h-4 text-emerald-400" />
+          <span>Експорт CSV</span>
+        </button>
       </div>
 
       {/* Metrics Cards */}

@@ -11,6 +11,8 @@ export type AppSection =
   | 'war-room'
   | 'foultender' 
   | 'construction' 
+  | 'cost-analysis'
+  | 'gantt-chart'
   | 'matrix'
   | 'vault'
   | 'competitors'
@@ -351,6 +353,17 @@ export interface Tender {
     hash?: string;
   };
   createdDate: string | null;
+  // Multi-Platform Aggregator Metadata
+  platformSource?: string;
+  platformCategory?: 'STATE' | 'DEFENSE' | 'CORPORATE' | 'SOCIAL';
+  platformName?: string;
+  platformBadge?: string;
+  platformBadgeBgClass?: string;
+  platformBadgeTextClass?: string;
+  platformUrl?: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  contactEmail?: string;
 }
 
 export interface ChatMessage {
@@ -567,4 +580,65 @@ export interface AuditLogEvent {
   tenderId?: string;
   timestamp: string;
 }
+
+// Cost Estimate Analysis Types (Excel & AVK-5)
+export type EstimateFileType = 'EXCEL_XLSX' | 'AVK5_OUT' | 'AVK5_XML' | 'CSV_BOQ';
+
+export interface EstimateResourceItem {
+  id: string;
+  code: string; // e.g. С111-204, ДБН Р1-10-1
+  name: string;
+  unit: string;
+  quantity: number;
+  estimatePriceUah: number;
+  marketAvgPriceUah: number;
+  stateBenchmarkPriceUah: number;
+  category: 'MATERIALS' | 'LABOR' | 'MACHINERY' | 'OVERHEADS';
+  variancePercent: number; // positive = overpriced, negative = underestimated
+  anomalyRisk: 'NORMAL' | 'OVERPRICED' | 'UNDERESTIMATED' | 'HIGH_RISK';
+  notes?: string;
+  avkCode?: string;
+  normReference?: string;
+}
+
+export interface EstimateAnalysisReport {
+  id: string;
+  fileName: string;
+  fileType: EstimateFileType;
+  uploadedAt: string;
+  totalEstimateAmountUah: number;
+  totalMarketAmountUah: number;
+  totalDeviationUah: number;
+  deviationPercent: number;
+  materialsCostUah: number;
+  laborCostUah: number;
+  machineryCostUah: number;
+  overheadsCostUah: number;
+  anomaliesCount: number;
+  overpricedItemsCount: number;
+  underestimatedItemsCount: number;
+  riskSummary: string;
+  aiRecommendations: string[];
+  items: EstimateResourceItem[];
+}
+
+// Interactive Gantt Chart Task Types
+export interface InteractiveGanttTask {
+  id: string;
+  code: string;
+  name: string;
+  phase: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  durationDays: number;
+  progressPercent: number; // 0 - 100
+  dependencies: string[]; // task IDs
+  assignedTeam: string;
+  machinery: string[];
+  budgetUah: number;
+  criticalPath: boolean;
+  status: 'COMPLETED' | 'IN_PROGRESS' | 'PLANNED' | 'DELAYED';
+  riskNote?: string;
+}
+
 

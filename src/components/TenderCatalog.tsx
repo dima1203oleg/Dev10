@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 import { useProzorroSearch, SearchFilters, SortOption } from '../hooks/useProzorroSearch';
+import { PLATFORM_SOURCES_DIRECTORY, PlatformSourceId, PlatformCategory } from '../connectors/multiPlatformAggregator';
 import {
   CPV_CATEGORIES,
   LIFECYCLE_TABS,
@@ -85,9 +86,42 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
   const [sort, setSort] = useState<SortOption>('date_desc');
   const [pageSize, setPageSize] = useState(25);
 
+  const [selectedPlatformCategory, setSelectedPlatformCategory] = useState<'ALL' | 'STATE' | 'DEFENSE' | 'CORPORATE' | 'SOCIAL'>('ALL');
+  const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformSourceId[]>(
+    Object.keys(PLATFORM_SOURCES_DIRECTORY) as PlatformSourceId[]
+  );
+
+  const handlePlatformCategorySelect = (category: 'ALL' | 'STATE' | 'DEFENSE' | 'CORPORATE' | 'SOCIAL') => {
+    setSelectedPlatformCategory(category);
+    if (category === 'ALL') {
+      const allIds = Object.keys(PLATFORM_SOURCES_DIRECTORY) as PlatformSourceId[];
+      setSelectedPlatforms(allIds);
+      setFilters(prev => ({ ...prev, platforms: allIds }));
+    } else {
+      const categoryIds = Object.values(PLATFORM_SOURCES_DIRECTORY)
+        .filter(p => p.category === category)
+        .map(p => p.id);
+      setSelectedPlatforms(categoryIds);
+      setFilters(prev => ({ ...prev, platforms: categoryIds }));
+    }
+  };
+
+  const togglePlatformSource = (platformId: PlatformSourceId) => {
+    setSelectedPlatforms(prev => {
+      const updated = prev.includes(platformId)
+        ? prev.filter(id => id !== platformId)
+        : [...prev, platformId];
+      setFilters(f => ({ ...f, platforms: updated }));
+      return updated;
+    });
+  };
+
   const handleProzorroSearch = async (isAppend = false) => {
     runProzorroSearch(prozorroSearchQuery, isAppend, {
-      filters: filters,
+      filters: {
+        ...filters,
+        platforms: selectedPlatforms
+      },
       sort: sort,
       limit: pageSize
     });
@@ -336,34 +370,53 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
         </button>
       </div>
 
-      {/* Live Prozorro Search Engine */}
+      {/* Live Multi-Platform Procurement Connector */}
       <div className="bg-slate-900 border-2 border-emerald-500/20 rounded-3xl p-6 shadow-xl space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
              <div className="flex items-center gap-2 text-[10px] font-black text-emerald-400 uppercase tracking-widest">
                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-               Live Prozorro Connector
+               Multi-Platform Procurement Aggregator
              </div>
-             <h2 className="text-xl font-black text-white">Глобальний пошук Prozorro</h2>
+             <h2 className="text-xl font-black text-white">Мульти-майданчиковий пошук тендерів UA</h2>
+             <p className="text-xs text-slate-400">
+               Об'єднаний пошук: Prozorro + Prozorro.Sale + ДОТ МОУ + SmartTender + DTEK + Метінвест + Нафтогаз + Facebook + Telegram
+             </p>
           </div>
           {searchTelemetry && (
-            <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-500">
-              <div className="px-2 py-1 bg-slate-950 rounded border border-slate-800">
-                SCANNED: {searchTelemetry.recordsScanned}
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-400">
+              <div className="px-2.5 py-1 bg-slate-950 rounded-xl border border-slate-800">
+                SCANNED: <span className="text-white font-bold">{searchTelemetry.recordsScanned}</span>
               </div>
-              <div className="px-2 py-1 bg-slate-950 rounded border border-slate-800">
-                MATCHED: {searchTelemetry.recordsMatched}
+              <div className="px-2.5 py-1 bg-slate-950 rounded-xl border border-slate-800">
+                MATCHED: <span className="text-emerald-400 font-bold">{searchTelemetry.recordsMatched}</span>
               </div>
-              {searchTelemetry.rejectionDetails && (
-                <div className="flex items-center gap-2">
-                  <span className="text-rose-500/70 ml-2">REJECTED:</span>
-                  <span title="CPV mismatch" className="px-1.5 py-0.5 bg-rose-500/5 border border-rose-500/10 rounded">CPV:{searchTelemetry.rejectionDetails.rejected_cpv}</span>
-                  <span title="Budget out of range" className="px-1.5 py-0.5 bg-rose-500/5 border border-rose-500/10 rounded">💰:{searchTelemetry.rejectionDetails.rejected_budget}</span>
-                  <span title="Region mismatch" className="px-1.5 py-0.5 bg-rose-500/5 border border-rose-500/10 rounded">📍:{searchTelemetry.rejectionDetails.rejected_region}</span>
-                </div>
-              )}
             </div>
           )}
+        </div>
+
+        {/* Category Quick Presets */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60">
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest mr-1">Категорії майданчиків:</span>
+          {[
+            { id: 'ALL', label: 'Усі майданчики (13)' },
+            { id: 'STATE', label: '🏛️ Державні & Аукціони' },
+            { id: 'DEFENSE', label: '🛡️ Оборонка (МОУ / ДОТ)' },
+            { id: 'CORPORATE', label: '🏢 Корпоративний B2B (DTEK, Метінвест)' },
+            { id: 'SOCIAL', label: '💬 Соціальні мережі (FB, Telegram)' },
+          ].map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => handlePlatformCategorySelect(cat.id as any)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                selectedPlatformCategory === cat.id
+                  ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300 shadow-sm'
+                  : 'bg-slate-950/70 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex flex-col md:flex-row gap-3">
@@ -371,7 +424,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
             <Search className="absolute left-4 top-4 text-slate-500" size={20} />
             <input 
               type="text" 
-              placeholder="Введіть запит (напр. будівництво шкіл у київській області)..."
+              placeholder="Шукати тендер, товар чи послугу на всіх майданчиках (напр. будівництво, БПЛА, кабель, укриття)..."
               className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-2xl py-4 pl-12 pr-6 text-sm font-medium text-white outline-none transition-all"
               value={prozorroSearchQuery}
               onChange={(e) => setProzorroSearchQuery(e.target.value)}
@@ -385,76 +438,122 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
             }`}
           >
             <Filter size={18} />
-            <span className="text-xs font-bold uppercase tracking-widest hidden sm:inline">Фільтри</span>
+            <span className="text-xs font-bold uppercase tracking-widest hidden sm:inline">Фільтри майданчиків</span>
           </button>
           <button 
             onClick={() => handleProzorroSearch(false)}
             disabled={isSearching}
-            className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 cursor-pointer"
+            className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
           >
             {isSearching ? <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" /> : <Search size={18} />}
-            <span>{isSearching ? 'Пошук...' : 'Знайти в Prozorro'}</span>
+            <span>{isSearching ? 'Шукаємо...' : 'Знайти на майданчиках'}</span>
           </button>
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 bg-slate-950 rounded-2xl border border-slate-800 animate-fadeIn">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Регіон</label>
-              <input 
-                type="text" 
-                placeholder="Київська область"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500"
-                value={filters.region || ''}
-                onChange={(e) => handleFilterChange('region', e.target.value)}
-              />
+          <div className="p-5 bg-slate-950 rounded-2xl border border-slate-800 animate-fadeIn space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Джерела агрегації тендерів ({selectedPlatforms.length} з {Object.keys(PLATFORM_SOURCES_DIRECTORY).length} активні)
+                </label>
+                <div className="flex items-center gap-2 text-[10px]">
+                  <button 
+                    onClick={() => handlePlatformCategorySelect('ALL')}
+                    className="text-emerald-400 hover:underline font-bold cursor-pointer"
+                  >
+                    Вибрати всі
+                  </button>
+                  <span className="text-slate-600">|</span>
+                  <button 
+                    onClick={() => { setSelectedPlatforms([]); setFilters(f => ({ ...f, platforms: [] })); }}
+                    className="text-slate-400 hover:underline font-bold cursor-pointer"
+                  >
+                    Скинути всі
+                  </button>
+                </div>
+              </div>
+
+              {/* Checkbox Matrix of Platform Connectors */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+                {Object.values(PLATFORM_SOURCES_DIRECTORY).map(platform => {
+                  const isChecked = selectedPlatforms.includes(platform.id);
+                  return (
+                    <label 
+                      key={platform.id}
+                      onClick={() => togglePlatformSource(platform.id)}
+                      className={`flex items-start gap-3 p-2.5 rounded-xl border transition-all cursor-pointer ${
+                        isChecked 
+                          ? 'bg-slate-900/90 border-emerald-500/40 text-white' 
+                          : 'bg-slate-950 border-slate-800/80 text-slate-500 opacity-60 hover:opacity-90'
+                      }`}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked}
+                        onChange={() => {}}
+                        className="mt-1 rounded border-slate-700 bg-slate-900 text-emerald-500 focus:ring-emerald-500/20"
+                      />
+                      <div className="space-y-0.5 text-left min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-slate-200 truncate">{platform.shortName}</span>
+                          <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded border ${platform.badgeBgClass} ${platform.badgeTextClass}`}>
+                            {platform.categoryLabel}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 line-clamp-1">{platform.description}</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Код CPV</label>
-              <input 
-                type="text" 
-                placeholder="45000000-7"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500"
-                value={filters.cpv || ''}
-                onChange={(e) => handleFilterChange('cpv', e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Мінімальний бюджет</label>
-              <input 
-                type="number" 
-                placeholder="0"
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500 font-mono"
-                value={filters.minBudget || ''}
-                onChange={(e) => handleFilterChange('minBudget', e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Сортування за</label>
-              <select 
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500 cursor-pointer"
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortOption)}
-              >
-                <option value="date_desc">Новіші спочатку</option>
-                <option value="date_asc">Старіші спочатку</option>
-                <option value="price_desc">Дорожчі спочатку</option>
-                <option value="price_asc">Дешевші спочатку</option>
-                <option value="deadline_asc">Дедлайн (найближчий)</option>
-              </select>
-            </div>
-            <div className="sm:col-span-2 lg:col-span-1 space-y-1.5">
-               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Тендерів на сторінку</label>
-               <select 
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500 cursor-pointer"
-                value={pageSize}
-                onChange={(e) => setPageSize(parseInt(e.target.value))}
-              >
-                <option value="10">10 результатів</option>
-                <option value="25">25 результатів</option>
-                <option value="50">50 результатів</option>
-                <option value="100">100 результатів</option>
-              </select>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-3 border-t border-slate-900">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Регіон</label>
+                <input 
+                  type="text" 
+                  placeholder="Київська область"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500"
+                  value={filters.region || ''}
+                  onChange={(e) => handleFilterChange('region', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Код CPV</label>
+                <input 
+                  type="text" 
+                  placeholder="45000000-7"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500"
+                  value={filters.cpv || ''}
+                  onChange={(e) => handleFilterChange('cpv', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Мінімальний бюджет</label>
+                <input 
+                  type="number" 
+                  placeholder="0"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500 font-mono"
+                  value={filters.minBudget || ''}
+                  onChange={(e) => handleFilterChange('minBudget', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Сортування за</label>
+                <select 
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500 cursor-pointer"
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as SortOption)}
+                >
+                  <option value="date_desc">Новіші спочатку</option>
+                  <option value="date_asc">Старіші спочатку</option>
+                  <option value="price_desc">Дорожчі спочатку</option>
+                  <option value="price_asc">Дешевші спочатку</option>
+                  <option value="deadline_asc">Дедлайн (найближчий)</option>
+                </select>
+              </div>
             </div>
           </div>
         )}
@@ -470,25 +569,71 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
           <div className="space-y-4 pt-4 border-t border-slate-800">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {prozorroResults.map((tender) => (
-                <div key={tender.id} className="bg-slate-950 border border-slate-800 hover:border-emerald-500/30 rounded-2xl p-5 space-y-4 transition-all group">
-                   <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] font-mono font-bold text-slate-500">{tender.tenderNumber}</span>
-                      <span className="text-[10px] font-black text-emerald-500 uppercase tracking-tighter">New Result</span>
-                   </div>
-                   <h4 className="text-sm font-bold text-white leading-snug group-hover:text-emerald-400 transition-colors line-clamp-2 h-10">{tender.title}</h4>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-widest pt-2 border-t border-slate-900">
-                      <span className="text-emerald-400 font-mono">
-                        {tender.budgetUah !== null ? `${tender.budgetUah.toLocaleString()} ₴` : 'Не вказано'}
+                <div key={tender.id} className="bg-slate-950 border border-slate-800 hover:border-emerald-500/40 rounded-2xl p-5 space-y-4 transition-all group relative">
+                   <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-[10px] font-mono font-bold text-slate-400">{tender.tenderNumber}</span>
+                      <span className={`px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wider ${tender.platformBadgeBgClass || 'bg-emerald-500/10 border-emerald-500/30'} ${tender.platformBadgeTextClass || 'text-emerald-400'}`}>
+                        {tender.platformBadge || 'Prozorro Державний'}
                       </span>
-                      <span>{tender.customerCity}</span>
                    </div>
-                   <div className="flex items-center gap-2 pt-2">
+                   
+                   <div className="space-y-1">
+                     <h4 className="text-sm font-bold text-white leading-snug group-hover:text-emerald-400 transition-colors line-clamp-2 min-h-[2.5rem]">
+                       {tender.title}
+                     </h4>
+                     <p className="text-xs text-slate-400 line-clamp-2">{tender.summary || tender.customer}</p>
+                   </div>
+
+                   {/* Customer & Location */}
+                   <div className="space-y-1 pt-2 border-t border-slate-900 text-xs">
+                     <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
+                       <Building2 size={13} className="text-slate-500 shrink-0" />
+                       <span className="truncate">{tender.customer}</span>
+                     </div>
+                     <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                       <span className="flex items-center gap-1">
+                         <MapPin size={12} className="text-slate-500 shrink-0" />
+                         {tender.region || tender.customerCity}
+                       </span>
+                       <span className="text-emerald-400 font-mono font-black text-xs">
+                         {tender.budgetUah !== null ? `${tender.budgetUah.toLocaleString()} ₴` : 'Ціна за запитом'}
+                       </span>
+                     </div>
+                   </div>
+
+                   {/* Contact details if commercial/social */}
+                   {(tender.contactPerson || tender.contactPhone || tender.contactEmail) && (
+                     <div className="p-2.5 bg-slate-900/80 rounded-xl border border-slate-800/80 text-[10px] text-slate-300 space-y-0.5">
+                       <span className="font-bold text-slate-400 uppercase tracking-widest block text-[9px]">Прямі контакти замовника:</span>
+                       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-slate-200 font-mono">
+                         {tender.contactPerson && <span>👤 {tender.contactPerson}</span>}
+                         {tender.contactPhone && <span>📞 {tender.contactPhone}</span>}
+                         {tender.contactEmail && <span>✉️ {tender.contactEmail}</span>}
+                       </div>
+                     </div>
+                   )}
+
+                   <div className="flex items-center gap-2 pt-1">
                       <button 
                         onClick={() => setActiveModalTenderId(tender.id)}
-                        className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 border border-slate-800 transition-all"
+                        className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-300 border border-slate-800 transition-all cursor-pointer"
                       >
                         Деталі
                       </button>
+                      
+                      {tender.platformUrl && (
+                        <a 
+                          href={tender.platformUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="py-2 px-3 bg-slate-900 hover:bg-slate-800 rounded-xl text-[10px] font-bold text-slate-400 hover:text-white border border-slate-800 transition-all flex items-center justify-center gap-1 cursor-pointer"
+                          title="Перейти на майданчик закупівлі"
+                        >
+                          <ExternalLink size={12} />
+                          <span className="hidden sm:inline">Джерело</span>
+                        </a>
+                      )}
+
                       <button 
                         onClick={async () => {
                           if (!token) return;
@@ -502,17 +647,17 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                             const saved = await res.json();
                             onAddNewTender(tender);
                             onSelectTender(tender);
-                            alert('Тендер успішно імпортовано до вашої бази!');
-                          } catch(e) { alert('Помилка при імпорті.'); }
+                            alert(`Тендер із джерела "${tender.platformBadge || 'Майданчик'}" успішно додано у ваш кабінет!`);
+                          } catch(e) { alert('Помилка при збереженні.'); }
                         }}
-                        className="flex-1 py-2 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 rounded-xl text-[10px] font-black uppercase tracking-widest border border-emerald-500/20 transition-all"
+                        className="flex-1 py-2 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 rounded-xl text-[10px] font-black uppercase tracking-widest border border-emerald-500/20 transition-all cursor-pointer"
                       >
                         Імпортувати
                       </button>
                    </div>
                 </div>
               ))}
-            </div>
+             </div>
             
             {hasMore ? (
               <button 
@@ -521,7 +666,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                 className="w-full py-4 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 transition-all border border-slate-700 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isSearching ? <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <Plus size={16} />}
-                Завантажити ще результати з Prozorro
+                Завантажити ще результати з майданчиків
               </button>
             ) : (
               <div className="w-full py-4 bg-slate-950 border border-dashed border-slate-800 rounded-2xl text-center">

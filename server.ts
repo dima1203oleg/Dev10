@@ -9,7 +9,10 @@ import { db } from "./src/db/index.ts";
 import { tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments } from "./src/db/schema.ts";
 import { eq, and } from "drizzle-orm";
 import { searchProzorroTenders, calculatePersonalRadarMatch, fetchProzorroTenderFullDetail } from "./src/connectors/prozorro.ts";
+import { searchMultiPlatformTenders, PLATFORM_SOURCES_DIRECTORY, PlatformSourceId } from "./src/connectors/multiPlatformAggregator.ts";
 import { parseTenderQuery } from "./src/connectors/queryParser.ts";
+import { runProzorroConnectorTestSuite } from "./src/connectors/prozorroTestRunner.ts";
+import { runMultiPlatformTestSuite } from "./src/connectors/multiPlatformTestRunner.ts";
 import { detectCollusionRisk } from "./src/utils/collusionEngine.ts";
 
 dotenv.config();
@@ -473,6 +476,82 @@ app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
 });
 
 // API: Save/Update Company Profile (Scoped by userId)
+// API: Upload and Extract Document Data (OCR & AI Classification)
+app.post("/api/company/upload-document", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const { fileName, mimeType, base64Data } = req.body;
+    if (!fileName || !base64Data) {
+      return res.status(400).json({ error: "File data is missing." });
+    }
+
+    const ai = getGeminiClient();
+    if (!ai) {
+      return res.status(503).json({ error: "Gemini AI API key is missing. Processing failed." });
+    }
+
+    const prompt = `Ти – AI Document Classifier & Data Extractor для TenderAI.
+Твоє завдання – проаналізувати завантажений документ компанії, визначити його тип (класифікація), перевірити його валідність, і витягти структуровані дані (Evidence).
+
+Ім'я файлу: ${fileName}
+
+Правила класифікації та витягу:
+1. Якщо це "Витяг з ЄДР" або схожий реєстраційний документ, витягни ЄДРПОУ, повну назву, коротку назву, адресу, керівника.
+2. Якщо це "Ліцензія", "Дозвіл" або "Сертифікат ISO", витягни номер, ким видано, строк дії.
+3. Якщо це "Аналогічний договір" або "Акт КБ-2в", витягни номер, дату, замовника, предмет договору.
+
+Формат відповіді (JSON):
+{
+  "category": "COMPANY_EXTRACT" | "LICENSE" | "CERTIFICATE" | "CONTRACT" | "FINANCIAL" | "OTHER",
+  "documentName": "${fileName}",
+  "status": "VALID" | "EXPIRED" | "INCOMPLETE" | "ERROR",
+  "confidence": number (0-100),
+  "extractedText": "Ключовий фрагмент тексту (цитата) для Evidence Layer",
+  "provenance": "USER_UPLOAD → OCR → AI_EXTRACTION",
+  "entities": {
+    "edrpou": "Знайдений ЄДРПОУ (якщо є)",
+    "companyName": "Знайдена назва (якщо є)",
+    "licenseNumber": "Номер ліцензії (якщо є)",
+    "validUntil": "Дата завершення дії (якщо є, формат YYYY-MM-DD)"
+  },
+  "aiComment": "Короткий коментар або попередження (напр., 'Відсутня печатка' або 'Ліцензія дійсна')"
+}`;
+
+    const response = await generateContentWithFallback(ai, {
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType || "application/pdf"
+              }
+            }
+          ]
+        }
+      ],
+      config: {
+        responseMimeType: "application/json",
+      }
+    });
+
+    const parsed = JSON.parse(response.text || "{}");
+    
+    // In a real DB, we would insert the document into a company_documents table here.
+    // For now, return the processed metadata to the client.
+
+    return res.json({ status: "ok", data: parsed });
+
+  } catch (error: any) {
+    console.error("Document Upload/OCR Error:", error);
+    res.status(500).json({ error: "Помилка обробки документа", details: error.message });
+  }
+});
+
 app.post("/api/company/profile", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = req.user;
@@ -568,6 +647,34 @@ app.get("/api/connectors/prozorro/health", async (req, res) => {
   }
 });
 
+// API: Comprehensive Prozorro Search & Scoring Test Suite Runner
+app.get("/api/connectors/prozorro/test", async (_req, res) => {
+  try {
+    const report = await runProzorroConnectorTestSuite();
+    const httpCode = report.overallStatus === "FAIL" ? 500 : 200;
+    res.status(httpCode).json(report);
+  } catch (error: any) {
+    res.status(500).json({
+      overallStatus: "FAIL",
+      error: error.message || "Failed to execute test suite"
+    });
+  }
+});
+
+// API: Multi-Platform Aggregator Test Suite Runner
+app.get("/api/connectors/multiplatform/test", async (_req, res) => {
+  try {
+    const report = await runMultiPlatformTestSuite();
+    const httpCode = report.overallStatus === "FAIL" ? 500 : 200;
+    res.status(httpCode).json(report);
+  } catch (error: any) {
+    res.status(500).json({
+      overallStatus: "FAIL",
+      error: error.message || "Failed to execute test suite"
+    });
+  }
+});
+
 // Define global Search Session Map for stateful cursor pagination
 declare global {
   var _searchSessions: Map<string, {
@@ -581,7 +688,20 @@ declare global {
     recordsMatched: number;
   }> | undefined;
 }
-// API: Real Prozorro Search Integration with AI Query Parsing & Stateful Cursor Pagination
+// API: Directory of supported procurement platforms
+app.get("/api/platforms", (_req, res) => {
+  res.json({
+    platforms: Object.values(PLATFORM_SOURCES_DIRECTORY),
+    categories: [
+      { id: 'STATE', name: 'Державні та аукціони (Prozorro, Prozorro.Sale)' },
+      { id: 'DEFENSE', name: 'Оборонні закупівлі (МОУ / ДП ДОТ)' },
+      { id: 'CORPORATE', name: 'Приватні та корпоративні майданчики (SmartTender, DTEK, Метінвест, Нафтогаз)' },
+      { id: 'SOCIAL', name: 'Соціальні мережі та месенджери (Facebook, Telegram, LinkedIn)' }
+    ]
+  });
+});
+
+// API: Multi-Platform Search Integration with AI Query Parsing & Stateful Cursor Pagination
 app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { 
@@ -593,7 +713,8 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
       region, 
       cpv, 
       minBudget, 
-      maxBudget 
+      maxBudget,
+      platforms
     } = req.query;
     const apiKey = process.env.GEMINI_API_KEY || "";
     
@@ -637,24 +758,20 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
       maxBudget: maxBudget ? parseFloat(maxBudget as string) : (structuredQuery.maxBudget || undefined)
     };
 
-    // Call Prozorro connector using the stateful query and authoritative cursor
     const targetLimit = limit ? parseInt(limit as string) : 25;
+    const selectedPlatformsList: PlatformSourceId[] = platforms && typeof platforms === "string"
+      ? (platforms.split(',').filter(Boolean) as PlatformSourceId[])
+      : [];
+
     const searchOptions: any = {
       limit: targetLimit,
       offset: isLoadMore ? nextCursor : (offset && typeof offset === "string" ? offset : undefined),
       sort: sort || 'date_desc',
       filters: filters,
-      maxPages: isLoadMore ? 3 : 5
+      selectedPlatforms: selectedPlatformsList
     };
 
-    const searchResult = await searchProzorroTenders(structuredQuery, searchOptions);
-
-    if (searchResult.telemetry.sourceStatus === "ERROR" && !isLoadMore) {
-      return res.status(502).json({
-        error: "Помилка підключення до Prozorro API.",
-        telemetry: searchResult.telemetry
-      });
-    }
+    const searchResult = await searchMultiPlatformTenders(structuredQuery, searchOptions);
 
     const currentCursor = searchResult.telemetry.nextOffset || "";
     
@@ -681,10 +798,10 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
         userId: dbUser.id,
         rawQuery,
         structuredQuery,
-        source: "Prozorro",
+        source: "MultiPlatform",
         sourceCursor: currentCursor,
-        pagesScanned: searchResult.telemetry.pagesFetched,
-        recordsScanned: searchResult.telemetry.recordsFetched,
+        pagesScanned: 1,
+        recordsScanned: searchResult.telemetry.totalReturned,
         recordsMatched: processedTenders.length,
         expiresAt: new Date(Date.now() + 60 * 60 * 1000) // 1 hour TTL
       });
@@ -692,27 +809,17 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
       await db.update(searchSessionsTable)
         .set({
           sourceCursor: currentCursor,
-          pagesScanned: (session.pagesScanned || 0) + searchResult.telemetry.pagesFetched,
-          recordsScanned: (session.recordsScanned || 0) + searchResult.telemetry.recordsFetched,
+          recordsScanned: (session.recordsScanned || 0) + searchResult.telemetry.totalReturned,
           recordsMatched: (session.recordsMatched || 0) + processedTenders.length,
           updatedAt: new Date()
         })
         .where(eq(searchSessionsTable.id, currentSearchId));
     }
 
-    // Retrieve full session stats for load more calculations
-    let displayPagesFetched = searchResult.telemetry.pagesFetched;
-    let displayRecordsScanned = searchResult.telemetry.recordsFetched;
-    let displayRecordsMatched = processedTenders.length;
-
-    if (isLoadMore) {
-      displayPagesFetched += (session.pagesScanned || 0);
-      displayRecordsScanned += (session.recordsScanned || 0);
-      displayRecordsMatched += (session.recordsMatched || 0);
-    }
-
-    res.json({
+    return res.json({
       searchId: currentSearchId,
+      rawQuery,
+      structuredQuery,
       query: {
         raw: rawQuery,
         structured: structuredQuery,
@@ -720,21 +827,20 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
         sort: searchOptions.sort,
         limit: searchOptions.limit
       },
-      tenders: processedTenders, 
-      results: processedTenders, 
+      tenders: processedTenders,
+      results: processedTenders,
       pagination: {
         hasMore,
         nextCursor: currentCursor,
-        pagesFetched: displayPagesFetched,
-        recordsScanned: displayRecordsScanned,
-        recordsMatched: displayRecordsMatched
+        pagesFetched: isLoadMore ? (session?.pagesScanned || 1) + 1 : 1,
+        recordsScanned: searchResult.telemetry.totalReturned,
+        recordsMatched: processedTenders.length
       },
+      telemetry: searchResult.telemetry,
       source: {
-        name: "Prozorro",
-        status: searchResult.telemetry.sourceStatus,
+        name: "Multi-Platform Procurement Aggregator (Prozorro + Corporate + B2B + Social Feeds)",
         retrievedAt: new Date().toISOString()
-      },
-      telemetry: searchResult.telemetry
+      }
     });
 
   } catch (error) {
@@ -1028,9 +1134,9 @@ async function generateContentWithFallback(
 ) {
   const modelsToTry = Array.from(
     new Set([
-      params.primaryModel || "gemini-3.7-flash",
-      "gemini-3.1-flash-lite",
-      "gemini-flash-latest"
+      params.primaryModel || "gemini-2.5-flash",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash"
     ])
   );
 
@@ -1160,7 +1266,8 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
     prozorro_pagination: { status: "PENDING", details: "" },
     ai_engine: { status: "PENDING", details: "" },
     tenant_isolation: { status: "PENDING", details: "" },
-    no_fake_data: { status: "PENDING", details: "" }
+    no_fake_data: { status: "PENDING", details: "" },
+    multiplatform_aggregator: { status: "PENDING", details: "" }
   };
 
   try {
@@ -1271,6 +1378,18 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
       results.no_fake_data = { status: "FAIL", details: `Mock data detected: "${mockFound}"` };
     } else {
       results.no_fake_data = { status: "PASS", details: "Deep scan complete: No mock patterns found in live data" };
+    }
+
+    // 9. Multi-Platform Aggregator Test Suite
+    try {
+      const mpReport = await runMultiPlatformTestSuite();
+      if (mpReport.overallStatus === "PASS") {
+        results.multiplatform_aggregator = { status: "PASS", details: `Passed ${mpReport.passCount}/${mpReport.totalTests} tests across 13 procurement sources` };
+      } else {
+        results.multiplatform_aggregator = { status: "FAIL", details: `Failed ${mpReport.failCount} tests in aggregator suite` };
+      }
+    } catch (e: any) {
+      results.multiplatform_aggregator = { status: "FAIL", details: e.message };
     }
 
     const overallPass = Object.values(results).every((r: any) => r.status === "PASS" || r.status === "WARNING");

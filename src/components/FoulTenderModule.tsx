@@ -37,6 +37,7 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
   const [customTitle, setCustomTitle] = useState(currentTender.title);
   const [customBudget, setCustomBudget] = useState(currentTender.budgetUah.toString());
   const [isAuditing, setIsAuditing] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
   const [auditResult, setAuditResult] = useState<{
     foulScore: number;
     riskLevel: string;
@@ -48,6 +49,7 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
   // Trigger Live AI Audit
   const handleRunAudit = async () => {
     setIsAuditing(true);
+    setAuditError(null);
     try {
       const res = await fetch('/api/foultender/audit', {
         method: 'POST',
@@ -61,10 +63,15 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
           category: currentTender.category,
         }),
       });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Не вдалося виконати ШІ-аудит ТД');
+      }
       const data = await res.json();
       setAuditResult(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setAuditError(err.message || 'Помилка під час проведення антикорупційного аудиту');
     } finally {
       setIsAuditing(false);
     }
@@ -121,6 +128,24 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
           </select>
         </div>
       </div>
+
+      {auditError && (
+        <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-4 flex items-center justify-between text-rose-300 text-xs shadow-lg">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+            <div>
+              <span className="font-bold">Помилка аудиту: </span>
+              {auditError}
+            </div>
+          </div>
+          <button 
+            onClick={() => setAuditError(null)} 
+            className="text-slate-400 hover:text-white text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 cursor-pointer"
+          >
+            Закрити
+          </button>
+        </div>
+      )}
 
       {/* Main Grid: Left Scanner & Right Risk Matrix */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

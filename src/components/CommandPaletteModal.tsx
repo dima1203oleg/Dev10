@@ -57,7 +57,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     { id: 'catalog', label: 'Каталог ТД (Пошук закупівель)', icon: Search, category: 'Навігація' },
     { id: 'radar', label: 'Тендерний Радар ШІ (Company Fit)', icon: Radar, category: 'Навігація' },
     { id: 'war-room', label: 'Командний Центр', icon: Briefcase, category: 'Навігація' },
-    { id: 'vault', label: 'Сховище документів (Company Vault)', icon: FileText, category: 'Навігація' },
+    { id: 'vault', label: 'Сховище документів (Company Моя компанія)', icon: FileText, category: 'Навігація' },
     { id: 'foultender', label: 'Аудит ризиків та корупції (FoulTender)', icon: ShieldAlert, category: 'Навігація' },
     { id: 'construction', label: 'Кошторис та BoQ (ШІ-Аналіз)', icon: Calculator, category: 'Навігація' },
     { id: 'audit', label: 'Передподачний аудит (Pre-Submission)', icon: Package, category: 'Навігація' },
