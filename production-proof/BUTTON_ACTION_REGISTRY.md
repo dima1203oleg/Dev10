@@ -10,6 +10,7 @@
 | `sync-profile` | Зберегти зміни | `CompanyVaultModule` | `POST /api/company/profile` | **VERIFIED** |
 | `mobile-search-btn` | Search | `ResponsiveAppShell` (Mobile) | Toggle Overlay | **VERIFIED** |
 | `drawer-user-info` | Олександр Б. | `ResponsiveAppShell` (Drawer) | `AuthContext` Dynamic | **VERIFIED** |
+| `production-verify` | Запустити тест | `ProductionGateUI` | `GET /api/production/verify` | **VERIFIED** |
 
 ## Verification Plan
 1. **Fix Dead Buttons**: Implement `mobile-search-btn` functionality.

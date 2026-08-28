@@ -135,6 +135,7 @@ export async function searchProzorroTenders(
         
         // 1. Keyword/Synonym Match (Recall Enhancement & Scoring with False-Positive Prevention)
         const qKeywords = (query.keywords || []).map((k: string) => k.toLowerCase());
+        const negativeKeywords = (query.negativeKeywords || []).map((k: string) => k.toLowerCase());
         const synonyms = (query.synonyms || []).map((s: string) => s.toLowerCase());
         const allSearchTerms = [...qKeywords, ...synonyms];
         
@@ -149,7 +150,7 @@ export async function searchProzorroTenders(
         const isConstructionCpv = cpv.startsWith("45");
 
         // Exclusions list
-        const negativeExclusions = [
+        const defaultExclusions = [
           "харчування", "продукти", "м'ясо", "молоко", "хліб", "овочі", "масло", "сир", "риба", "сік", "соки", "крупа", "борошно", "яйця", "фрукти",
           "охорона", "охоронні", "прибирання", "дезінфекція", "прасування",
           "канцтовари", "папір", "олівці", "ручки", "зошити", "бланк",
@@ -158,25 +159,32 @@ export async function searchProzorroTenders(
           "транспорт", "перевезення", "автобус", "пасажир",
           "вугілля", "газ", "дрова", "електроенергія", "теплопостач"
         ];
+        
+        const allExclusions = Array.from(new Set([...defaultExclusions, ...negativeKeywords]));
 
-        const tenderHasNegativeExclusion = negativeExclusions.some(neg => 
+        const tenderHasNegativeExclusion = allExclusions.some(neg => 
           title.includes(neg) || description.includes(neg)
         );
 
-        // CPV-based negative exclusion
+        // CPV-based negative exclusion (Food, Cleaning, Security, IT, Office supplies, Furniture, Energy, Transport)
         const isNegativeCpv = /^(15|55|90|797|301|391|72|60|34|09)/.test(cpv);
 
         // Enforce strong rules for false positives
         if (queryHasShelter) {
+          // A valid shelter tender MUST have shelter keywords OR be construction CPV WITH repair/build keywords
           const isValidShelterTender = tenderHasShelter || (isConstructionCpv && /ремонт|будівн|реконстр|облаштув/i.test(title + " " + description));
-          if (!isValidShelterTender) continue; // Skip non-shelter results for shelter queries
+          
+          if (!isValidShelterTender) continue; 
 
+          // If it matches shelter but ALSO has strong negative signals, it's likely a false positive (e.g. food for shelter)
           if (tenderHasNegativeExclusion || isNegativeCpv) {
-            continue; // Skip food/services/cleaning/etc.
+            // Special check: if title explicitly says "construction of shelter" but also mentions "food" (unlikely), we might want to be careful, 
+            // but usually "food for schools" is what we want to avoid.
+            continue; 
           }
         } else if (queryHasRepairOrBuild) {
           if (tenderHasNegativeExclusion || isNegativeCpv) {
-            continue; // Skip food/services/cleaning/etc.
+            continue; 
           }
         }
 

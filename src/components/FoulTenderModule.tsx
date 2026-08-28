@@ -324,10 +324,28 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
                       {v.description}
                     </p>
 
-                    <div className="mt-2 pt-2 border-t border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-slate-400 gap-1">
+                    {v.exactQuote && (
+                      <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-700/30 font-mono text-[11px] text-emerald-400 italic">
+                        <div className="text-[9px] uppercase font-black text-slate-500 mb-1">Цитата з ТД:</div>
+                        "{v.exactQuote}"
+                      </div>
+                    )}
+
+                    <div className="mt-2 pt-2 border-t border-slate-700/60 flex flex-wrap items-center justify-between text-[11px] text-slate-400 gap-x-4 gap-y-1">
                       <div className="text-slate-300 font-medium">
                         ⚖️ <strong className="text-slate-200">Правова норма:</strong> {v.legalBasis}
                       </div>
+                      {v.pageReference && (
+                        <div className="text-slate-400">
+                          📄 <strong className="text-slate-300">Джерело:</strong> {v.pageReference}
+                        </div>
+                      )}
+                      {v.confidence !== undefined && (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                          <span className="text-[10px] font-black uppercase tracking-tighter opacity-70">Conf: {Math.round(v.confidence * 100)}%</span>
+                        </div>
+                      )}
                     </div>
 
                     {v.amcuPrecedent && (

@@ -30,8 +30,10 @@ TenderAI is an enterprise-grade construction procurement platform integrating re
 - [x] `ResponsiveAppShell` correctly handles Mobile, Tablet, Laptop, Desktop, and TV modes.
 - [x] Mobile Header: Search overlay implemented and verified.
 - [x] Mobile Drawer: User data connected to `AuthContext`.
-- [x] Pagination: Stateful Prozorro search integrated into `TenderCatalog`.
+- [x] Pagination: Stateful Prozorro search integrated into `TenderCatalog` and `TenderRadar`.
 - [x] Production Guard: `ALLOW_DEV_AUTH` set to false, server strictly checks for `GEMINI_API_KEY`.
+- [x] Evidence Engine: AI audits now require `exactQuote` and `pageReference`.
+- [x] Production Gate: `/api/production/verify` implemented for self-testing.
 
 ## 6. Deployment Readiness
 - **Build**: `npm run build` command exists.

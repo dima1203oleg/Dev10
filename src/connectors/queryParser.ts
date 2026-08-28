@@ -3,6 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 export interface StructuredTenderQuery {
   intent: 'TENDER_SEARCH' | 'COMPANY_ANALYSIS' | 'MARKET_OVERVIEW' | 'OTHER';
   keywords: string[];
+  negativeKeywords: string[];
   location: {
     city: string | null;
     region: string | null;
@@ -41,18 +42,24 @@ export async function parseTenderQuery(prompt: string, apiKey: string): Promise<
     You are a specialized Procurement Query Parser for the Ukrainian Prozorro market.
     Your task is to transform a natural language user prompt into a structured JSON search object.
     
+    CRITICAL: YOU MUST DISTINGUISH BETWEEN THE SUBJECT AND THE CONTEXT.
+    If the user asks for "shelter for schools", the subject is "SHELTER/CONSTRUCTION", and "SCHOOL" is the context/location.
+    Do NOT return tenders for "school food" or "school cleaning" for a "shelter for schools" query.
+    
     RULES:
     1. EXTRACT intent: 'TENDER_SEARCH' (looking for active tenders), 'COMPANY_ANALYSIS' (researching a specific company), etc.
-    2. KEYWORDS: Extract 3-5 high-impact keywords.
-    3. SEARCH VARIANTS: Generate a list of 5-8 synonyms or related procurement terms in Ukrainian to expand the search recall (e.g., if searching for "school", add "gymnasium", "lyceum", "education").
-    4. LOCATION: Extract city or region if mentioned.
-    5. BUDGET: Extract min/max budget if specified in UAH (detect "млн", "тис").
-    6. CPV: DO NOT invent CPV codes.
+    2. KEYWORDS: Extract 3-5 high-impact POSITIVE keywords related to the actual subject of procurement.
+    3. NEGATIVE KEYWORDS: Extract or generate a list of terms that should NOT be in the results (e.g. for construction, exclude food, cleaning, security if not requested).
+    4. SEARCH VARIANTS: Generate a list of 5-8 synonyms or related procurement terms in Ukrainian to expand the search recall.
+    5. LOCATION: Extract city or region if mentioned.
+    6. BUDGET: Extract min/max budget if specified in UAH (detect "млн", "тис").
+    7. CPV: Identify the most likely CPV family (first 2 digits) based on the subject (e.g., 45 for construction).
     
     OUTPUT SCHEMA:
     {
       "intent": "TENDER_SEARCH" | "COMPANY_ANALYSIS" | "MARKET_OVERVIEW" | "OTHER",
       "keywords": string[],
+      "negativeKeywords": string[],
       "searchVariants": string[],
       "location": { "city": string | null, "region": string | null },
       "cpvCandidates": string[],
@@ -138,6 +145,7 @@ export async function parseTenderQuery(prompt: string, apiKey: string): Promise<
     return {
       intent: 'TENDER_SEARCH',
       keywords: prompt.split(' ').filter(w => w.length > 3),
+      negativeKeywords: [],
       location: { city: null, region: null },
       cpvCandidates: [],
       minBudget: null,

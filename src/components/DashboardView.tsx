@@ -1,6 +1,7 @@
 import React from 'react';
 import { Tender, AppSection } from '../types';
 import { Search, Briefcase, Sparkles, Target, AlertTriangle, ArrowRight, Building2, CheckSquare, ShieldAlert, Bot, Scale, Users2, FileCheck2 } from 'lucide-react';
+import { ProductionGateUI } from './ProductionGateUI';
 
 interface DashboardViewProps {
   tenders: Tender[];
@@ -24,6 +25,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-12">
+      
+      {/* 0. PRODUCTION GATE (ADMIN/ENGINEER ONLY) */}
+      <ProductionGateUI />
       
       {/* 1. RESPONSIVE KPI GRID */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">

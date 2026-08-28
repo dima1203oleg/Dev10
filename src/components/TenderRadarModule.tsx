@@ -531,32 +531,17 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                       </div>
                     </div>
 
-                    {tender.opportunityScore?.factors && (
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="space-y-1">
-                          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Company Fit</div>
-                          <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${tender.opportunityScore.factors.companyFit}%` }}></div>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Legal Fit</div>
-                          <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500 rounded-full" style={{ width: `${tender.opportunityScore.factors.legalFit}%` }}></div>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Docs Readiness</div>
-                          <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${tender.opportunityScore.factors.docReadiness}%` }}></div>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Feasibility</div>
-                          <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                            <div className="h-full bg-purple-500 rounded-full" style={{ width: `${tender.opportunityScore.factors.executionFeasibility}%` }}></div>
-                          </div>
-                        </div>
+                    {tender.opportunityScore?.whyThisTender && (
+                      <div className="space-y-3">
+                         <div className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Обґрунтування відповідності:</div>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {tender.opportunityScore.whyThisTender.map((reason: any, idx: number) => (
+                              <div key={idx} className="flex items-start gap-2 bg-slate-900/40 p-3 rounded-2xl border border-slate-800/40">
+                                 <div className="mt-0.5 text-emerald-500"><CheckCircle2 size={12} /></div>
+                                 <div className="text-[11px] text-slate-300 leading-snug">{reason.description}</div>
+                              </div>
+                            ))}
+                         </div>
                       </div>
                     )}
                   </div>
