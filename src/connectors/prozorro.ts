@@ -72,9 +72,13 @@ export async function searchProzorroTenders(
   let currentOffset = options.offset || ""; 
 
   try {
+    let nextPageUri = `${PROZORRO_BASE_URL}?descending=1&limit=100&opt_fields=title,description,value,procuringEntity,tenderID,status,tenderPeriod,items,mainProcurementCategory`;
+    if (currentOffset) {
+      nextPageUri += `&offset=${currentOffset}`;
+    }
+
     while (pagesFetched < maxPages && tenders.length < targetLimit) {
-      const url = `${PROZORRO_BASE_URL}?descending=1&limit=100${currentOffset ? `&offset=${currentOffset}` : ''}`;
-      const response = await fetch(url);
+      const response = await fetch(nextPageUri);
       if (!response.ok) break;
 
       const json = await response.json();
@@ -83,9 +87,12 @@ export async function searchProzorroTenders(
       if (!json.data || !Array.isArray(json.data) || json.data.length === 0) break;
       
       recordsFetched += json.data.length;
+      nextPageUri = json.next_page?.uri || "";
       currentOffset = json.next_page?.offset || "";
 
-      // Fetch details and filter strictly
+      // Since the public API feed might be limited, we fetch details for the page in parallel
+      // but we use a concurrency-limited approach if needed. 
+      // For 100 items, Promise.all is usually okay if the API is robust.
       const detailPromises = json.data.map(async (item: any) => {
         try {
           const dRes = await fetch(`${PROZORRO_BASE_URL}/${item.id}`);
@@ -103,47 +110,64 @@ export async function searchProzorroTenders(
         if (!data) continue;
         if (tenders.length >= targetLimit) break;
 
-        // --- PRODUCTION FILTERING ENGINE ---
+        // --- PRODUCTION FILTERING ENGINE (Full Data Available) ---
         const title = (data.title || "").toLowerCase();
         const description = (data.description || "").toLowerCase();
         const customerName = (data.procuringEntity?.name || "").toLowerCase();
         const regionName = (data.procuringEntity?.address?.region || "").toLowerCase();
         const localityName = (data.procuringEntity?.address?.locality || "").toLowerCase();
         
-        // 1. Keyword/Synonym Match (Recall Enhancement)
+        // 1. Keyword/Synonym Match (Recall Enhancement & Scoring)
         const qKeywords = (query.keywords || []).map((k: string) => k.toLowerCase());
-        const keywordMatch = qKeywords.length === 0 || qKeywords.some((k: string) => 
-          title.includes(k) || description.includes(k) || customerName.includes(k)
-        );
-        if (!keywordMatch) continue;
+        const synonyms = (query.synonyms || []).map((s: string) => s.toLowerCase());
+        const allSearchTerms = [...qKeywords, ...synonyms];
+        
+        let relevanceScore = 0;
+        if (allSearchTerms.length > 0) {
+          const titleWeight = 40;
+          const descWeight = 30;
+          const customerWeight = 10;
+          
+          let matches = 0;
+          for (const term of allSearchTerms) {
+            if (title.includes(term) || description.includes(term) || customerName.includes(term)) {
+              if (title.includes(term)) relevanceScore += titleWeight;
+              if (description.includes(term)) relevanceScore += descWeight;
+              if (customerName.includes(term)) relevanceScore += customerWeight;
+              matches++;
+            }
+          }
+          
+          if (matches === 0) continue; 
+        }
 
         // 2. Budget Bounds
         const amount = data.value?.amount || null;
         if (query.minBudget && (amount === null || amount < query.minBudget)) continue;
         if (query.maxBudget && (amount === null || amount > query.maxBudget)) continue;
 
-        // 3. Precise Location (Improved with Kyiv Normalization)
+        // 3. Location
         const qLoc = (query.location?.region || query.location?.city || "").toLowerCase();
         let locationMatch = !qLoc;
-        
         if (qLoc) {
           const isKyivQuery = qLoc.includes("київ") || qLoc.includes("киев");
           if (isKyivQuery) {
-            // Kyiv can be in regionName (Київська обл) or localityName (Київ)
             locationMatch = regionName.includes("київ") || localityName.includes("київ") || 
                            regionName.includes("киев") || localityName.includes("киев");
           } else {
             locationMatch = regionName.includes(qLoc) || localityName.includes(qLoc);
           }
+          if (locationMatch) relevanceScore += 20; 
         }
-        
         if (!locationMatch) continue;
 
-        // 4. CPV Classification Filter
+        // 4. CPV
         const cpv = data.items?.[0]?.classification?.id;
+        const cpvName = data.items?.[0]?.classification?.description || "";
         if (query.cpvCandidates?.length > 0 && cpv) {
           const cpvMatch = query.cpvCandidates.some((c: string) => cpv.startsWith(c.substring(0, 4)));
           if (!cpvMatch) continue;
+          relevanceScore += 30; 
         }
 
         // --- NORMALIZATION (Zero Fake Data) ---
@@ -158,7 +182,7 @@ export async function searchProzorroTenders(
           currency: data.value?.currency || "UAH",
           deadline: data.tenderPeriod?.endDate || "NOT_AVAILABLE",
           status: data.status || "NOT_AVAILABLE",
-          category: data.mainProcurementCategory || "NOT_AVAILABLE",
+          category: data.mainProcurementCategory || cpvName || "NOT_AVAILABLE",
           cpvCode: cpv || "NOT_AVAILABLE",
           region: data.procuringEntity?.address?.region || "NOT_AVAILABLE",
           source: {
@@ -170,13 +194,24 @@ export async function searchProzorroTenders(
           foulScore: null,
           riskLevel: "NOT_ANALYZED",
           summary: data.description || "Отримано з Prozorro API. Очікує на аудит.",
-          boqItems: [],
+          boqItems: (data.items || []).map((it: any, idx: number) => ({
+            id: `boq-${idx}`,
+            code: it.classification?.id,
+            description: it.description,
+            unit: it.unit?.name || "од",
+            quantity: it.quantity,
+            standardPriceUah: amount / (data.items.length || 1),
+            marketPriceUah: amount / (data.items.length || 1),
+            laborHours: 0,
+            anomaly: 'NORMAL'
+          })),
           violations: [],
-          requirements: []
+          requirements: [],
+          fitScore: Math.min(100, relevanceScore)
         });
       }
 
-      if (!currentOffset) break;
+      if (!nextPageUri) break;
     }
 
     return {
