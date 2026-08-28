@@ -43,7 +43,7 @@ export const tenders = pgTable('tenders', {
 
 // Tender documents
 export const tenderDocuments = pgTable('tender_documents', {
-  id: serial('id').primaryKey(),
+  id: text('id').primaryKey(),
   tenderId: integer('tender_id').references(() => tenders.id), // Made nullable
   name: text('name').notNull(),
   type: text('type').notNull(), // 'TECHNICAL', 'BOQ', 'LEGAL', 'OTHER'

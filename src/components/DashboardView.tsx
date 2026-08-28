@@ -466,11 +466,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   </div>
                 );
               })}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-
         {/* RIGHT COLUMN: TENDER RADAR + COLLUSION RISK (5 Cols) */}
         <div className="lg:col-span-5 space-y-6">
           {/* WIDGET 1: TENDER RADAR & COMPANY FIT */}
@@ -667,25 +666,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="space-y-2.5">
-            {activeWarRoomTenders.map(t => (
-              <div
-                key={t.id}
-                onClick={() => {
-                  onSelectTender(t);
-                  onNavigate('war-room');
-                }}
-                className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 hover:border-indigo-500/40 cursor-pointer transition-all space-y-2"
-              >
-                <div className="flex items-center justify-between text-xs font-bold text-white">
-                  <span className="truncate max-w-[180px]">{t.title}</span>
-                  <span className="text-emerald-400 font-mono">92%</span>
-                </div>
-                <div className="flex items-center justify-between text-[10px] text-slate-400">
-                  <span>Вимоги: 23 / 25</span>
-                  <span className="text-amber-400">Дедлайн &lt; 7 днів</span>
-                </div>
-              </div>
-            ))}
+            {activeWarRoomTenders.map(t => {
+                return (
+                  <div
+                    key={t.id}
+                    onClick={() => {
+                      onSelectTender(t);
+                      onNavigate('war-room');
+                    }}
+                    className="bg-slate-950 p-3 rounded-xl border border-slate-800/80 hover:border-indigo-500/40 cursor-pointer transition-all space-y-2"
+                  >
+                    <div className="flex items-center justify-between text-xs font-bold text-white">
+                      <span className="truncate max-w-[180px]">{t.title}</span>
+                      <span className="text-emerald-400 font-mono">92%</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] text-slate-400">
+                      <span>Вимоги: 23 / 25</span>
+                      <span className="text-amber-400">Дедлайн &lt; 7 днів</span>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
 
           <button
