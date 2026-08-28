@@ -52,10 +52,10 @@ export function detectCollusionRisk(input: CollusionScanInput): CollusionAnalysi
     for (let j = i + 1; j < competitors.length; j++) {
       const compA = competitors[i];
       const compB = competitors[j];
-      const sharedTenders = history.jointBidsCount || Math.min(compA.suspiciousPairingsCount, compB.suspiciousPairingsCount) || (compA.totalTenders > 5 && compB.totalTenders > 5 ? 8 : 2);
+      const sharedTenders = history.jointBidsCount || 0;
 
-      if (sharedTenders >= 5) {
-        riskScore += 25;
+      if (sharedTenders >= 3) {
+        riskScore += Math.min(45, sharedTenders * 5);
         if (!primarySuspects.includes(compA.name)) primarySuspects.push(compA.name);
         if (!primarySuspects.includes(compB.name)) primarySuspects.push(compB.name);
 

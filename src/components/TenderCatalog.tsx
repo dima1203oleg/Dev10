@@ -364,13 +364,21 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
              <h2 className="text-xl font-black text-white">Глобальний пошук Prozorro</h2>
           </div>
           {searchTelemetry && (
-            <div className="flex items-center gap-3 text-[10px] font-mono text-slate-500">
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-mono text-slate-500">
               <div className="px-2 py-1 bg-slate-950 rounded border border-slate-800">
                 SCANNED: {searchTelemetry.recordsScanned}
               </div>
               <div className="px-2 py-1 bg-slate-950 rounded border border-slate-800">
                 MATCHED: {searchTelemetry.recordsMatched}
               </div>
+              {searchTelemetry.rejectionDetails && (
+                <div className="flex items-center gap-2">
+                  <span className="text-rose-500/70 ml-2">REJECTED:</span>
+                  <span title="CPV mismatch" className="px-1.5 py-0.5 bg-rose-500/5 border border-rose-500/10 rounded">CPV:{searchTelemetry.rejectionDetails.rejected_cpv}</span>
+                  <span title="Budget out of range" className="px-1.5 py-0.5 bg-rose-500/5 border border-rose-500/10 rounded">💰:{searchTelemetry.rejectionDetails.rejected_budget}</span>
+                  <span title="Region mismatch" className="px-1.5 py-0.5 bg-rose-500/5 border border-rose-500/10 rounded">📍:{searchTelemetry.rejectionDetails.rejected_region}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -450,7 +458,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
               ))}
             </div>
             
-            {hasMore && (
+            {hasMore ? (
               <button 
                 onClick={() => handleProzorroSearch(true)}
                 disabled={isSearching}
@@ -459,7 +467,45 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                 {isSearching ? <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <Plus size={16} />}
                 Завантажити ще результати з Prozorro
               </button>
+            ) : (
+              <div className="w-full py-4 bg-slate-950 border border-dashed border-slate-800 rounded-2xl text-center">
+                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Всі релевантні тендери завантажено або джерело вичерпано</span>
+              </div>
             )}
+          </div>
+        )}
+
+        {prozorroResults.length === 0 && !isSearching && searchTelemetry && (
+          <div className="p-8 border-2 border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center text-center space-y-4">
+             <div className="p-4 bg-slate-950 rounded-full text-slate-700">
+                <Search size={32} />
+             </div>
+             <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-tight">За вашим запитом тендерів не знайдено</h3>
+                <p className="text-[10px] text-slate-500 font-medium max-w-xs mx-auto">
+                   Ми просканували {searchTelemetry.recordsScanned} записів у Prozorro, але жоден не пройшов ваші фільтри.
+                </p>
+             </div>
+             {searchTelemetry.rejectionDetails && (
+               <div className="grid grid-cols-2 gap-2 w-full max-w-sm">
+                  <div className="p-2 bg-slate-950 rounded-xl border border-slate-800">
+                     <div className="text-[9px] font-black text-slate-500 uppercase">CPV відсіяно</div>
+                     <div className="text-xs font-bold text-rose-400">{searchTelemetry.rejectionDetails.rejected_cpv}</div>
+                  </div>
+                  <div className="p-2 bg-slate-950 rounded-xl border border-slate-800">
+                     <div className="text-[9px] font-black text-slate-500 uppercase">Бюджет відсіяно</div>
+                     <div className="text-xs font-bold text-rose-400">{searchTelemetry.rejectionDetails.rejected_budget}</div>
+                  </div>
+                  <div className="p-2 bg-slate-950 rounded-xl border border-slate-800">
+                     <div className="text-[9px] font-black text-slate-500 uppercase">Регіон відсіяно</div>
+                     <div className="text-xs font-bold text-rose-400">{searchTelemetry.rejectionDetails.rejected_region}</div>
+                  </div>
+                  <div className="p-2 bg-slate-950 rounded-xl border border-slate-800">
+                     <div className="text-[9px] font-black text-slate-500 uppercase">Keywords відсіяно</div>
+                     <div className="text-xs font-bold text-rose-400">{searchTelemetry.rejectionDetails.rejected_keywords}</div>
+                  </div>
+               </div>
+             )}
           </div>
         )}
       </div>
