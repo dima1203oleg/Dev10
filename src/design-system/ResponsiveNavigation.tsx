@@ -50,6 +50,7 @@ export const globalNavItems: NavItem[] = [
 
 export const workspaceNavItems: NavItem[] = [
   { id: 'war-room', label: 'War Room', icon: Briefcase, group: 'WORKSPACE' },
+  { id: 'documents', label: 'Документи', icon: FileText, group: 'WORKSPACE' },
   { id: 'matrix', label: 'Вимоги ТД', icon: Layers, group: 'WORKSPACE' },
   { id: 'foultender', label: 'FoulTender', icon: ShieldAlert, group: 'WORKSPACE' },
   { id: 'construction', label: 'Кошторис (AI)', icon: Calculator, group: 'WORKSPACE' },

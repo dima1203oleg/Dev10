@@ -2,6 +2,17 @@ import { useState, useCallback } from 'react';
 import { Tender } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 
+export interface SearchFilters {
+  region?: string;
+  cpv?: string;
+  minBudget?: number;
+  maxBudget?: number;
+  status?: string;
+  customer?: string;
+}
+
+export type SortOption = 'relevance' | 'price_asc' | 'price_desc' | 'date_asc' | 'date_desc' | 'deadline_asc' | 'deadline_desc';
+
 interface SearchTelemetry {
   pagesFetched: number;
   recordsScanned: number;
@@ -27,10 +38,17 @@ export function useProzorroSearch() {
     setError(null);
   }, []);
 
-  const search = useCallback(async (query: string, isAppend = false) => {
+  const search = useCallback(async (
+    query: string, 
+    isAppend = false, 
+    options: { 
+      filters?: SearchFilters, 
+      sort?: SortOption, 
+      limit?: number 
+    } = {}
+  ) => {
     if (!token) return;
-    if (!query.trim() && !isAppend) return;
-
+    
     setIsSearching(true);
     setError(null);
 
@@ -42,9 +60,16 @@ export function useProzorroSearch() {
     }
 
     try {
-      const url = isAppend && searchId
+      let url = isAppend && searchId
         ? `/api/prozorro/search?searchId=${searchId}`
         : `/api/prozorro/search?query=${encodeURIComponent(query)}`;
+      
+      if (options.limit) url += `&limit=${options.limit}`;
+      if (options.sort) url += `&sort=${options.sort}`;
+      if (options.filters?.region) url += `&region=${encodeURIComponent(options.filters.region)}`;
+      if (options.filters?.cpv) url += `&cpv=${encodeURIComponent(options.filters.cpv)}`;
+      if (options.filters?.minBudget) url += `&minBudget=${options.filters.minBudget}`;
+      if (options.filters?.maxBudget) url += `&maxBudget=${options.filters.maxBudget}`;
         
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }

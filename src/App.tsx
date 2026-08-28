@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AppSection, Tender, BoQItem, MultiAgentReport, AmcuComplaintDoc, BidPackage, CompanyProfile, RequirementItem, CollusionAnalysis, SystemMode } from './types';
+import { AppSection, Tender, BoQItem, MultiAgentReport, AmcuComplaintDoc, BidPackage, CompanyProfile, RequirementItem, CollusionAnalysis, SystemMode, TenderDocument } from './types';
 import { DashboardView } from './components/DashboardView';
 import { FoulTenderModule } from './components/FoulTenderModule';
 import { TenderAIConstructionModule } from './components/TenderAIConstructionModule';
@@ -17,6 +17,7 @@ import { TenderWarRoomModule } from './components/TenderWarRoomModule';
 import { PostTenderModule } from './components/PostTenderModule';
 import { ServicesModelModule } from './components/ServicesModelModule';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
+import { DocumentWorkspace } from './components/DocumentWorkspace';
 import { useAuth } from './contexts/AuthContext';
 import { Bot, User as UserIcon, ShieldAlert, Search } from 'lucide-react';
 
@@ -30,6 +31,7 @@ export default function App() {
   
   const [tenders, setTenders] = useState<Tender[]>([]);
   const [currentTender, setCurrentTender] = useState<Tender | null>(null);
+  const [tenderDocuments, setTenderDocuments] = useState<TenderDocument[]>([]);
   const [companyProfile, setCompanyProfile] = useState<CompanyProfile | null>(null);
   const [complaints, setComplaints] = useState<AmcuComplaintDoc[]>([]);
   const [bidPackages, setBidPackages] = useState<BidPackage[]>([]);
@@ -294,7 +296,7 @@ export default function App() {
   };
 
   const activeCompany = companyProfile || defaultCompany;
-  const requiresTender = ['war-room', 'matrix', 'foultender', 'construction', 'competitors', 'diff', 'audit', 'complaints', 'bid-packages', 'multiagent-chat'].includes(currentSection);
+  const requiresTender = ['war-room', 'matrix', 'foultender', 'construction', 'competitors', 'diff', 'audit', 'complaints', 'bid-packages', 'multiagent-chat', 'documents'].includes(currentSection);
 
   return (
     <ResponsiveAppShell
@@ -380,7 +382,19 @@ export default function App() {
             {currentSection === 'dashboard' && <DashboardView tenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => setCurrentSection(sec as AppSection)} />}
             {currentSection === 'analytics' && <AnalyticsDashboard tenders={tenders} />}
             {currentSection === 'radar' && <TenderRadarModule tenders={tenders} company={activeCompany} onSelectTender={(t) => setCurrentTender(t)} onNavigateToWarRoom={(t) => { setCurrentTender(t); setCurrentSection('war-room'); }} />}
-            {currentSection === 'war-room' && currentTender && <TenderWarRoomModule currentTender={currentTender} company={activeCompany} systemMode={systemMode} onNavigateToMatrix={() => setCurrentSection('matrix')} onNavigateToBoQ={() => setCurrentSection('construction')} onNavigateToAmcu={() => setCurrentSection('complaints')} onNavigateToAudit={() => setCurrentSection('audit')} onNavigateToCollusion={() => setCurrentSection('competitors')} />}
+            {currentSection === 'war-room' && currentTender && (
+              <TenderWarRoomModule 
+                currentTender={currentTender} 
+                company={activeCompany} 
+                systemMode={systemMode} 
+                onNavigateToMatrix={() => setCurrentSection('matrix')} 
+                onNavigateToBoQ={() => setCurrentSection('construction')} 
+                onNavigateToAmcu={() => setCurrentSection('complaints')} 
+                onNavigateToAudit={() => setCurrentSection('audit')} 
+                onNavigateToCollusion={() => setCurrentSection('competitors')} 
+                onNavigateToDocuments={() => setCurrentSection('documents')}
+              />
+            )}
             {currentSection === 'post-tender' && <PostTenderModule tenders={tenders} company={activeCompany} onNavigateToAmcu={(t) => { setCurrentTender(t); setCurrentSection('complaints'); }} />}
             {currentSection === 'services' && <ServicesModelModule />}
             {currentSection === 'matrix' && currentTender && <RequirementMatrixModule currentTender={currentTender} company={activeCompany} onUpdateTenderRequirements={handleUpdateTenderRequirements} onNavigateToAmcu={() => setCurrentSection('complaints')} onNavigateToVault={() => setCurrentSection('vault')} />}
@@ -394,6 +408,22 @@ export default function App() {
             {currentSection === 'bid-packages' && currentTender && <BidPackageGenerator currentTender={currentTender} company={activeCompany} bidPackages={bidPackages} onAddBidPackage={handleAddBidPackage} />}
             {currentSection === 'multiagent-chat' && currentTender && <MultiAgentChat currentTender={currentTender} />}
             {currentSection === 'catalog' && <TenderCatalog tenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => setCurrentSection(sec as AppSection)} onAddNewTender={handleAddNewTender} />}
+            {currentSection === 'documents' && currentTender && (
+              <DocumentWorkspace 
+                tender={currentTender} 
+                documents={tenderDocuments}
+                onUpload={(files) => {
+                  // Mock upload for now, real implementation would hit /api/tenders/:id/documents
+                  console.log('Uploading files:', files);
+                }}
+                onProcessAI={(docId) => {
+                  console.log('Processing AI for doc:', docId);
+                }}
+                onDelete={(docId) => {
+                  setTenderDocuments(prev => prev.filter(d => d.id !== docId));
+                }}
+              />
+            )}
           </>
       )}
     </ResponsiveAppShell>

@@ -22,7 +22,8 @@ export type AppSection =
   | 'complaints' 
   | 'bid-packages'
   | 'services'
-  | 'analytics';
+  | 'analytics'
+  | 'documents';
 
 export interface BoQItem {
   id: string;
@@ -290,6 +291,21 @@ export interface PreSubmissionReadinessScore {
     severity: 'BLOCKING' | 'WARNING' | 'INFO';
     detail: string;
   }[];
+}
+
+export interface TenderDocument {
+  id: string;
+  name: string;
+  url: string;
+  type: 'TECHNICAL' | 'COMMERCIAL' | 'LEGAL' | 'BOQ' | 'UNKNOWN';
+  status: 'IDLE' | 'PROCESSING' | 'EXTRACTED' | 'ERROR';
+  extractedData?: {
+    summary?: string;
+    keyRequirements?: string[];
+    riskFlags?: string[];
+  };
+  size?: number;
+  uploadedAt: string;
 }
 
 export interface Tender {

@@ -216,7 +216,17 @@ declare global {
 // API: Real Prozorro Search Integration with AI Query Parsing & Stateful Cursor Pagination
 app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { query, searchId, offset } = req.query;
+    const { 
+      query, 
+      searchId, 
+      offset, 
+      limit, 
+      sort, 
+      region, 
+      cpv, 
+      minBudget, 
+      maxBudget 
+    } = req.query;
     const apiKey = process.env.GEMINI_API_KEY || "";
     
     // Fetch user's company profile for personalized Opportunity Scoring
@@ -247,69 +257,54 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
       isLoadMore = true;
     } else {
       rawQuery = query && typeof query === "string" ? query : "";
-      if (!rawQuery) {
-        return res.json({
-          searchId: "",
-          query: { raw: "", structured: {} },
-          tenders: [],
-          results: [],
-          pagination: { hasMore: false, nextCursor: "", pagesFetched: 0, recordsScanned: 0, recordsMatched: 0 },
-          source: { name: "Prozorro", status: "SUCCESS", retrievedAt: new Date().toISOString() }
-        });
-      }
-      // AI Query Parsing
-      structuredQuery = await parseTenderQuery(rawQuery, apiKey);
+      // AI Query Parsing if keywords provided, otherwise empty
+      structuredQuery = rawQuery ? await parseTenderQuery(rawQuery, apiKey) : { keywords: [] };
     }
+
+    // Merge manual filters with structured query (Manual filters take precedence)
+    const filters: any = {
+      region: region || structuredQuery.location?.region || undefined,
+      cpv: cpv || (structuredQuery.cpvCandidates?.[0]) || undefined,
+      minBudget: minBudget ? parseFloat(minBudget as string) : (structuredQuery.minBudget || undefined),
+      maxBudget: maxBudget ? parseFloat(maxBudget as string) : (structuredQuery.maxBudget || undefined)
+    };
 
     // Call Prozorro connector using the stateful query and authoritative cursor
-    const targetLimit = 15;
-    let accumulatedTenders: any[] = [];
-    let currentCursor = isLoadMore ? nextCursor : (offset && typeof offset === "string" ? offset : undefined);
-    let totalPagesFetched = 0;
-    let totalRecordsScanned = 0;
-    let sourceStatus: 'SUCCESS' | 'ERROR' | 'PARTIAL' = 'SUCCESS';
+    const targetLimit = limit ? parseInt(limit as string) : 25;
+    const searchOptions: any = {
+      limit: targetLimit,
+      offset: isLoadMore ? nextCursor : (offset && typeof offset === "string" ? offset : undefined),
+      sort: sort || 'date_desc',
+      filters: filters,
+      maxPages: isLoadMore ? 3 : 5
+    };
 
-    // Scan up to 15 pages or until we find at least 5 relevant tenders
-    while (totalPagesFetched < 15 && accumulatedTenders.length < 5) {
-      const searchResult = await searchProzorroTenders(structuredQuery, {
-        limit: targetLimit - accumulatedTenders.length,
-        offset: currentCursor,
-        maxPages: 3
+    const searchResult = await searchProzorroTenders(structuredQuery, searchOptions);
+
+    if (searchResult.telemetry.sourceStatus === "ERROR" && !isLoadMore) {
+      return res.status(502).json({
+        error: "Помилка підключення до Prozorro API.",
+        telemetry: searchResult.telemetry
       });
-
-      if (searchResult.telemetry.sourceStatus === "ERROR" && totalPagesFetched === 0) {
-        return res.status(502).json({
-          error: "Помилка підключення до Prozorro API.",
-          telemetry: searchResult.telemetry
-        });
-      }
-
-      totalPagesFetched += searchResult.telemetry.pagesFetched;
-      totalRecordsScanned += searchResult.telemetry.recordsFetched;
-      currentCursor = searchResult.telemetry.nextOffset || "";
-      
-      // Dynamic Personalized scoring for this batch
-      const processedBatch = searchResult.tenders.map((tender) => {
-        if (company) {
-          const radarMatch = calculatePersonalRadarMatch(tender, company);
-          return {
-            ...tender,
-            fitScore: radarMatch.fitScore,
-            fitFactors: radarMatch.factors,
-            radarReasons: radarMatch.reasons
-          };
-        }
-        return tender;
-      });
-
-      accumulatedTenders.push(...processedBatch);
-      
-      if (!currentCursor || searchResult.tenders.length === 0) break;
     }
 
-    const processedTenders = accumulatedTenders;
-    const newNextCursor = currentCursor;
-    const hasMore = !!newNextCursor;
+    const currentCursor = searchResult.telemetry.nextOffset || "";
+    
+    // Dynamic Personalized scoring for this batch
+    const processedTenders = searchResult.tenders.map((tender) => {
+      if (company) {
+        const radarMatch = calculatePersonalRadarMatch(tender, company);
+        return {
+          ...tender,
+          fitScore: radarMatch.fitScore,
+          fitFactors: radarMatch.factors,
+          radarReasons: radarMatch.reasons
+        };
+      }
+      return tender;
+    });
+
+    const hasMore = !!currentCursor && processedTenders.length >= targetLimit;
     const currentSearchId = (isLoadMore ? searchId : crypto.randomUUID()) as string;
 
     if (!isLoadMore) {
@@ -319,18 +314,18 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
         rawQuery,
         structuredQuery,
         source: "Prozorro",
-        sourceCursor: newNextCursor,
-        pagesScanned: totalPagesFetched,
-        recordsScanned: totalRecordsScanned,
+        sourceCursor: currentCursor,
+        pagesScanned: searchResult.telemetry.pagesFetched,
+        recordsScanned: searchResult.telemetry.recordsFetched,
         recordsMatched: processedTenders.length,
         expiresAt: new Date(Date.now() + 60 * 60 * 1000) // 1 hour TTL
       });
     } else {
       await db.update(searchSessionsTable)
         .set({
-          sourceCursor: newNextCursor,
-          pagesScanned: (session.pagesScanned || 0) + totalPagesFetched,
-          recordsScanned: (session.recordsScanned || 0) + totalRecordsScanned,
+          sourceCursor: currentCursor,
+          pagesScanned: (session.pagesScanned || 0) + searchResult.telemetry.pagesFetched,
+          recordsScanned: (session.recordsScanned || 0) + searchResult.telemetry.recordsFetched,
           recordsMatched: (session.recordsMatched || 0) + processedTenders.length,
           updatedAt: new Date()
         })
@@ -338,8 +333,8 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
     }
 
     // Retrieve full session stats for load more calculations
-    let displayPagesFetched = totalPagesFetched;
-    let displayRecordsScanned = totalRecordsScanned;
+    let displayPagesFetched = searchResult.telemetry.pagesFetched;
+    let displayRecordsScanned = searchResult.telemetry.recordsFetched;
     let displayRecordsMatched = processedTenders.length;
 
     if (isLoadMore) {
@@ -352,22 +347,26 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
       searchId: currentSearchId,
       query: {
         raw: rawQuery,
-        structured: structuredQuery
+        structured: structuredQuery,
+        filters: filters,
+        sort: searchOptions.sort,
+        limit: searchOptions.limit
       },
-      tenders: processedTenders, // Backward-compatibility
-      results: processedTenders, // Search Contract Compliance
+      tenders: processedTenders, 
+      results: processedTenders, 
       pagination: {
         hasMore,
-        nextCursor: newNextCursor,
+        nextCursor: currentCursor,
         pagesFetched: displayPagesFetched,
         recordsScanned: displayRecordsScanned,
         recordsMatched: displayRecordsMatched
       },
       source: {
         name: "Prozorro",
-        status: "SUCCESS",
+        status: searchResult.telemetry.sourceStatus,
         retrievedAt: new Date().toISOString()
-      }
+      },
+      telemetry: searchResult.telemetry
     });
 
   } catch (error) {

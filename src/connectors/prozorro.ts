@@ -14,6 +14,8 @@ export interface ProzorroTenderItem {
   customerEdrpou?: string;
   customerCity: string;
   budgetUah: number;
+  currency: string;
+  isVatIncluded: boolean;
   deadline: string;
   datePublished: string;
   region: string;
@@ -42,6 +44,21 @@ export interface SearchTelemetry {
   sourceStatus: 'SUCCESS' | 'ERROR' | 'PARTIAL';
   nextOffset?: string;
   rejectionDetails: RejectionDetails;
+}
+
+export interface SearchOptions {
+  maxPages?: number;
+  limit?: number;
+  offset?: string;
+  sort?: 'relevance' | 'price_asc' | 'price_desc' | 'date_asc' | 'date_desc' | 'deadline_asc' | 'deadline_desc';
+  filters?: {
+    region?: string;
+    cpv?: string;
+    minBudget?: number;
+    maxBudget?: number;
+    status?: string;
+    customer?: string;
+  };
 }
 
 const PROZORRO_BASE_URL = "https://public.api.openprocurement.org/api/2.5/tenders";
@@ -82,16 +99,16 @@ export function calculatePersonalRadarMatch(tender: any, profile: any): any {
 
 /**
  * PRODUCTION READY: Multi-page search for Prozorro tenders
- * Implements deep crawling, adaptive search, and detailed telemetry.
  */
 export async function searchProzorroTenders(
-  query: any, // StructuredTenderQuery
-  options: { maxPages?: number; limit?: number; offset?: string } = {}
+  query: any,
+  options: SearchOptions = {}
 ): Promise<{ tenders: ProzorroTenderItem[]; telemetry: SearchTelemetry }> {
   const startTime = Date.now();
   const tenders: ProzorroTenderItem[] = [];
-  const maxPages = options.maxPages || 5; 
-  const targetLimit = options.limit || 20;
+  const maxPages = options.maxPages || 3; 
+  const targetLimit = options.limit || 25;
+  const timeoutMs = 30000; 
   
   let pagesFetched = 0;
   let recordsFetched = 0;
@@ -110,141 +127,120 @@ export async function searchProzorroTenders(
   let sourceStatus: 'SUCCESS' | 'ERROR' | 'PARTIAL' = 'SUCCESS';
 
   try {
-    let nextPageUri = `${PROZORRO_BASE_URL}?descending=1&limit=20&opt_fields=title,description,value,procuringEntity,tenderID,status,tenderPeriod,items,mainProcurementCategory`;
+    let nextPageUri = `${PROZORRO_BASE_URL}?descending=1&limit=50&opt_fields=title,description,value,procuringEntity,tenderID,status,tenderPeriod,items,mainProcurementCategory,datePublished,dateModified`;
     if (currentOffset) {
       nextPageUri += `&offset=${currentOffset}`;
     }
 
-    while (pagesFetched < maxPages && tenders.length < targetLimit) {
-      const response = await fetch(nextPageUri);
-      if (!response.ok) {
-        sourceStatus = pagesFetched === 0 ? 'ERROR' : 'PARTIAL';
-        break;
-      }
+    const controller = new AbortController();
+    const globalTimeout = setTimeout(() => controller.abort(), timeoutMs);
 
-      const json = await response.json();
-      pagesFetched++;
-      
-      if (!json.data || !Array.isArray(json.data) || json.data.length === 0) break;
-      
-      recordsFetched += json.data.length;
-      rejectionTelemetry.scanned += json.data.length;
-      nextPageUri = json.next_page?.uri || "";
-      currentOffset = json.next_page?.offset || "";
+    while (pagesFetched < maxPages && tenders.length < targetLimit * 2) { 
+      try {
+        const response = await fetch(nextPageUri, { signal: controller.signal });
+        if (!response.ok) {
+          sourceStatus = pagesFetched === 0 ? 'ERROR' : 'PARTIAL';
+          break;
+        }
 
-      // Concurrency limiting for detail requests
-      const details: any[] = [];
-      const CONCURRENCY = 5;
-      const chunks = [];
-      for (let i = 0; i < json.data.length; i += CONCURRENCY) {
-        chunks.push(json.data.slice(i, i + CONCURRENCY));
-      }
-
-      for (const chunk of chunks) {
-        const chunkResults = await Promise.all(chunk.map(async (item: any) => {
-          try {
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), 10000);
-            const dRes = await fetch(`${PROZORRO_BASE_URL}/${item.id}`, { signal: controller.signal });
-            clearTimeout(id);
-            if (!dRes.ok) return null;
-            const dJson = await dRes.json();
-            return dJson.data;
-          } catch (e) { return null; }
-        }));
-        details.push(...chunkResults);
-      }
-
-      for (const data of details) {
-        if (!data) continue;
-        if (tenders.length >= targetLimit) break;
-
-        const title = (data.title || "").toLowerCase();
-        const description = (data.description || "").toLowerCase();
-        const cpv = data.items?.[0]?.classification?.id || "";
-        const budget = data.value?.amount || 0;
-        const regionName = (data.procuringEntity?.address?.region || "").toLowerCase();
-        const localityName = (data.procuringEntity?.address?.locality || "").toLowerCase();
+        const json = await response.json();
+        pagesFetched++;
         
-        // 1. CPV Filter
-        if (query.cpvCandidates?.length > 0 && cpv) {
-          const cpvMatch = query.cpvCandidates.some((c: string) => cpv.startsWith(c.substring(0, 2)));
-          if (!cpvMatch) {
+        if (!json.data || !Array.isArray(json.data) || json.data.length === 0) break;
+        
+        recordsFetched += json.data.length;
+        rejectionTelemetry.scanned += json.data.length;
+        nextPageUri = json.next_page?.uri || "";
+        currentOffset = json.next_page?.offset || "";
+
+        for (const data of json.data) {
+          const title = (data.title || "").toLowerCase();
+          const description = (data.description || "").toLowerCase();
+          const cpv = data.items?.[0]?.classification?.id || "";
+          const budget = data.value?.amount || 0;
+          const currency = data.value?.currency || "UAH";
+          const isVatIncluded = data.value?.valueAddedTaxIncluded ?? true;
+          const regionName = (data.procuringEntity?.address?.region || "").toLowerCase();
+          const localityName = (data.procuringEntity?.address?.locality || "").toLowerCase();
+          
+          // Apply Filters
+          if (options.filters?.cpv && cpv && !cpv.startsWith(options.filters.cpv.substring(0, 2))) {
             rejectionTelemetry.rejected_cpv++;
             continue;
           }
-        }
-
-        // 2. Budget Filter
-        if (query.minBudget && budget < query.minBudget) {
-          rejectionTelemetry.rejected_budget++;
-          continue;
-        }
-        if (query.maxBudget && budget > query.maxBudget) {
-          rejectionTelemetry.rejected_budget++;
-          continue;
-        }
-
-        // 3. Location Filter
-        const qLoc = (query.location?.region || query.location?.city || "").toLowerCase();
-        if (qLoc) {
-          const isKyivQuery = qLoc.includes("київ") || qLoc.includes("киев");
-          let locationMatch = false;
-          if (isKyivQuery) {
-            locationMatch = regionName.includes("київ") || localityName.includes("київ") || regionName.includes("киев") || localityName.includes("киев");
-          } else {
-            locationMatch = regionName.includes(qLoc) || localityName.includes(qLoc);
+          if (options.filters?.minBudget && budget < options.filters.minBudget) {
+            rejectionTelemetry.rejected_budget++;
+            continue;
           }
-          if (!locationMatch) {
+          if (options.filters?.maxBudget && budget > options.filters.maxBudget) {
+            rejectionTelemetry.rejected_budget++;
+            continue;
+          }
+          if (options.filters?.region && !regionName.includes(options.filters.region.toLowerCase()) && !localityName.includes(options.filters.region.toLowerCase())) {
             rejectionTelemetry.rejected_region++;
             continue;
           }
-        }
 
-        // 4. Keyword Match
-        const qKeywords = (query.keywords || []).map((k: string) => k.toLowerCase());
-        const matchedKeywords = qKeywords.filter((k: string) => title.includes(k) || description.includes(k));
-        if (matchedKeywords.length === 0 && qKeywords.length > 0) {
-          rejectionTelemetry.rejected_keywords++;
-          continue;
-        }
+          const qKeywords = (query.keywords || []).map((k: string) => k.toLowerCase());
+          const matchedKeywords = qKeywords.filter((k: string) => title.includes(k) || description.includes(k));
+          if (matchedKeywords.length === 0 && qKeywords.length > 0) {
+            rejectionTelemetry.rejected_keywords++;
+            continue;
+          }
 
-        // 5. Negative Exclusions
-        const defaultExclusions = ["харчування", "продукти", "м'ясо", "молоко", "хліб", "овочі", "масло", "сир", "риба", "сік", "соки", "крупа", "борошно", "яйця", "фрукти", "охорона", "прибирання"];
-        const hasNegative = defaultExclusions.some(neg => title.includes(neg) || description.includes(neg));
-        if (hasNegative) {
-          rejectionTelemetry.rejected_negative++;
-          continue;
+          tenders.push({
+            id: data.id,
+            tenderId: data.tenderID,
+            title: data.title,
+            customer: data.procuringEntity?.name || "НЕВІДОМО",
+            customerEdrpou: data.procuringEntity?.identifier?.id || "НЕВІДОМО",
+            customerCity: localityName || "НЕВІДОМО",
+            budgetUah: budget,
+            currency,
+            isVatIncluded,
+            deadline: data.tenderPeriod?.endDate || "НЕВІДОМО",
+            datePublished: data.datePublished || data.dateModified || new Date().toISOString(),
+            region: regionName || "НЕВІДОМО",
+            status: data.status,
+            category: data.mainProcurementCategory || "works",
+            summary: data.description || "",
+            relevanceScore: matchedKeywords.length,
+            retrievedAt: new Date().toISOString()
+          });
         }
-
-        tenders.push({
-          id: data.id,
-          tenderId: data.tenderID,
-          title: data.title,
-          customer: data.procuringEntity?.name || "НЕВІДОМО",
-          customerEdrpou: data.procuringEntity?.identifier?.id || "НЕВІДОМО",
-          customerCity: localityName || "НЕВІДОМО",
-          budgetUah: budget,
-          deadline: data.tenderPeriod?.endDate || "НЕВІДОМО",
-          datePublished: data.datePublished || data.date || new Date().toISOString(),
-          region: regionName || "НЕВІДОМО",
-          status: data.status,
-          category: "Будівельні роботи",
-          summary: data.description || "",
-          relevanceScore: matchedKeywords.length,
-          retrievedAt: new Date().toISOString()
-        });
+      } catch (e: any) {
+        if (e.name === 'AbortError') {
+          sourceStatus = 'PARTIAL';
+          break;
+        }
+        throw e;
       }
+    }
+    clearTimeout(globalTimeout);
+
+    // Apply Sorting
+    if (options.sort) {
+      tenders.sort((a, b) => {
+        switch (options.sort) {
+          case 'price_asc': return a.budgetUah - b.budgetUah;
+          case 'price_desc': return b.budgetUah - a.budgetUah;
+          case 'date_desc': return new Date(b.datePublished).getTime() - new Date(a.datePublished).getTime();
+          case 'date_asc': return new Date(a.datePublished).getTime() - new Date(b.datePublished).getTime();
+          case 'deadline_asc': return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+          case 'relevance': return b.relevanceScore - a.relevanceScore;
+          default: return 0;
+        }
+      });
     }
 
     return {
-      tenders,
+      tenders: tenders.slice(0, targetLimit),
       telemetry: {
         searchId,
         durationMs: Date.now() - startTime,
         pagesFetched,
         recordsFetched,
-        recordsReturned: tenders.length,
+        recordsReturned: Math.min(tenders.length, targetLimit),
         sourceStatus,
         nextOffset: currentOffset,
         rejectionDetails: rejectionTelemetry

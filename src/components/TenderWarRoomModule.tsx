@@ -32,7 +32,8 @@ import {
   Send,
   Zap,
   Info,
-  Check
+  Check,
+  FileText
 } from 'lucide-react';
 
 interface TenderWarRoomModuleProps {
@@ -44,6 +45,7 @@ interface TenderWarRoomModuleProps {
   onNavigateToAmcu: () => void;
   onNavigateToAudit: () => void;
   onNavigateToCollusion: () => void;
+  onNavigateToDocuments: () => void;
 }
 
 type WarRoomTab = 'OVERVIEW' | 'DE_JURE_DE_FACTO' | 'PRICE_STRATEGY' | 'GANTT_FEASIBILITY' | 'ACTION_PLAN' | 'QA_CHECKLIST';
@@ -56,7 +58,8 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
   onNavigateToBoQ,
   onNavigateToAmcu,
   onNavigateToAudit,
-  onNavigateToCollusion
+  onNavigateToCollusion,
+  onNavigateToDocuments
 }) => {
   const [activeTab, setActiveTab] = useState<WarRoomTab>('OVERVIEW');
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('COMPETITIVE');
@@ -157,7 +160,24 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
         <div className="space-y-6 sm:space-y-8">
           
           {/* Quick Actions Grid - Adaptive Columns */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <div 
+              onClick={onNavigateToDocuments}
+              className="group bg-slate-900 border border-slate-800 hover:border-emerald-500/40 rounded-3xl p-6 cursor-pointer transition-all space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+                  <FileText size={20} />
+                </div>
+                <ArrowRight className="w-4 h-4 text-slate-700 group-hover:text-emerald-400 transition-all" />
+              </div>
+              <div>
+                <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Документація</div>
+                <div className="text-xl font-black text-white mt-1">Документи ТД</div>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">AI Екстракція та аналіз</p>
+              </div>
+            </div>
+
             <div 
               onClick={onNavigateToMatrix}
               className="group bg-slate-900 border border-slate-800 hover:border-emerald-500/40 rounded-3xl p-6 cursor-pointer transition-all space-y-4"

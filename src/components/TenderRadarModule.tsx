@@ -69,7 +69,10 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
 
   const handleApplyNlPrompt = async (prompt: string, isAppend = false) => {
     if (!isAppend) setNlPrompt(prompt);
-    runSearch(prompt, isAppend);
+    runSearch(prompt, isAppend, {
+      sort: 'relevance',
+      limit: 25
+    });
   };
 
   const handleLoadMore = () => {

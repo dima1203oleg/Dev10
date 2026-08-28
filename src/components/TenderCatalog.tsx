@@ -17,7 +17,7 @@ import {
   FileText
 } from 'lucide-react';
 
-import { useProzorroSearch } from '../hooks/useProzorroSearch';
+import { useProzorroSearch, SearchFilters, SortOption } from '../hooks/useProzorroSearch';
 
 interface TenderCatalogProps {
   tenders: Tender[];
@@ -48,24 +48,42 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
     search: runProzorroSearch 
   } = useProzorroSearch();
 
-  const [prozorroSearchQuery, setProzorroSearchQuery] = useState('');
-
-  // Modal active tab & manual import state
-  const [activeTab, setActiveTab] = useState<'IMPORT' | 'PRIVATE'>('IMPORT');
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<'AUTO' | 'MANUAL'>('AUTO');
   const [prozorroIdInput, setProzorroIdInput] = useState('');
-  const [importingState, setImportingState] = useState<'IDLE' | 'LOADING' | 'SUCCESS' | 'ERROR'>('IDLE');
-  const [importedPreview, setImportedPreview] = useState<any>(null);
+  const [importingState, setImportingState] = useState<'IDLE' | 'LOADING' | 'SUCCESS'>('IDLE');
   const [importError, setImportError] = useState<string | null>(null);
+  const [importedPreview, setImportedPreview] = useState<any>(null);
 
-  // Private project form state
   const [newTitle, setNewTitle] = useState('');
   const [newCustomer, setNewCustomer] = useState('');
-  const [newBudget, setNewBudget] = useState('25000000');
-  const [newRegion, setNewRegion] = useState('м. Київ');
-  const [newCategory, setNewCategory] = useState('Будівельні роботи');
+  const [newBudget, setNewBudget] = useState('');
+  const [newCategory, setNewCategory] = useState('');
+  const [newRegion, setNewRegion] = useState('');
+
+  const [prozorroSearchQuery, setProzorroSearchQuery] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Advanced filters state
+  const [filters, setFilters] = useState<SearchFilters>({
+    region: '',
+    cpv: '',
+    minBudget: undefined,
+    maxBudget: undefined
+  });
+  const [sort, setSort] = useState<SortOption>('date_desc');
+  const [pageSize, setPageSize] = useState(25);
 
   const handleProzorroSearch = async (isAppend = false) => {
-    runProzorroSearch(prozorroSearchQuery, isAppend);
+    runProzorroSearch(prozorroSearchQuery, isAppend, {
+      filters: filters,
+      sort: sort,
+      limit: pageSize
+    });
+  };
+
+  const handleFilterChange = (key: keyof SearchFilters, value: any) => {
+    setFilters(prev => ({ ...prev, [key]: value || undefined }));
   };
 
   const filteredTenders = tenders.filter((t) => {
@@ -324,6 +342,15 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
             />
           </div>
           <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className={`px-4 py-4 rounded-2xl border transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              showFilters ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400' : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+            }`}
+          >
+            <Filter size={18} />
+            <span className="text-xs font-bold uppercase tracking-widest hidden sm:inline">Фільтри</span>
+          </button>
+          <button 
             onClick={() => handleProzorroSearch(false)}
             disabled={isSearching}
             className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 cursor-pointer"
@@ -332,6 +359,68 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
             <span>{isSearching ? 'Пошук...' : 'Знайти в Prozorro'}</span>
           </button>
         </div>
+
+        {showFilters && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5 bg-slate-950 rounded-2xl border border-slate-800 animate-fadeIn">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Регіон</label>
+              <input 
+                type="text" 
+                placeholder="Київська область"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500"
+                value={filters.region || ''}
+                onChange={(e) => handleFilterChange('region', e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Код CPV</label>
+              <input 
+                type="text" 
+                placeholder="45000000-7"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500"
+                value={filters.cpv || ''}
+                onChange={(e) => handleFilterChange('cpv', e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Мінімальний бюджет</label>
+              <input 
+                type="number" 
+                placeholder="0"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500 font-mono"
+                value={filters.minBudget || ''}
+                onChange={(e) => handleFilterChange('minBudget', e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Сортування за</label>
+              <select 
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500 cursor-pointer"
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortOption)}
+              >
+                <option value="date_desc">Новіші спочатку</option>
+                <option value="date_asc">Старіші спочатку</option>
+                <option value="price_desc">Дорожчі спочатку</option>
+                <option value="price_asc">Дешевші спочатку</option>
+                <option value="deadline_asc">Дедлайн (найближчий)</option>
+              </select>
+            </div>
+            <div className="sm:col-span-2 lg:col-span-1 space-y-1.5">
+               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Тендерів на сторінку</label>
+               <select 
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-emerald-500 cursor-pointer"
+                value={pageSize}
+                onChange={(e) => setPageSize(parseInt(e.target.value))}
+              >
+                <option value="10">10 результатів</option>
+                <option value="25">25 результатів</option>
+                <option value="50">50 результатів</option>
+                <option value="100">100 результатів</option>
+              </select>
+            </div>
+          </div>
+        )}
 
         {searchError && (
           <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-400 text-xs font-bold flex items-center gap-2">
