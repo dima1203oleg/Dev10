@@ -5,6 +5,8 @@ import fetch from "node-fetch";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
+import { execSync } from "child_process";
+import { detectCollusionRisk } from "./src/utils/collusionEngine.ts";
 
 dotenv.config();
 
@@ -80,30 +82,58 @@ async function runProductionGate() {
     hasErrors = true;
   }
 
-  // 3. Collusion Risk API Response Schema Check
-  console.log("\n⭐ [CHECK 3/5] Валідація API виявлення змов (Collusion Risk Engine Schema Contract)...");
+  // 3. Collusion Risk API & Engine Verification (No Mock)
+  console.log("\n⭐ [CHECK 3/5] Валідація Алгоритму виявлення змов (Collusion Risk Engine Real Execution)...");
   try {
-    // Invoke test validation simulation of Collusion Risk algorithm output structure
-    const mockCompetitors = [
-      { name: "ТОВ СпецБуд-1", edrpou: "11111111", winRatePercent: 85, totalTenders: 12 },
-      { name: "ТОВ БудПромХолдинг", edrpou: "22222222", winRatePercent: 10, totalTenders: 40 }
+    const testCompetitors = [
+      {
+        id: "comp-1",
+        name: "ТОВ СпецБуд-1",
+        edrpou: "11111111",
+        winRatePercent: 85,
+        totalTenders: 12,
+        avgPriceDropPercent: 0.2, // Nominal bid
+        riskIndicators: ["Спаринг-партнерство"],
+        suspiciousPairingsCount: 8,
+        disqualificationRatePercent: 0,
+        frequentPartners: []
+      },
+      {
+        id: "comp-2",
+        name: "ТОВ БудПромХолдинг",
+        edrpou: "22222222",
+        winRatePercent: 10,
+        totalTenders: 40,
+        avgPriceDropPercent: 0.1, // Nominal bid
+        riskIndicators: ["Спаринг-партнерство"],
+        suspiciousPairingsCount: 8,
+        disqualificationRatePercent: 0,
+        frequentPartners: []
+      }
     ];
 
-    // Verify contract fields are evaluated correctly (must return valid scores and arrays)
-    const riskScore = 45; // Simulated collusion detect engine result
-    const riskLevel = riskScore >= 70 ? "CRITICAL" : riskScore >= 40 ? "MEDIUM" : "LOW";
+    // Execute real collusion algorithm
+    const analysis = detectCollusionRisk({
+      tenderId: "UA-2026-TEST",
+      tenderTitle: "Капітальний ремонт укриття",
+      competitors: testCompetitors,
+      history: { jointBidsCount: 8, commonIPs: true }
+    });
 
-    if (typeof riskScore !== "number" || riskScore < 0 || riskScore > 100) {
-      throw new Error("Помилка контракту: collusionRiskScore повинен бути числом від 0 до 100.");
+    if (typeof analysis.collusionRiskScore !== "number" || analysis.collusionRiskScore < 0 || analysis.collusionRiskScore > 100) {
+      throw new Error("Помилка алгоритму: collusionRiskScore повинен бути числом від 0 до 100.");
     }
-    if (!["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(riskLevel)) {
-      throw new Error("Помилка контракту: некоректний riskLevel.");
+    if (!["LOW", "MEDIUM", "HIGH", "CRITICAL"].includes(analysis.riskLevel)) {
+      throw new Error("Помилка алгоритму: некоректний riskLevel.");
+    }
+    if (!Array.isArray(analysis.anomaliesDetected) || analysis.anomaliesDetected.length === 0) {
+      throw new Error("Помилка алгоритму: аномалії не були згенеровані для виявленого картелю.");
     }
 
-    console.log(`  ✔️ Схема та контракт Collusion AI Engine пройшли перевірку.`);
-    console.log(`  ✔️ Приклад результату: Score = ${riskScore}, Level = ${riskLevel}`);
+    console.log(`  ✔️ Алгоритм Collusion Engine успішно виконувався на живих вхідних даних.`);
+    console.log(`  ✔️ Розраховано значення: Score = ${analysis.collusionRiskScore}, Level = ${analysis.riskLevel}, Виявлено аномалій: ${analysis.anomaliesDetected.length}`);
   } catch (err: any) {
-    console.error("  ❌ Помилка валідації API змов:", err.message);
+    console.error("  ❌ Помилка валідації алгоритму змов:", err.message);
     hasErrors = true;
   }
 
@@ -133,12 +163,19 @@ async function runProductionGate() {
     hasErrors = true;
   }
 
-  // 5. Build & Typecheck Success
-  console.log("\n⭐ [CHECK 5/5] Перевірка синтаксису та сумісності TypeScript...");
+  // 5. Real Build & Typecheck & Test Execution
+  console.log("\n⭐ [CHECK 5/5] Перевірка синтаксису, типізації та юніт-тестів...");
   try {
-    console.log("  ✔️ Виявлено коректну конфігурацію tsconfig та успішно пройдено linter.");
+    console.log("  ... запуск npx tsc --noEmit ...");
+    execSync("npx tsc --noEmit", { stdio: "pipe" });
+    console.log("  ✔️ Успішно виконано npx tsc --noEmit: помилок типізації 0.");
+
+    console.log("  ... запуск npm test ...");
+    execSync("npm test", { stdio: "pipe" });
+    console.log("  ✔️ Успішно виконано npm test: всі тести пройдено.");
   } catch (err: any) {
-    console.error("  ❌ Помилка типізації TypeScript:", err.message);
+    const output = err.stdout?.toString() || err.stderr?.toString() || err.message;
+    console.error("  ❌ Помилка верифікації коду:", output);
     hasErrors = true;
   }
 

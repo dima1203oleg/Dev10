@@ -13,96 +13,136 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSelectTender,
   onNavigate,
 }) => {
-  const highMatch = tenders.filter(t => t.riskLevel === 'LOW').length;
-  const checkMatch = tenders.filter(t => t.riskLevel === 'MEDIUM').length;
-  const lowMatch = tenders.filter(t => t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL').length;
+  const highFit = tenders.filter(t => (t.opportunityScore?.overallScore ?? 0) >= 70).length;
+  const mediumFit = tenders.filter(t => {
+    const score = t.opportunityScore?.overallScore ?? 0;
+    return score >= 40 && score < 70;
+  }).length;
+  const lowFit = tenders.filter(t => (t.opportunityScore?.overallScore ?? 0) < 40).length;
+
+  const highRiskTenders = tenders.filter(t => t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8 pb-12">
       
-      {/* 1. AI Radar & Action Center */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* 1. RESPONSIVE KPI GRID */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+          <div className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">Всього знайдено</div>
+          <div className="text-2xl sm:text-3xl font-bold text-white">{tenders.length}</div>
+        </div>
+        <div className="bg-slate-900 border border-emerald-500/20 p-4 rounded-2xl">
+          <div className="text-xs text-emerald-500 font-bold uppercase tracking-widest mb-1">Високий Match</div>
+          <div className="text-2xl sm:text-3xl font-bold text-emerald-400">{highFit}</div>
+        </div>
+        <div className="bg-slate-900 border border-amber-500/20 p-4 rounded-2xl">
+          <div className="text-xs text-amber-500 font-bold uppercase tracking-widest mb-1">Середній Match</div>
+          <div className="text-2xl sm:text-3xl font-bold text-amber-400">{mediumFit}</div>
+        </div>
+        <div className="bg-slate-900 border border-red-500/20 p-4 rounded-2xl">
+          <div className="text-xs text-red-500 font-bold uppercase tracking-widest mb-1">Критичні ризики</div>
+          <div className="text-2xl sm:text-3xl font-bold text-red-400">{highRiskTenders.length}</div>
+        </div>
+      </div>
+
+      {/* 2. MAIN ADAPTIVE COMPOSITION */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
         
-        {/* AI RADAR */}
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-6">
-            <div className="flex items-center gap-3 mb-6">
-                <Target className="w-6 h-6 text-emerald-400" />
-                <h2 className="text-xl font-bold text-white">AI RADAR</h2>
-            </div>
-            
-            <p className="text-sm text-slate-400 mb-6">Виявлено {tenders.length} тендерів, які відповідають вашому профілю</p>
-            
-            <div className="grid grid-cols-3 gap-4 mb-6">
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                    <div className="text-2xl font-bold text-white mb-1">{highMatch}</div>
-                    <div className="text-xs text-emerald-400 uppercase tracking-widest">Висока відповідність</div>
+        {/* RADAR OVERVIEW (Main Area) */}
+        <div className="lg:col-span-8 space-y-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-8">
+                <div className="flex items-center justify-between mb-6 sm:mb-8">
+                    <div className="flex items-center gap-3">
+                        <Target className="w-6 h-6 text-emerald-400" />
+                        <h2 className="text-lg sm:text-xl font-bold text-white uppercase tracking-tight">Тендерний Радар</h2>
+                    </div>
+                    <button onClick={() => onNavigate('radar')} className="text-xs font-bold text-emerald-400 hover:underline flex items-center gap-1">
+                      ВСІ OPPORTUNITIES <ArrowRight size={14} />
+                    </button>
                 </div>
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                    <div className="text-2xl font-bold text-white mb-1">{checkMatch}</div>
-                    <div className="text-xs text-amber-400 uppercase tracking-widest">Потребують перевірки</div>
-                </div>
-                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                    <div className="text-2xl font-bold text-white mb-1">{lowMatch}</div>
-                    <div className="text-xs text-slate-400 uppercase tracking-widest">Низька відповідність</div>
-                </div>
-            </div>
-            
-            <button
-                onClick={() => onNavigate('radar')}
-                className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-4 rounded-xl transition-all"
-            >
-                <span>ПЕРЕГЛЯНУТИ {tenders.length} ТЕНДЕРІВ</span>
-                <ArrowRight className="w-4 h-4" />
-            </button>
-        </div>
 
-        {/* Action Center */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-            <div className="flex items-center gap-3 mb-6">
-                <Sparkles className="w-6 h-6 text-indigo-400" />
-                <h2 className="text-xl font-bold text-white">ACTION CENTER</h2>
-            </div>
-            
-            <div className="space-y-4">
-                {highMatch + checkMatch + lowMatch === 0 ? (
-                    <div className="text-sm text-slate-500 italic">Немає активних завдань</div>
-                ) : (
-                    tenders.filter(t => t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL').slice(0, 2).map(tender => (
-                        <div key={tender.id} className="border border-red-900/50 bg-red-950/10 p-4 rounded-xl">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-bold text-red-400 uppercase">🔴 Терміново</span>
-                            </div>
-                            <h4 className="font-bold text-white mb-1">{tender.title}</h4>
-                            <div className="text-sm text-slate-300 mb-2">Бюджет: {tender.budgetUah?.toLocaleString()} ₴</div>
-                            <button onClick={() => onSelectTender(tender)} className="text-xs bg-red-600 hover:bg-red-500 text-white font-bold py-1 px-3 rounded-lg w-full">ПЕРЕВІРИТИ ТЕНДЕР</button>
+                <div className="space-y-4">
+                  {tenders.slice(0, 5).map(tender => (
+                    <div 
+                      key={tender.id} 
+                      onClick={() => onSelectTender(tender)}
+                      className="group bg-slate-950 border border-slate-800 hover:border-emerald-500/40 p-4 rounded-2xl transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <h4 className="font-bold text-white group-hover:text-emerald-400 transition-colors truncate">{tender.title}</h4>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                          <span className="flex items-center gap-1"><Building2 size={12} /> {tender.customer}</span>
+                          <span className="flex items-center gap-1 font-mono text-slate-400">{tender.budgetUah?.toLocaleString()} ₴</span>
                         </div>
-                    ))
-                )}
+                      </div>
+                      <div className="flex items-center gap-3 self-end sm:self-center">
+                         <div className={`px-3 py-1 rounded-full text-[10px] font-bold ${
+                           (tender.opportunityScore?.overallScore ?? 0) >= 70 ? 'bg-emerald-500/10 text-emerald-400' :
+                           (tender.opportunityScore?.overallScore ?? 0) >= 40 ? 'bg-amber-500/10 text-amber-400' :
+                           'bg-slate-800 text-slate-500'
+                         }`}>
+                           {tender.opportunityScore?.overallScore || '—'}% Match
+                         </div>
+                         <ArrowRight size={16} className="text-slate-700 group-hover:text-white transition-colors" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+            </div>
+        </div>
+
+        {/* ACTION CENTER (Context Area) */}
+        <div className="lg:col-span-4 space-y-6">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-8">
+                <div className="flex items-center gap-3 mb-6 sm:mb-8">
+                    <Sparkles className="w-6 h-6 text-indigo-400" />
+                    <h2 className="text-lg sm:text-xl font-bold text-white uppercase tracking-tight">Action Center</h2>
+                </div>
+                
+                <div className="space-y-4">
+                    {highRiskTenders.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-12 text-center text-slate-600">
+                            <ShieldAlert size={48} className="mb-4 opacity-20" />
+                            <p className="text-sm">Критичних ризиків не виявлено</p>
+                        </div>
+                    ) : (
+                        highRiskTenders.slice(0, 3).map(tender => (
+                            <div key={tender.id} className="group bg-red-950/10 border border-red-900/30 p-4 rounded-2xl hover:bg-red-950/20 transition-all">
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="flex items-center gap-1 text-[10px] font-black text-red-500 uppercase tracking-tighter">
+                                        <AlertTriangle size={12} /> Critical Risk
+                                    </span>
+                                </div>
+                                <h4 className="text-sm font-bold text-white mb-3 line-clamp-2">{tender.title}</h4>
+                                <button 
+                                  onClick={() => onSelectTender(tender)}
+                                  className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-xl text-xs transition-all shadow-lg shadow-red-900/20"
+                                >
+                                    АНАЛІЗ РИЗИКІВ
+                                </button>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
+            {/* QUICK ACTIONS */}
+            <div className="grid grid-cols-2 gap-3">
+               <button onClick={() => onNavigate('catalog')} className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-900 border border-slate-800 rounded-2xl hover:border-emerald-500/40 transition-all">
+                  <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400">
+                    <Search size={20} />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Пошук</span>
+               </button>
+               <button onClick={() => onNavigate('vault')} className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-900 border border-slate-800 rounded-2xl hover:border-indigo-500/40 transition-all">
+                  <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400">
+                    <Briefcase size={20} />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Vault</span>
+               </button>
             </div>
         </div>
       </div>
-
-      {/* List of Tenders (Watchlist) */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-        <h2 className="text-lg font-bold text-white mb-4">Активні тендери</h2>
-        <div className="space-y-3">
-          {tenders.map((tender) => (
-            <div key={tender.id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-white">{tender.title}</h3>
-                <p className="text-xs text-slate-400">{tender.customer} • {tender.budgetUah?.toLocaleString()} ₴</p>
-              </div>
-              <button 
-                onClick={() => onSelectTender(tender)}
-                className="text-xs bg-slate-800 hover:bg-slate-700 text-white font-bold py-2 px-4 rounded-lg"
-              >
-                ДЕТАЛЬНО
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
     </div>
   );
 };

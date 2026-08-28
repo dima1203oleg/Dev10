@@ -305,6 +305,7 @@ export interface Tender {
   status: 'ACTIVE' | 'AUDIT_FLAGGED' | 'BID_IN_PREPARATION' | 'COMPLETED' | 'AMCU_FILED' | 'INTERNAL_PROJECT';
   category: string;
   dk021Code?: string;
+  fitScore?: number | null;
   foulScore?: number | null; // 0 - 100, null if not analyzed yet
   riskLevel: RiskLevel;
   summary: string;

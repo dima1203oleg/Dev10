@@ -12,7 +12,9 @@ import {
   Filter,
   Check,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Scale,
+  Building2
 } from 'lucide-react';
 
 interface RequirementMatrixModuleProps {
@@ -108,194 +110,208 @@ ${company.name} (код ЄДРПОУ ${company.edrpou}) гарантує пов�
   });
 
   return (
-    <div id="requirement-matrix-module" className="space-y-6">
-      {/* Header & Compliance Scorecard */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-2">
+    <div id="requirement-matrix-module" className="space-y-6 sm:space-y-8 pb-12 animate-fadeIn">
+      {/* Header & Compliance Scorecard - Responsive Layout */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 sm:gap-8">
+          <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                AI Requirement Decomposer
-              </span>
-              <span className="text-xs text-slate-400 font-mono">{currentTender.tenderNumber}</span>
+              <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] sm:text-xs font-bold uppercase tracking-widest">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>AI Requirement Decomposer</span>
+              </div>
+              <div className="text-[10px] font-mono font-bold bg-slate-950 text-slate-400 px-2 py-1 rounded-lg border border-slate-800">
+                {currentTender.tenderNumber}
+              </div>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">{currentTender.title}</h1>
-            <p className="text-xs sm:text-sm text-slate-400">
-              Автоматичне зіставлення вимог Тендерної документації зі Smart Vault компанії <strong className="text-slate-200">{company.shortName}</strong>
+            <h1 className="text-xl sm:text-3xl font-black text-white tracking-tight leading-tight">Матриця вимог ТД</h1>
+            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-2xl">
+              Автоматичне зіставлення вимог Тендерної документації зі Smart Vault компанії <strong className="text-slate-200">{company.shortName}</strong>.
             </p>
           </div>
 
-          {/* Compliance Gauge */}
-          <div className="flex items-center gap-4 bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex-shrink-0">
-            <div className="text-center">
-              <div className="text-xs text-slate-400">Покриття вимог ТД</div>
-              <div className={`text-3xl font-extrabold ${complianceRate >= 80 ? 'text-emerald-400' : 'text-amber-400'}`}>
+          {/* Compliance Gauge - Adaptive Design */}
+          <div className="flex items-center gap-6 bg-slate-950 border border-slate-800 rounded-3xl p-6 flex-shrink-0 shadow-inner">
+            <div className="text-center space-y-1">
+              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Compliance Rate</div>
+              <div className={`text-4xl font-black ${complianceRate >= 80 ? 'text-emerald-400' : 'text-amber-400'}`}>
                 {complianceRate}%
               </div>
             </div>
-            <div className="h-10 w-[1px] bg-slate-800" />
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center gap-1.5 text-emerald-400">
-                <CheckCircle2 className="w-3.5 h-3.5" /> {coveredCount} Виконано
+            <div className="h-12 w-[1px] bg-slate-800" />
+            <div className="space-y-2 text-[10px] font-black uppercase tracking-tighter">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <CheckCircle2 size={14} /> {coveredCount} COVERED
               </div>
-              <div className="flex items-center gap-1.5 text-amber-400">
-                <AlertCircle className="w-3.5 h-3.5" /> {warningCount} Увага / Оновити
+              <div className="flex items-center gap-2 text-amber-400">
+                <AlertCircle size={14} /> {warningCount} WARNING
               </div>
-              <div className="flex items-center gap-1.5 text-rose-400">
-                <XCircle className="w-3.5 h-3.5" /> {gapCount} GAP (Бракує)
+              <div className="flex items-center gap-2 text-rose-400">
+                <XCircle size={14} /> {gapCount} GAP
               </div>
             </div>
           </div>
         </div>
 
-        {/* AI Action Trigger Bar */}
-        <div className="mt-6 pt-5 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 text-xs text-slate-400 mr-2">
-              <Filter className="w-3.5 h-3.5" /> Фільтр:
+        {/* AI Action Trigger Bar - Stacked on Mobile */}
+        <div className="mt-8 pt-6 border-t border-slate-800 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch gap-3">
+            <div className="relative">
+               <Filter className="w-3.5 h-3.5 text-slate-500 absolute left-3 top-3.5" />
+               <select
+                 value={selectedCategory}
+                 onChange={(e) => setSelectedCategory(e.target.value)}
+                 className="w-full bg-slate-950 border border-slate-800 rounded-2xl pl-9 pr-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 focus:outline-none focus:border-emerald-500 cursor-pointer transition-all"
+               >
+                 <option value="ALL">Всі категорії</option>
+                 <option value="QUALIFICATION_ART16">Кваліфікація (ст. 16)</option>
+                 <option value="TECHNICAL_SPEC">Технічна специфікація</option>
+                 <option value="FINANCIAL_GUARANTEE">Гарантія</option>
+                 <option value="ANTI_CORRUPTION_ART17">Стаття 17</option>
+               </select>
             </div>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="ALL">Всі категорії вимог</option>
-              <option value="QUALIFICATION_ART16">Кваліфікація (ст. 16)</option>
-              <option value="TECHNICAL_SPEC">Технічна специфікація</option>
-              <option value="FINANCIAL_GUARANTEE">Банківська гарантія</option>
-              <option value="ANTI_CORRUPTION_ART17">Стаття 17 (Доброчесність)</option>
-            </select>
 
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="ALL">Всі статуси відповідності</option>
-              <option value="COVERED">🟢 Виконано (Covered)</option>
-              <option value="WARNING">🟡 Увага (Warning)</option>
-              <option value="GAP_MISSING">🔴 GAP (Бракує документа)</option>
-            </select>
+            <div className="relative">
+               <select
+                 value={selectedStatus}
+                 onChange={(e) => setSelectedStatus(e.target.value)}
+                 className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 focus:outline-none focus:border-emerald-500 cursor-pointer transition-all"
+               >
+                 <option value="ALL">Всі статуси</option>
+                 <option value="COVERED">🟢 COVERED</option>
+                 <option value="WARNING">🟡 WARNING</option>
+                 <option value="GAP_MISSING">🔴 GAP</option>
+               </select>
+            </div>
           </div>
 
           <button
             onClick={handleRunAiMatching}
             disabled={isMatching}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+            className="px-8 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-emerald-950/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
           >
             <Sparkles className={`w-4 h-4 ${isMatching ? 'animate-spin' : ''}`} />
-            {isMatching ? 'Аудит відповідності у процесі...' : 'AI Повторне зіставлення з Vault'}
+            {isMatching ? 'Аудит...' : 'Запустити AI Аудит Vault'}
           </button>
         </div>
       </div>
 
-      {/* Critical Gap Alert if exists */}
+      {/* Critical Gap Alert */}
       {gapCount > 0 && (
-        <div className="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-5 space-y-3">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <XCircle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="text-sm font-bold text-rose-200">
-                  Виявлено {gapCount} критичний розрив (GAP) у тендерній пропозиції!
+        <div className="bg-rose-500/5 border-2 border-rose-500/20 rounded-3xl p-6 sm:p-8 space-y-4 animate-pulse">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-rose-500/10 rounded-2xl text-rose-500">
+                <ShieldCheck size={28} />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-lg font-black text-white">
+                  Виявлено {gapCount} критичний розрив (GAP)!
                 </h4>
-                <p className="text-xs text-rose-300/80 mt-1">
-                  Замовник встановив дискримінаційну вимогу, якій компанія не відповідає (відстань виробничої бази). Подання без усунення цієї вимоги гарантовано призведе до відхилення пропозиції!
+                <p className="text-sm text-slate-400 leading-relaxed max-w-3xl">
+                  Подання без усунення цих зауважень призведе до 100% відхилення пропозиції замовником.
                 </p>
               </div>
             </div>
             <button
               onClick={onNavigateToAmcu}
-              className="bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs px-4 py-2 rounded-xl flex-shrink-0 flex items-center gap-1.5 shadow-md shadow-rose-600/30"
+              className="w-full sm:w-auto px-8 py-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs uppercase tracking-widest shadow-xl shadow-rose-950/40 flex items-center justify-center gap-2 transition-all cursor-pointer"
             >
-              Скласти скаргу до АМКУ <ArrowRight className="w-3.5 h-3.5" />
+              Скласти скаргу АМКУ
             </button>
           </div>
         </div>
       )}
 
-      {/* Requirements Table / Grid */}
-      <div className="space-y-4">
+      {/* Requirements List - Adaptive Cards */}
+      <div className="grid grid-cols-1 gap-4">
         {filteredRequirements.map((req) => (
           <div
             key={req.id}
-            className={`border rounded-2xl p-5 transition-all bg-slate-900/90 ${
+            className={`group border-2 rounded-3xl p-6 sm:p-8 transition-all bg-slate-900 shadow-sm hover:shadow-xl ${
               req.status === 'GAP_MISSING'
-                ? 'border-rose-500/40 hover:border-rose-500'
+                ? 'border-rose-500/20 hover:border-rose-500/40 bg-rose-950/5'
                 : req.status === 'WARNING'
-                ? 'border-amber-500/40 hover:border-amber-500'
+                ? 'border-amber-500/20 hover:border-amber-500/40 bg-amber-950/5'
                 : 'border-slate-800 hover:border-slate-700'
             }`}
           >
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div className="space-y-2 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2 py-0.5 text-xs font-semibold rounded bg-slate-800 text-slate-300 border border-slate-700">
-                    {req.clauseInTenderDoc}
+            <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-8">
+              <div className="space-y-6 flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-[10px] font-mono font-black text-slate-400 bg-slate-950 px-3 py-1 rounded-lg border border-slate-800 uppercase tracking-tighter">
+                    Пункт {req.clauseInTenderDoc}
                   </span>
 
                   {req.status === 'COVERED' && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Виконано (100% Match)
+                    <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                      <CheckCircle2 size={14} /> COVERED
                     </span>
                   )}
                   {req.status === 'WARNING' && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/30">
-                      <AlertCircle className="w-3.5 h-3.5" /> Потребує оновлення / дій
+                    <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
+                      <AlertCircle size={14} /> WARNING
                     </span>
                   )}
                   {req.status === 'GAP_MISSING' && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-rose-400 bg-rose-500/10 px-2.5 py-0.5 rounded-full border border-rose-500/30">
-                      <XCircle className="w-3.5 h-3.5" /> GAP / Дискримінаційна вимога
+                    <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-rose-400 bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/20">
+                      <XCircle size={14} /> GAP
                     </span>
                   )}
                 </div>
 
-                <h3 className="text-base font-bold text-slate-100">{req.title}</h3>
+                <div className="space-y-4">
+                  <h3 className="text-xl sm:text-2xl font-black text-white group-hover:text-emerald-400 transition-colors leading-tight">
+                    {req.title}
+                  </h3>
 
-                {/* Exact quote from Tender Document */}
-                <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 text-xs font-mono text-slate-300">
-                  <span className="text-slate-500 font-sans block mb-1">Цитата з ТД:</span>
-                  "{req.exactQuote}"
-                </div>
+                  <div className="bg-slate-950 border border-slate-800 rounded-2xl p-5 text-sm font-mono text-slate-300 leading-relaxed relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-slate-800"></div>
+                    <span className="text-[10px] text-slate-600 font-sans block mb-2 uppercase tracking-widest font-bold">Цитата з ТД:</span>
+                    "{req.exactQuote}"
+                  </div>
 
-                {/* Evidence & Explanation */}
-                <div className="text-xs text-slate-300 space-y-1">
-                  {req.matchingDocName && (
-                    <div>
-                      <strong className="text-emerald-400">Документ зі сховища:</strong> {req.matchingDocName}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                    <div className="space-y-2">
+                      <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Висновок AI:</div>
+                      <p className="text-sm text-slate-400 leading-relaxed italic">{req.explanation}</p>
                     </div>
-                  )}
-                  <div>
-                    <strong className="text-slate-400">Аналіз експерта:</strong> {req.explanation}
+                    {req.matchingDocName && (
+                      <div className="space-y-2">
+                        <div className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest">Знайдено у Vault:</div>
+                        <div className="flex items-center gap-2 p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/20 text-xs font-bold text-slate-200">
+                          <FileText size={16} className="text-emerald-400" />
+                          {req.matchingDocName}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row lg:flex-col items-end justify-center gap-2 flex-shrink-0">
+              {/* Action Buttons - Sticky on Desktop */}
+              <div className="flex flex-col sm:flex-row lg:flex-col items-stretch gap-3 min-w-[220px]">
                 {req.status === 'GAP_MISSING' ? (
                   <button
                     onClick={onNavigateToAmcu}
-                    className="w-full sm:w-auto bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/30"
+                    className="w-full px-6 py-4 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-rose-950/40 flex items-center justify-center gap-2 transition-all cursor-pointer"
                   >
-                    Оскаржити в АМКУ
+                    <Scale size={16} /> Оскаржити
                   </button>
                 ) : (
                   <button
                     onClick={() => handleGenerateDocument(req)}
-                    className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-4 py-2 rounded-xl flex items-center justify-center gap-1.5 border border-slate-700 hover:border-slate-600"
+                    className="w-full px-6 py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-widest border border-slate-700 flex items-center justify-center gap-2 transition-all cursor-pointer"
                   >
-                    <FileText className="w-3.5 h-3.5 text-emerald-400" />
-                    Згенерувати довідку
+                    <Sparkles size={16} className="text-emerald-400" /> Герувати довідку
                   </button>
                 )}
 
                 <button
                   onClick={onNavigateToVault}
-                  className="text-xs text-slate-400 hover:text-emerald-400 underline underline-offset-2 py-1"
+                  className="w-full px-6 py-3 rounded-2xl bg-transparent hover:bg-slate-800 text-slate-500 hover:text-emerald-400 text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  Переглянути у Vault
+                  <Building2 size={14} /> Відкрити Vault
                 </button>
               </div>
             </div>
@@ -303,36 +319,48 @@ ${company.name} (код ЄДРПОУ ${company.edrpou}) гарантує пов�
         ))}
       </div>
 
-      {/* Generated Document Modal */}
+      {/* Generated Document Modal - Full Screen Mobile */}
       {generatedDocModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">{generatedDocModal.title}</h3>
-              <span className="text-xs text-emerald-400 font-mono">Готово до накладання КЕП</span>
+        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-0 sm:p-6">
+          <div className="bg-slate-900 border-0 sm:border sm:border-slate-800 rounded-none sm:rounded-3xl max-w-4xl w-full h-full sm:h-auto flex flex-col p-6 sm:p-8 space-y-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-6">
+              <div>
+                <h3 className="text-xl sm:text-2xl font-black text-white">{generatedDocModal.title}</h3>
+                <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mt-1 flex items-center gap-1.5">
+                  <CheckCircle2 size={12} /> Готово до накладання КЕП
+                </div>
+              </div>
+              <button 
+                onClick={() => setGeneratedDocModal(null)}
+                className="p-2 hover:bg-slate-800 rounded-xl transition-all"
+              >
+                <XCircle size={24} className="text-slate-500" />
+              </button>
             </div>
 
-            <textarea
-              readOnly
-              value={generatedDocModal.content}
-              rows={12}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs font-mono text-slate-200 focus:outline-none"
-            />
+            <div className="flex-1 overflow-auto">
+              <textarea
+                readOnly
+                value={generatedDocModal.content}
+                className="w-full h-full sm:h-[400px] bg-slate-950 border border-slate-800 rounded-2xl p-6 text-sm font-mono text-slate-200 focus:outline-none leading-relaxed"
+              />
+            </div>
 
-            <div className="flex items-center justify-between pt-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-4">
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(generatedDocModal.content);
                   alert('Текст довідки скопійовано в буфер обміну!');
                 }}
-                className="text-xs text-slate-300 hover:text-white bg-slate-800 px-3 py-2 rounded-xl"
+                className="px-6 py-4 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 cursor-pointer"
               >
-                Копіювати текст
+                <Download size={16} /> Копіювати
               </button>
-              <div className="flex items-center gap-3">
+              
+              <div className="flex flex-col sm:flex-row items-stretch gap-3">
                 <button
                   onClick={() => setGeneratedDocModal(null)}
-                  className="px-4 py-2 rounded-xl text-slate-400 hover:text-white bg-slate-800 text-xs font-semibold"
+                  className="px-8 py-4 rounded-2xl text-slate-500 font-black text-[10px] uppercase tracking-widest hover:text-white transition-all cursor-pointer"
                 >
                   Закрити
                 </button>
@@ -341,7 +369,7 @@ ${company.name} (код ЄДРПОУ ${company.edrpou}) гарантує пов�
                     alert('Довідку додано до пакета тендерних документів!');
                     setGeneratedDocModal(null);
                   }}
-                  className="px-4 py-2 rounded-xl text-slate-950 bg-emerald-500 hover:bg-emerald-400 text-xs font-bold shadow-lg shadow-emerald-500/20"
+                  className="px-8 py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-widest shadow-xl shadow-emerald-950/40 cursor-pointer"
                 >
                   Додати до Bid Package
                 </button>

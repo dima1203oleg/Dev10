@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { AppSection, Tender, BoQItem, MultiAgentReport, AmcuComplaintDoc, BidPackage, CompanyProfile, RequirementItem, CollusionAnalysis, SystemMode } from './types';
-import { Sidebar } from './components/Sidebar';
-import { Header } from './components/Header';
 import { DashboardView } from './components/DashboardView';
 import { FoulTenderModule } from './components/FoulTenderModule';
 import { TenderAIConstructionModule } from './components/TenderAIConstructionModule';
@@ -21,6 +19,8 @@ import { ServicesModelModule } from './components/ServicesModelModule';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { useAuth } from './contexts/AuthContext';
 import { Bot, User as UserIcon, ShieldAlert } from 'lucide-react';
+
+import { ResponsiveAppShell } from './design-system/ResponsiveAppShell';
 
 export default function App() {
   const { user, loading: authLoading, token, signIn, signInAsDev } = useAuth();
@@ -297,73 +297,104 @@ export default function App() {
   const requiresTender = ['war-room', 'matrix', 'foultender', 'construction', 'competitors', 'diff', 'audit', 'complaints', 'bid-packages', 'multiagent-chat'].includes(currentSection);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans selection:bg-emerald-500 selection:text-black">
-      <Sidebar 
-        currentSection={currentSection} 
-        onSelectSection={(sec) => {
-          setCurrentSection(sec);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }} 
-      />
-      
-      <div className="flex-1 flex flex-col min-w-0">
-        <Header />
-
-        <div className="bg-slate-900 border-b border-slate-800 px-6 py-2 text-xs flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-            <span className="text-slate-400 font-medium">Режим інтерфейсу:</span>
-            <div className="inline-flex rounded-lg p-0.5 bg-slate-950 border border-slate-800">
-              <button
-                onClick={() => setSystemMode('SOLO')}
-                className={`px-3 py-1 rounded-md font-semibold text-xs transition-all cursor-pointer ${
-                  systemMode === 'SOLO' ? 'bg-emerald-600 text-slate-950 font-bold shadow-sm' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                SOLO
-              </button>
-              <button
-                onClick={() => setSystemMode('TEAM')}
-                className={`px-3 py-1 rounded-md font-semibold text-xs transition-all cursor-pointer ${
-                  systemMode === 'TEAM' ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                TEAM
-              </button>
-            </div>
-            </div>
-            <div className="flex items-center space-x-3 text-slate-400">
-                <span>Активна компанія: <strong className="text-white">{activeCompany.shortName}</strong></span>
-            </div>
+    <ResponsiveAppShell
+      activeTab={currentSection}
+      onNavigate={(sec) => setCurrentSection(sec as AppSection)}
+      headerContent={
+        <div className="flex items-center space-x-3 text-xs">
+          <span className="text-slate-400 font-medium">Режим:</span>
+          <div className="inline-flex rounded-lg p-0.5 bg-slate-950 border border-slate-800">
+            <button
+              onClick={() => setSystemMode('SOLO')}
+              className={`px-3 py-1 rounded-md font-semibold text-xs transition-all cursor-pointer ${
+                systemMode === 'SOLO' ? 'bg-emerald-600 text-slate-950 font-bold shadow-sm' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              SOLO
+            </button>
+            <button
+              onClick={() => setSystemMode('TEAM')}
+              className={`px-3 py-1 rounded-md font-semibold text-xs transition-all cursor-pointer ${
+                systemMode === 'TEAM' ? 'bg-indigo-600 text-white font-bold shadow-sm' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              TEAM
+            </button>
+          </div>
         </div>
-
-        <main className="flex-1 p-8">
-            {!currentTender && requiresTender ? (
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center max-w-xl mx-auto space-y-4 my-12 shadow-xl">
-                    <h3 className="text-xl font-bold text-white">Тендер не обрано</h3>
+      }
+      sidebarContent={
+        <div className="mt-auto p-4 border-t border-slate-900 hidden lg:block">
+           <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2">Активне підприємство</div>
+           <div className="p-3 bg-slate-900/50 rounded-xl border border-slate-800">
+              <div className="text-xs font-bold text-white truncate">{activeCompany.shortName}</div>
+              <div className="text-[10px] text-emerald-500 font-mono">{activeCompany.edrpou}</div>
+           </div>
+        </div>
+      }
+      contextPanel={
+        currentTender ? (
+          <div className="space-y-6">
+             <div>
+                <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2">Контекст тендера</div>
+                <h3 className="text-lg font-bold text-white leading-tight mb-2">{currentTender.title}</h3>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 bg-slate-900 rounded text-[10px] font-mono text-slate-400">{currentTender.tenderNumber}</span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                    currentTender.riskLevel === 'LOW' ? 'bg-emerald-500/10 text-emerald-400' :
+                    currentTender.riskLevel === 'MEDIUM' ? 'bg-amber-500/10 text-amber-400' :
+                    'bg-red-500/10 text-red-400'
+                  }`}>
+                    {currentTender.riskLevel} RISK
+                  </span>
                 </div>
-            ) : (
-                <>
-                  {currentSection === 'dashboard' && <DashboardView tenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => { setCurrentSection(sec); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
-                  {currentSection === 'analytics' && <AnalyticsDashboard tenders={tenders} />}
-                  {currentSection === 'radar' && <TenderRadarModule tenders={tenders} company={activeCompany} onSelectTender={(t) => setCurrentTender(t)} onNavigateToWarRoom={(t) => { setCurrentTender(t); setCurrentSection('war-room'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
-                  {currentSection === 'war-room' && currentTender && <TenderWarRoomModule currentTender={currentTender} company={activeCompany} systemMode={systemMode} onNavigateToMatrix={() => { setCurrentSection('matrix'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToBoQ={() => { setCurrentSection('construction'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToAmcu={() => { setCurrentSection('complaints'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToAudit={() => { setCurrentSection('audit'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToCollusion={() => { setCurrentSection('competitors'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
-                  {currentSection === 'post-tender' && <PostTenderModule tenders={tenders} company={activeCompany} onNavigateToAmcu={(t) => { setCurrentTender(t); setCurrentSection('complaints'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
-                  {currentSection === 'services' && <ServicesModelModule />}
-                  {currentSection === 'matrix' && currentTender && <RequirementMatrixModule currentTender={currentTender} company={activeCompany} onUpdateTenderRequirements={handleUpdateTenderRequirements} onNavigateToAmcu={() => { setCurrentSection('complaints'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToVault={() => { setCurrentSection('vault'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
-                  {currentSection === 'vault' && <CompanyVaultModule company={activeCompany} onUpdateCompany={handleUpdateCompany} />}
-                  {currentSection === 'foultender' && currentTender && <FoulTenderModule currentTender={currentTender} allTenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => { setCurrentSection(sec); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onPrepareComplaintForTender={(t) => setCurrentTender(t)} />}
-                  {currentSection === 'construction' && currentTender && <TenderAIConstructionModule currentTender={currentTender} allTenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => { setCurrentSection(sec); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onUpdateTenderBoq={handleUpdateTenderBoq} onUpdateTenderAnalysis={handleUpdateTenderAnalysis} />}
-                  {currentSection === 'competitors' && currentTender && <CompetitorCollusionModule currentTender={currentTender} competitors={[]} onNavigateToAmcu={() => { setCurrentSection('complaints'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onUpdateTenderCollusion={handleUpdateTenderCollusion} />}
-                  {currentSection === 'diff' && currentTender && <VersionDiffModule currentTender={currentTender} onNavigateToAmcu={() => { setCurrentSection('complaints'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
-                  {currentSection === 'audit' && currentTender && <PreSubmissionAuditModule currentTender={currentTender} company={activeCompany} bidPackages={bidPackages} onNavigateToAmcu={() => { setCurrentSection('complaints'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToVault={() => { setCurrentSection('vault'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onNavigateToBidPackages={() => { setCurrentSection('bid-packages'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />}
-                  {currentSection === 'complaints' && currentTender && <AmcuComplaintGenerator currentTender={currentTender} company={activeCompany} complaints={complaints} onAddComplaint={handleAddComplaint} />}
-                  {currentSection === 'bid-packages' && currentTender && <BidPackageGenerator currentTender={currentTender} company={activeCompany} bidPackages={bidPackages} onAddBidPackage={handleAddBidPackage} />}
-                  {currentSection === 'multiagent-chat' && currentTender && <MultiAgentChat currentTender={currentTender} />}
-                  {currentSection === 'catalog' && <TenderCatalog tenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => { setCurrentSection(sec); window.scrollTo({ top: 0, behavior: 'smooth' }); }} onAddNewTender={handleAddNewTender} />}
-                </>
-            )}
-        </main>
-      </div>
-    </div>
+             </div>
+
+             <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl">
+                <div className="text-xs text-emerald-400/60 mb-1">Match Score</div>
+                <div className="text-3xl font-bold text-emerald-400">{currentTender.opportunityScore?.overallScore || '—'}%</div>
+             </div>
+          </div>
+        ) : null
+      }
+    >
+      {!currentTender && requiresTender ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center max-w-xl mx-auto space-y-6 my-12 shadow-2xl">
+              <div className="w-16 h-16 bg-slate-950 rounded-2xl flex items-center justify-center mx-auto text-slate-600">
+                <Search size={32} />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-white">Тендер не обрано</h3>
+                <p className="text-sm text-slate-400">Для роботи з цим модулем необхідно спочатку обрати тендер у каталозі або на радарі.</p>
+              </div>
+              <button 
+                onClick={() => setCurrentSection('catalog')}
+                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold rounded-xl transition-all"
+              >
+                Перейти до каталогу
+              </button>
+          </div>
+      ) : (
+          <>
+            {currentSection === 'dashboard' && <DashboardView tenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => setCurrentSection(sec as AppSection)} />}
+            {currentSection === 'analytics' && <AnalyticsDashboard tenders={tenders} />}
+            {currentSection === 'radar' && <TenderRadarModule tenders={tenders} company={activeCompany} onSelectTender={(t) => setCurrentTender(t)} onNavigateToWarRoom={(t) => { setCurrentTender(t); setCurrentSection('war-room'); }} />}
+            {currentSection === 'war-room' && currentTender && <TenderWarRoomModule currentTender={currentTender} company={activeCompany} systemMode={systemMode} onNavigateToMatrix={() => setCurrentSection('matrix')} onNavigateToBoQ={() => setCurrentSection('construction')} onNavigateToAmcu={() => setCurrentSection('complaints')} onNavigateToAudit={() => setCurrentSection('audit')} onNavigateToCollusion={() => setCurrentSection('competitors')} />}
+            {currentSection === 'post-tender' && <PostTenderModule tenders={tenders} company={activeCompany} onNavigateToAmcu={(t) => { setCurrentTender(t); setCurrentSection('complaints'); }} />}
+            {currentSection === 'services' && <ServicesModelModule />}
+            {currentSection === 'matrix' && currentTender && <RequirementMatrixModule currentTender={currentTender} company={activeCompany} onUpdateTenderRequirements={handleUpdateTenderRequirements} onNavigateToAmcu={() => setCurrentSection('complaints')} onNavigateToVault={() => setCurrentSection('vault')} />}
+            {currentSection === 'vault' && <CompanyVaultModule company={activeCompany} onUpdateCompany={handleUpdateCompany} />}
+            {currentSection === 'foultender' && currentTender && <FoulTenderModule currentTender={currentTender} allTenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => setCurrentSection(sec as AppSection)} onPrepareComplaintForTender={(t) => setCurrentTender(t)} />}
+            {currentSection === 'construction' && currentTender && <TenderAIConstructionModule currentTender={currentTender} allTenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => setCurrentSection(sec as AppSection)} onUpdateTenderBoq={handleUpdateTenderBoq} onUpdateTenderAnalysis={handleUpdateTenderAnalysis} />}
+            {currentSection === 'competitors' && currentTender && <CompetitorCollusionModule currentTender={currentTender} competitors={[]} onNavigateToAmcu={() => setCurrentSection('complaints')} onUpdateTenderCollusion={handleUpdateTenderCollusion} />}
+            {currentSection === 'diff' && currentTender && <VersionDiffModule currentTender={currentTender} onNavigateToAmcu={() => setCurrentSection('complaints')} />}
+            {currentSection === 'audit' && currentTender && <PreSubmissionAuditModule currentTender={currentTender} company={activeCompany} bidPackages={bidPackages} onNavigateToAmcu={() => setCurrentSection('complaints')} onNavigateToVault={() => setCurrentSection('vault')} onNavigateToBidPackages={() => setCurrentSection('bid-packages')} />}
+            {currentSection === 'complaints' && currentTender && <AmcuComplaintGenerator currentTender={currentTender} company={activeCompany} complaints={complaints} onAddComplaint={handleAddComplaint} />}
+            {currentSection === 'bid-packages' && currentTender && <BidPackageGenerator currentTender={currentTender} company={activeCompany} bidPackages={bidPackages} onAddBidPackage={handleAddBidPackage} />}
+            {currentSection === 'multiagent-chat' && currentTender && <MultiAgentChat currentTender={currentTender} />}
+            {currentSection === 'catalog' && <TenderCatalog tenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => setCurrentSection(sec as AppSection)} onAddNewTender={handleAddNewTender} />}
+          </>
+      )}
+    </ResponsiveAppShell>
   );
 }

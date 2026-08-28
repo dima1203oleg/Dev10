@@ -20,6 +20,7 @@ export interface ProzorroTenderItem {
   category: string | 'NOT_AVAILABLE';
   cpvCode: string | 'NOT_AVAILABLE';
   region: string | 'NOT_AVAILABLE';
+  datePublished: string | 'NOT_AVAILABLE';
   source: {
     name: 'Prozorro';
     url: string;
@@ -94,21 +95,32 @@ export async function searchProzorroTenders(
       nextPageUri = json.next_page?.uri || "";
       currentOffset = json.next_page?.offset || "";
 
-      // Since the public API feed might be limited, we fetch details for the page in parallel
-      // but we use a concurrency-limited approach if needed. 
-      // For 100 items, Promise.all is usually okay if the API is robust.
-      const detailPromises = json.data.map(async (item: any) => {
-        try {
-          const dRes = await fetch(`${PROZORRO_BASE_URL}/${item.id}`);
-          if (!dRes.ok) return null;
-          const dJson = await dRes.json();
-          return dJson.data;
-        } catch {
-          return null;
-        }
-      });
+      // Implement concurrency limiting for detail requests (e.g. max 5 parallel)
+      const details: any[] = [];
+      const CONCURRENCY = 5;
+      const chunks = [];
+      for (let i = 0; i < json.data.length; i += CONCURRENCY) {
+        chunks.push(json.data.slice(i, i + CONCURRENCY));
+      }
 
-      const details = await Promise.all(detailPromises);
+      for (const chunk of chunks) {
+        const chunkResults = await Promise.all(chunk.map(async (item: any) => {
+          try {
+            // Add timeout to fetch
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 10000);
+            const dRes = await fetch(`${PROZORRO_BASE_URL}/${item.id}`, { signal: controller.signal });
+            clearTimeout(id);
+            
+            if (!dRes.ok) return null;
+            const dJson = await dRes.json();
+            return dJson.data;
+          } catch (e) {
+            return null;
+          }
+        }));
+        details.push(...chunkResults);
+      }
 
       for (const data of details) {
         if (!data) continue;
@@ -243,6 +255,7 @@ export async function searchProzorroTenders(
           category: data.mainProcurementCategory || cpvName || "NOT_AVAILABLE",
           cpvCode: cpv || "NOT_AVAILABLE",
           region: data.procuringEntity?.address?.region || "NOT_AVAILABLE",
+          datePublished: data.datePublished || data.date || "NOT_AVAILABLE",
           source: {
             name: 'Prozorro',
             url: `https://prozorro.gov.ua/tender/${data.tenderID || data.id}`,

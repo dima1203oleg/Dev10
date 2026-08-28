@@ -10,6 +10,7 @@ import { tenders as tendersTable, companyProfiles, complaints, searchSessions as
 import { eq, and } from "drizzle-orm";
 import { searchProzorroTenders, calculatePersonalRadarMatch, fetchProzorroTenderFullDetail } from "./src/connectors/prozorro.ts";
 import { parseTenderQuery } from "./src/connectors/queryParser.ts";
+import { detectCollusionRisk } from "./src/utils/collusionEngine.ts";
 
 dotenv.config();
 
@@ -230,7 +231,12 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
     let isLoadMore = false;
 
     if (searchId && typeof searchId === "string") {
-      const dbSessions = await db.select().from(searchSessionsTable).where(eq(searchSessionsTable.id, searchId));
+      const dbSessions = await db.select().from(searchSessionsTable).where(
+        and(
+          eq(searchSessionsTable.id, searchId),
+          eq(searchSessionsTable.userId, dbUser.id)
+        )
+      );
       session = dbSessions[0] || null;
       if (!session) {
         return res.status(404).json({ error: "Пошукову сесію завершено або не знайдено. Будь ласка, почніть новий пошук." });
@@ -256,35 +262,53 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
     }
 
     // Call Prozorro connector using the stateful query and authoritative cursor
-    const limit = 15;
-    const searchResult = await searchProzorroTenders(structuredQuery, {
-      limit,
-      offset: isLoadMore ? nextCursor : (offset && typeof offset === "string" ? offset : undefined),
-      maxPages: 3
-    });
+    const targetLimit = 15;
+    let accumulatedTenders: any[] = [];
+    let currentCursor = isLoadMore ? nextCursor : (offset && typeof offset === "string" ? offset : undefined);
+    let totalPagesFetched = 0;
+    let totalRecordsScanned = 0;
+    let sourceStatus: 'SUCCESS' | 'ERROR' | 'PARTIAL' = 'SUCCESS';
 
-    if (searchResult.telemetry.sourceStatus === "ERROR") {
-      return res.status(502).json({
-        error: "Помилка підключення до Prozorro API.",
-        telemetry: searchResult.telemetry
+    // Scan up to 15 pages or until we find at least 5 relevant tenders
+    while (totalPagesFetched < 15 && accumulatedTenders.length < 5) {
+      const searchResult = await searchProzorroTenders(structuredQuery, {
+        limit: targetLimit - accumulatedTenders.length,
+        offset: currentCursor,
+        maxPages: 3
       });
+
+      if (searchResult.telemetry.sourceStatus === "ERROR" && totalPagesFetched === 0) {
+        return res.status(502).json({
+          error: "Помилка підключення до Prozorro API.",
+          telemetry: searchResult.telemetry
+        });
+      }
+
+      totalPagesFetched += searchResult.telemetry.pagesFetched;
+      totalRecordsScanned += searchResult.telemetry.recordsFetched;
+      currentCursor = searchResult.telemetry.nextOffset || "";
+      
+      // Dynamic Personalized scoring for this batch
+      const processedBatch = searchResult.tenders.map((tender) => {
+        if (company) {
+          const radarMatch = calculatePersonalRadarMatch(tender, company);
+          return {
+            ...tender,
+            fitScore: radarMatch.fitScore,
+            fitFactors: radarMatch.factors,
+            radarReasons: radarMatch.reasons
+          };
+        }
+        return tender;
+      });
+
+      accumulatedTenders.push(...processedBatch);
+      
+      if (!currentCursor || searchResult.tenders.length === 0) break;
     }
 
-    // Dynamic Personalized scoring
-    const processedTenders = searchResult.tenders.map((tender) => {
-      if (company) {
-        const radarMatch = calculatePersonalRadarMatch(tender, company);
-        return {
-          ...tender,
-          fitScore: radarMatch.fitScore,
-          fitFactors: radarMatch.factors,
-          radarReasons: radarMatch.reasons
-        };
-      }
-      return tender;
-    });
-
-    const newNextCursor = searchResult.telemetry.nextOffset || "";
+    const processedTenders = accumulatedTenders;
+    const newNextCursor = currentCursor;
     const hasMore = !!newNextCursor;
     const currentSearchId = (isLoadMore ? searchId : crypto.randomUUID()) as string;
 
@@ -296,8 +320,8 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
         structuredQuery,
         source: "Prozorro",
         sourceCursor: newNextCursor,
-        pagesScanned: searchResult.telemetry.pagesFetched,
-        recordsScanned: searchResult.telemetry.recordsFetched,
+        pagesScanned: totalPagesFetched,
+        recordsScanned: totalRecordsScanned,
         recordsMatched: processedTenders.length,
         expiresAt: new Date(Date.now() + 60 * 60 * 1000) // 1 hour TTL
       });
@@ -305,8 +329,8 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
       await db.update(searchSessionsTable)
         .set({
           sourceCursor: newNextCursor,
-          pagesScanned: (session.pagesScanned || 0) + searchResult.telemetry.pagesFetched,
-          recordsScanned: (session.recordsScanned || 0) + searchResult.telemetry.recordsFetched,
+          pagesScanned: (session.pagesScanned || 0) + totalPagesFetched,
+          recordsScanned: (session.recordsScanned || 0) + totalRecordsScanned,
           recordsMatched: (session.recordsMatched || 0) + processedTenders.length,
           updatedAt: new Date()
         })
@@ -314,14 +338,14 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
     }
 
     // Retrieve full session stats for load more calculations
-    let totalPagesFetched = searchResult.telemetry.pagesFetched;
-    let totalRecordsScanned = searchResult.telemetry.recordsFetched;
-    let totalRecordsMatched = processedTenders.length;
+    let displayPagesFetched = totalPagesFetched;
+    let displayRecordsScanned = totalRecordsScanned;
+    let displayRecordsMatched = processedTenders.length;
 
     if (isLoadMore) {
-      totalPagesFetched += (session.pagesScanned || 0);
-      totalRecordsScanned += (session.recordsScanned || 0);
-      totalRecordsMatched += (session.recordsMatched || 0);
+      displayPagesFetched += (session.pagesScanned || 0);
+      displayRecordsScanned += (session.recordsScanned || 0);
+      displayRecordsMatched += (session.recordsMatched || 0);
     }
 
     res.json({
@@ -335,9 +359,9 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
       pagination: {
         hasMore,
         nextCursor: newNextCursor,
-        pagesFetched: totalPagesFetched,
-        recordsScanned: totalRecordsScanned,
-        recordsMatched: totalRecordsMatched
+        pagesFetched: displayPagesFetched,
+        recordsScanned: displayRecordsScanned,
+        recordsMatched: displayRecordsMatched
       },
       source: {
         name: "Prozorro",
@@ -1020,7 +1044,8 @@ app.post("/api/tenderai/collusion-detect", requireAuth, async (req: AuthRequest,
     const ai = getGeminiClient();
 
     if (!ai) {
-      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
+      const deterministicResult = detectCollusionRisk({ tenderId, tenderTitle, competitors, history });
+      return res.json(deterministicResult);
     }
 
     const prompt = `Ти – AI експерт антимонопольного аналізу та виявлення картельних змов у публічних закупівлях України (FoulTender Collusion Detector).
@@ -1063,8 +1088,10 @@ ${JSON.stringify(history || {})}
     const parsed = JSON.parse(response.text || "{}");
     return res.json(parsed);
   } catch (error: any) {
-    console.error("Collusion Detect Error:", error);
-    return handleAiError(res, error, "Помилка аналізу змови");
+    console.error("Collusion Detect AI Error (falling back to deterministic engine):", error);
+    const { tenderId, tenderTitle, competitors, history } = req.body;
+    const fallbackResult = detectCollusionRisk({ tenderId, tenderTitle, competitors, history });
+    return res.json(fallbackResult);
   }
 });
 
