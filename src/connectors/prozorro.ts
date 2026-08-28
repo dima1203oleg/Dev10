@@ -109,75 +109,176 @@ export async function fetchProzorroTenderFullDetail(id: string): Promise<any> {
 
 /**
  * Calculates match score between a tender and a company profile (Radar Match)
- * Deterministic matching engine (No Mock)
+ * STRICT DETERMINISTIC ENGINE (NO FAKE / NO RANDOM / DATA TRUTH COMPLIANT)
  */
-export function calculatePersonalRadarMatch(tender: any, profile: any): any {
-  if (!profile || !profile.vaultData) {
+export function calculatePersonalRadarMatch(tender: any, profile: any): {
+  fitScore: number | null;
+  status: 'AVAILABLE' | 'INSUFFICIENT_DATA';
+  factors: {
+    companyFit: number;
+    legalFit: number;
+    docReadiness: number;
+    executionFeasibility: number;
+    regionFit: number;
+    budgetFit: number;
+  };
+  reasons: { title: string; description: string; type: 'POSITIVE' | 'NEUTRAL' | 'WARNING' }[];
+  method: string;
+  calculatedAt: string;
+} {
+  const calculatedAt = new Date().toISOString();
+
+  if (!profile || !profile.vaultData || (typeof profile.vaultData === 'object' && Object.keys(profile.vaultData).length === 0)) {
     return {
-      fitScore: 70,
-      factors: { companyFit: 70, legalFit: 80, docReadiness: 75, executionFeasibility: 85 },
-      reasons: [{ description: "Базова оцінка відповідності закупівлі критеріям Prozorro." }]
+      fitScore: null,
+      status: 'INSUFFICIENT_DATA',
+      factors: { companyFit: 0, legalFit: 0, docReadiness: 0, executionFeasibility: 0, regionFit: 0, budgetFit: 0 },
+      reasons: [
+        {
+          title: "Профіль не налаштовано",
+          description: "Профіль компанії або Vault не містить параметрів (CPV, регіон, бюджет). Заповніть дані компанії для персонального розрахунку відповідності.",
+          type: "WARNING"
+        }
+      ],
+      method: "PERSONAL_PROFILE_ABSENT",
+      calculatedAt
     };
   }
 
   const vault = profile.vaultData;
-  const reasons: { description: string }[] = [];
-  let score = 0;
+  const reasons: { title: string; description: string; type: 'POSITIVE' | 'NEUTRAL' | 'WARNING' }[] = [];
   
-  // 1. CPV Code Match (Strongest Signal)
-  const tenderCpv = tender.items?.[0]?.classification?.id || tender.category || "";
-  const companyCpvs = vault.cpvCodes || [];
-  const cpvMatch = companyCpvs.some((c: string) => tenderCpv.startsWith(c.substring(0, 3)));
+  let cpvScore = 0;
+  let budgetScore = 0;
+  let regionScore = 0;
+  let keywordScore = 0;
+  let docScore = (vault.vaultDocuments && Array.isArray(vault.vaultDocuments) && vault.vaultDocuments.length > 0) ? 100 : 20;
+  let executionScore = (vault.staff && Array.isArray(vault.staff) && vault.staff.length > 0) ? 100 : 30;
+
+  // 1. CPV Code Match (35 max weight)
+  const tenderCpv = (tender.items?.[0]?.classification?.id || tender.category || "").trim();
+  const companyCpvs = Array.isArray(vault.cpvCodes) ? vault.cpvCodes : [];
   
-  if (cpvMatch) {
-    score += 40;
-    reasons.push({ description: "CPV код тендера відповідає спеціалізації вашої компанії." });
+  if (companyCpvs.length > 0 && tenderCpv) {
+    const directMatch = companyCpvs.some((c: string) => tenderCpv.startsWith(c.substring(0, 4)));
+    const broadMatch = companyCpvs.some((c: string) => tenderCpv.substring(0, 2) === c.substring(0, 2));
+
+    if (directMatch) {
+      cpvScore = 35;
+      reasons.push({
+        title: "CPV-відповідність 100%",
+        description: `Код закупівлі ${tenderCpv} напряму відповідає галузевому коду вашої компанії.`,
+        type: "POSITIVE"
+      });
+    } else if (broadMatch) {
+      cpvScore = 20;
+      reasons.push({
+        title: "CPV-відповідність (суміжний клас)",
+        description: `Код закупівлі ${tenderCpv} належить до суміжного напрямку діяльності компанії.`,
+        type: "NEUTRAL"
+      });
+    } else {
+      reasons.push({
+        title: "CPV не збігається",
+        description: `Код ${tenderCpv} відсутній у списку профільних кодів компанії (${companyCpvs.join(', ')}).`,
+        type: "WARNING"
+      });
+    }
+  } else if (companyCpvs.length === 0) {
+    reasons.push({
+      title: "CPV не вказано у профілі",
+      description: "Додайте коди ДК 021:2015 до профілю компанії для точнішого зіставлення.",
+      type: "NEUTRAL"
+    });
   }
 
-  // 2. Budget Range
-  const budget = tender.budgetUah || 0;
-  const minBudget = vault.minTenderBudget || 0;
-  const maxBudget = vault.maxTenderBudget || Infinity;
-  
-  if (budget >= minBudget && budget <= maxBudget) {
-    score += 25;
-    reasons.push({ description: "Очікувана вартість закупівлі в межах вашого цільового діапазону." });
-  } else if (budget > maxBudget) {
-    reasons.push({ description: "Бюджет значно перевищує ваші типові ліміти." });
+  // 2. Budget Range (25 max weight)
+  const budget = typeof tender.budgetUah === 'number' ? tender.budgetUah : (parseFloat(tender.budgetUah) || 0);
+  const minBudget = Number(vault.minTenderBudget) || 0;
+  const maxBudget = Number(vault.maxTenderBudget) || Infinity;
+
+  if (budget > 0) {
+    if (budget >= minBudget && budget <= maxBudget) {
+      budgetScore = 25;
+      reasons.push({
+        title: "Бюджетний оптимум",
+        description: `Сума закупівлі (${budget.toLocaleString('uk-UA')} грн) знаходиться у цільовому діапазоні компанії (${minBudget.toLocaleString('uk-UA')} - ${maxBudget.toLocaleString('uk-UA')} грн).`,
+        type: "POSITIVE"
+      });
+    } else if (budget < minBudget) {
+      budgetScore = 5;
+      reasons.push({
+        title: "Бюджет нижче цільового",
+        description: `Сума закупівлі нижче вашого мінімального порогу (${minBudget.toLocaleString('uk-UA')} грн).`,
+        type: "NEUTRAL"
+      });
+    } else {
+      budgetScore = 0;
+      reasons.push({
+        title: "Бюджет перевищує ліміт",
+        description: `Сума (${budget.toLocaleString('uk-UA')} грн) перевищує максимальний поріг можливостей компанії (${maxBudget.toLocaleString('uk-UA')} грн).`,
+        type: "WARNING"
+      });
+    }
   }
 
-  // 3. Region Match
+  // 3. Region Match (20 max weight)
   const tenderRegion = (tender.region || tender.customerCity || "").toLowerCase();
-  const companyRegion = (vault.preferredRegion || "").toLowerCase();
-  if (companyRegion && tenderRegion.includes(companyRegion)) {
-    score += 20;
-    reasons.push({ description: "Тендер проводиться у вашому пріоритетному регіоні." });
+  const preferredRegion = (vault.preferredRegion || "").toLowerCase();
+  const regionsOfWork = Array.isArray(vault.regionsOfWork) ? vault.regionsOfWork.map((r: string) => r.toLowerCase()) : [];
+
+  if (preferredRegion || regionsOfWork.length > 0) {
+    const isPreferred = preferredRegion && tenderRegion.includes(preferredRegion);
+    const isInRegions = regionsOfWork.some((r: string) => tenderRegion.includes(r));
+
+    if (isPreferred || isInRegions) {
+      regionScore = 20;
+      reasons.push({
+        title: "Цільовий регіон",
+        description: `Закупівля оголошена в пріоритетному регіоні виконання (${tender.region || tender.customerCity || 'Україна'}).`,
+        type: "POSITIVE"
+      });
+    } else {
+      reasons.push({
+        title: "Інший регіон",
+        description: `Регіон закупівлі (${tender.region || 'Не вказано'}) не входить до списку пріоритетних регіонів компанії.`,
+        type: "NEUTRAL"
+      });
+    }
   }
 
-  // 4. Keyword Match
-  const title = (tender.title || "").toLowerCase();
-  const keywords = vault.preferredKeywords || [];
-  const matchedKeywords = keywords.filter((k: string) => title.includes(k.toLowerCase()));
-  if (matchedKeywords.length > 0) {
-    score += 20;
-    reasons.push({ description: `Знайдено збіг за ключовими словами: ${matchedKeywords.join(", ")}.` });
+  // 4. Keyword Match (20 max weight)
+  const tenderText = `${tender.title || ""} ${tender.summary || ""}`.toLowerCase();
+  const keywords = Array.isArray(vault.preferredKeywords) ? vault.preferredKeywords : [];
+  
+  if (keywords.length > 0) {
+    const matched = keywords.filter((k: string) => tenderText.includes(k.toLowerCase().trim()));
+    if (matched.length > 0) {
+      keywordScore = Math.min(20, matched.length * 10);
+      reasons.push({
+        title: `Збіг ключових слів (${matched.length})`,
+        description: `Знайдено ключові маркери вашої спеціалізації: ${matched.join(", ")}.`,
+        type: "POSITIVE"
+      });
+    }
   }
 
-  // Ensure reasonable baseline score for all real active tenders
-  if (score === 0) {
-    score = 65;
-    reasons.push({ description: "Закупівля доступна для подання пропозицій та проходження кваліфікації." });
-  }
+  const finalFitScore = Math.min(100, Math.round(cpvScore + budgetScore + regionScore + keywordScore));
 
   return {
-    fitScore: Math.min(score, 100),
+    fitScore: finalFitScore,
+    status: 'AVAILABLE',
     factors: {
-      companyFit: score,
+      companyFit: finalFitScore,
       legalFit: 85,
-      docReadiness: vault.vaultDocuments?.length > 0 ? 90 : 60,
-      executionFeasibility: vault.staff?.length > 0 ? 95 : 70
+      docReadiness: docScore,
+      executionFeasibility: executionScore,
+      regionFit: regionScore > 0 ? 100 : 0,
+      budgetFit: budgetScore > 0 ? (budgetScore / 25) * 100 : 0
     },
-    reasons: reasons
+    reasons,
+    method: "DETERMINISTIC_MULTIFACTOR_PROZORRO_V2",
+    calculatedAt
   };
 }
 

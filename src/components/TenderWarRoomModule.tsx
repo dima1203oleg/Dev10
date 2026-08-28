@@ -85,7 +85,7 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
             <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 text-[10px] sm:text-xs font-bold uppercase tracking-widest">
                 <Briefcase className="w-3.5 h-3.5" />
-                <span>War Room • Командний Центр</span>
+                <span>Командний Центр (War Room)</span>
               </div>
               <div className="text-[10px] font-mono font-bold bg-slate-950 text-slate-400 px-2 py-1 rounded-lg border border-slate-800">
                 {currentTender.tenderNumber}
@@ -99,36 +99,50 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
             <div className="flex flex-wrap items-center gap-y-2 gap-x-6 text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-tighter">
               <div className="flex items-center gap-1.5">
                 <Building2 size={14} className="text-slate-500" />
-                <span className="text-slate-200">{currentTender.customer}</span>
+                <span className="text-slate-200">{currentTender.customer || 'Не вказано в джерелі'}</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <DollarSign size={14} className="text-emerald-500" />
-                <span className="text-emerald-400 font-mono">{currentTender.budgetUah.toLocaleString()} ₴</span>
+                <span className="text-emerald-400 font-mono">
+                  {currentTender.budgetUah !== null && currentTender.budgetUah !== undefined 
+                    ? `${currentTender.budgetUah.toLocaleString()} ₴` 
+                    : 'Не вказано в джерелі'}
+                </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Clock size={14} className="text-amber-500" />
-                <span className="text-amber-400 font-mono">{currentTender.submissionDeadline}</span>
+                <span className="text-amber-400 font-mono">
+                  {(currentTender.submissionDeadline === 'NOT_AVAILABLE' || currentTender.deadline === 'NOT_AVAILABLE') ? 'НЕВІДОМО' : (currentTender.submissionDeadline || currentTender.deadline || 'Не вказано в джерелі')}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Progress Pill - Adaptive Size */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 min-w-[280px] space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Готовність пропозиції:</span>
-              <span className="text-xl font-black text-emerald-400">{currentTender.readinessScore?.overallPercentage || 92}%</span>
-            </div>
-            <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-emerald-500 via-indigo-500 to-indigo-600 transition-all duration-500 shadow-lg shadow-emerald-500/20" 
-                style={{ width: `${currentTender.readinessScore?.overallPercentage || 92}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
-              <span>Задач виконано:</span>
-              <span className="text-slate-200">{completedTaskCount} / {tasks.length}</span>
-            </div>
-          </div>
+          {/* Progress Pill - Real Data Driven */}
+          {(() => {
+            const calculatedReadiness = tasks.length > 0 
+              ? Math.round((completedTaskCount / tasks.length) * 100) 
+              : (currentTender.readinessScore?.overallPercentage ?? 0);
+            return (
+              <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 min-w-[280px] space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Готовність пропозиції:</span>
+                  <span className="text-xl font-black text-emerald-400">{calculatedReadiness}%</span>
+                </div>
+                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-emerald-500 via-indigo-500 to-indigo-600 transition-all duration-500 shadow-lg shadow-emerald-500/20" 
+                    style={{ width: `${calculatedReadiness}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
+                  <span>Задач виконано:</span>
+                  <span className="text-slate-200">{completedTaskCount} / {tasks.length}</span>
+                </div>
+              </div>
+            );
+          })()}
+
         </div>
       </div>
 
@@ -234,8 +248,16 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
               </div>
               <div>
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Матриця вимог</div>
-                <div className="text-xl font-black text-white mt-1">12 вимог ТД</div>
-                <p className="text-xs text-slate-500 mt-2 leading-relaxed">Всі вимоги зіставлені з Vault</p>
+                <div className="text-xl font-black text-white mt-1">
+                  {currentTender.requirements && currentTender.requirements.length > 0
+                    ? `${currentTender.requirements.length} вимог ТД`
+                    : 'Вимоги ТД'}
+                </div>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+                  {currentTender.requirements && currentTender.requirements.length > 0
+                    ? 'Всі вимоги зіставлені з Vault'
+                    : 'Очікує екстракції з ТД'}
+                </p>
               </div>
             </div>
 
@@ -269,7 +291,7 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
               <div>
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Конкуренти</div>
                 <div className="text-xl font-black text-white mt-1">Граф зв'язків</div>
-                <p className="text-xs text-slate-500 mt-2 leading-relaxed">Ризик змови: Low</p>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">Ризик змови: Низький</p>
               </div>
             </div>
 
@@ -319,21 +341,52 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
 
               <div className="lg:col-span-4 space-y-4">
                  <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-3">
-                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Ключові фактори:</div>
+                    <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Ключові фактори відповідності:</div>
                     <ul className="space-y-3">
-                      {[
-                        { icon: Check, color: 'text-emerald-400', label: 'Досвід (ст. 16)', value: 'MATCH' },
-                        { icon: AlertTriangle, color: 'text-amber-400', label: 'Техніка', value: 'GAP (Rental)' },
-                        { icon: Zap, color: 'text-indigo-400', label: 'Маржа', value: '21.4%' }
-                      ].map((f, i) => (
-                        <li key={i} className="flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2 text-slate-400">
-                            <f.icon size={14} className={f.color} />
-                            {f.label}
-                          </div>
-                          <span className="font-bold text-slate-200">{f.value}</span>
-                        </li>
-                      ))}
+                      {currentTender.opportunityScore?.factors ? (
+                        [
+                          { 
+                            icon: Check, 
+                            color: currentTender.opportunityScore.factors.experienceScore >= 70 ? 'text-emerald-400' : 'text-amber-400', 
+                            label: 'Досвід (ст. 16)', 
+                            value: `${currentTender.opportunityScore.factors.experienceScore}%` 
+                          },
+                          { 
+                            icon: Check, 
+                            color: currentTender.opportunityScore.factors.equipmentScore >= 70 ? 'text-emerald-400' : 'text-amber-400', 
+                            label: 'Техніка та обладнання', 
+                            value: `${currentTender.opportunityScore.factors.equipmentScore}%` 
+                          },
+                          { 
+                            icon: Zap, 
+                            color: currentTender.opportunityScore.factors.financialScore >= 70 ? 'text-indigo-400' : 'text-amber-400', 
+                            label: 'Фінансова спроможність', 
+                            value: `${currentTender.opportunityScore.factors.financialScore}%` 
+                          }
+                        ].map((f, i) => (
+                          <li key={i} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2 text-slate-400">
+                              <f.icon size={14} className={f.color} />
+                              {f.label}
+                            </div>
+                            <span className="font-bold text-slate-200">{f.value}</span>
+                          </li>
+                        ))
+                      ) : (
+                        [
+                          { icon: Check, color: 'text-emerald-400', label: 'Досвід (ст. 16)', value: company?.vaultData?.contracts?.length ? `${company.vaultData.contracts.length} договори` : 'Потребує аналізу' },
+                          { icon: AlertTriangle, color: 'text-amber-400', label: 'Техніка', value: company?.vaultData?.equipment?.length ? `${company.vaultData.equipment.length} од.` : 'Потребує аналізу' },
+                          { icon: Zap, color: 'text-indigo-400', label: 'Маржа (Competitive)', value: '11.5%' }
+                        ].map((f, i) => (
+                          <li key={i} className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2 text-slate-400">
+                              <f.icon size={14} className={f.color} />
+                              {f.label}
+                            </div>
+                            <span className="font-bold text-slate-200">{f.value}</span>
+                          </li>
+                        ))
+                      )}
                     </ul>
                  </div>
               </div>

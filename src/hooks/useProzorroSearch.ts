@@ -98,7 +98,26 @@ export function useProzorroSearch() {
       
       const tendersToMap = data.results || data.tenders;
       if (tendersToMap) {
-        const mapped: Tender[] = tendersToMap.map((t: any) => ({
+        const mapped: Tender[] = tendersToMap.map((t: any) => {
+          const rawStatus = (t.status || t.detailedData?.status || 'active.tendering').toLowerCase();
+          let stage: 'NEW' | 'ACTIVE' | 'WON' | 'RETENDERED' | 'OLD' = 'ACTIVE';
+          let mappedStatus = 'ACTIVE';
+
+          if (rawStatus.includes('cancel') || rawStatus.includes('unsuccessful') || rawStatus.includes('retender') || rawStatus.includes('скасов') || rawStatus.includes('переігр')) {
+            stage = 'RETENDERED';
+            mappedStatus = 'CANCELLED';
+          } else if (rawStatus.includes('complete') || rawStatus.includes('завершен') || rawStatus.includes('archive')) {
+            stage = 'OLD';
+            mappedStatus = 'COMPLETED';
+          } else if (rawStatus.includes('qualification') || rawStatus.includes('awarded') || rawStatus.includes('кваліфікац') || rawStatus.includes('перемож')) {
+            stage = 'WON';
+            mappedStatus = 'AWARDED';
+          } else if (rawStatus.includes('tendering') || rawStatus.includes('enquiries') || rawStatus.includes('draft') || rawStatus === 'active') {
+            stage = 'ACTIVE';
+            mappedStatus = 'ACTIVE';
+          }
+
+          return {
             id: t.id.toString(),
             tenderNumber: t.tenderId || t.tenderNumber || "НЕВІДОМО",
             title: t.title || "БЕЗ НАЗВИ",
@@ -108,7 +127,9 @@ export function useProzorroSearch() {
             budgetUah: t.budgetUah !== undefined && t.budgetUah !== null ? parseFloat(t.budgetUah) : null,
             deadline: t.deadline || t.detailedData?.deadline || 'НЕВІДОМО',
             region: t.region || t.customerCity || t.detailedData?.region || 'Україна',
-            status: t.status === 'active' ? 'ACTIVE' : 'AUDIT_FLAGGED',
+            status: mappedStatus,
+            rawStatus: t.status || t.detailedData?.status || 'active.tendering',
+            stage: stage,
             category: t.category || t.detailedData?.category || 'Будівельні роботи',
             foulScore: t.foulScore !== undefined ? t.foulScore : null,
             riskLevel: t.riskLevel || 'NOT_ANALYZED',
@@ -130,7 +151,8 @@ export function useProzorroSearch() {
                   type: "POSITIVE"
                 }))
             } : undefined
-        }));
+          };
+        });
         
         if (isAppend) {
           setResults(prev => {

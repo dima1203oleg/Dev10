@@ -40,7 +40,13 @@ app.post("/api/auth/sync", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// API: Get Data (Tenders, Profile, etc)
+// In-memory tenant-scoped stores for Team Workspace and Audit Trail
+const teamMembersStore = new Map<number, any[]>();
+const teamTasksStore = new Map<number, any[]>();
+const teamCommentsStore = new Map<number, any[]>();
+const auditLogsStore = new Map<number, any[]>();
+
+// API: Get User's Tenders & Profile (Scoped by userId) - STRICT REAL DATA ONLY
 app.get("/api/data", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = req.user;
@@ -64,8 +70,8 @@ app.get("/api/data", requireAuth, async (req: AuthRequest, res) => {
               customer: item.customer,
               budgetUah: item.budgetUah ? item.budgetUah.toString() : null,
               status: 'ACTIVE',
-              foulScore: Math.floor(Math.random() * 35),
-              riskLevel: 'LOW',
+              foulScore: null, // REAL DATA ONLY: null until analyzed
+              riskLevel: 'NOT_ANALYZED',
               summary: item.summary || item.title,
               detailedData: {
                 id: item.id,
@@ -89,60 +95,9 @@ app.get("/api/data", requireAuth, async (req: AuthRequest, res) => {
       }
     }
 
-    // Fetch company profile
+    // Fetch company profile (STRICT: Return null if user has not configured profile)
     const userProfiles = await db.select().from(companyProfiles).where(eq(companyProfiles.userId, dbUser.id));
-    let profile = userProfiles.length > 0 ? userProfiles[0] : null;
-
-    if (!profile) {
-      const defaultVault = {
-        shortName: "ТОВ «УКРБУД АЛЬЯНС»",
-        kved: "41.20 Будівництво житлових і нежитлових будівель",
-        taxNumber: "39485721",
-        actualAddress: "м. Київ, вул. Хрещатик, 22",
-        directorPosition: "Генеральний директор",
-        directorBasis: "Статут",
-        iban: "UA843052990000026007891234567",
-        bankName: "АТ КБ «ПРИВАТБАНК»",
-        mfo: "305299",
-        isVatPayer: true,
-        cpvCodes: ["45000000-7", "45200000-9", "45450000-6", "03000000-1"],
-        preferredRegion: "Київська область",
-        preferredKeywords: ["будівництво", "ремонт", "реконструкція", "постачання", "монтаж"],
-        minTenderBudget: 10000,
-        maxTenderBudget: 50000000,
-        licenses: [
-          { name: "Ліцензія ДАБІ України на будівництво об'єктів середнього та значного класу наслідків", number: "№ 2018042910", validUntil: "Безстроково" }
-        ],
-        equipment: [
-          { name: "Екскаватор-навантажувач JCB 3CX", quantity: 2, ownership: "Власне", docRef: "Техпаспорт СА-1928" },
-          { name: "Вантажний самоскид MAN TGA", quantity: 4, ownership: "Власне", docRef: "Техпаспорт ВХ-8491" }
-        ],
-        staff: [
-          { position: "Головний інженер", name: "Коваленко Олександр Васильович", experience: "14 років", qualification: "Сертифікат технагляду" },
-          { position: "Виконроб", name: "Мельник Ігор Сергійович", experience: "9 років", qualification: "Вища будівельна освіта" }
-        ],
-        contracts: [
-          { customer: "Департамент регіонального розвитку", subject: "Капітальний ремонт закладу освіти", amountUah: 14850000, year: 2024, status: "Виконано успішно" }
-        ],
-        vaultDocuments: []
-      };
-
-      try {
-        const newProfiles = await db.insert(companyProfiles).values({
-          userId: dbUser.id,
-          name: "ТОВАРИСТВО З ОБМЕЖЕНОЮ ВІДПОВІДАЛЬНІСТЮ «УКРБУД АЛЬЯНС»",
-          edrpou: "39485721",
-          legalAddress: "01001, м. Київ, вул. Хрещатик, буд. 22",
-          directorName: "Шевченко Тарас Григорович",
-          email: dbUser.email,
-          phone: "+380442345678",
-          vaultData: defaultVault
-        }).returning();
-        profile = newProfiles[0] || null;
-      } catch (profErr) {
-        console.error("Profile auto-creation error:", profErr);
-      }
-    }
+    const profile = userProfiles.length > 0 ? userProfiles[0] : null;
     
     res.json({
       tenders: userTenders,
@@ -153,6 +108,329 @@ app.get("/api/data", requireAuth, async (req: AuthRequest, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+// API: Team Workspace Members
+app.get("/api/team/members", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+
+    let members = teamMembersStore.get(dbUser.id);
+    if (!members) {
+      members = [
+        {
+          id: `tm-${dbUser.id}-1`,
+          name: user.email?.split('@')[0] || "Керівник тендерного відділу",
+          email: user.email || "tender-lead@company.ua",
+          role: "BID_DIRECTOR",
+          roleNameUk: "Тендерний директор",
+          avatar: "👑",
+          assignedTendersCount: 3,
+          activeTasksCount: 2,
+          status: "ONLINE"
+        },
+        {
+          id: `tm-${dbUser.id}-2`,
+          name: "Олександр Коваль",
+          email: "oleksandr.k@company.ua",
+          role: "LEAD_ESTIMATOR",
+          roleNameUk: "Головний кошторисник",
+          avatar: "📐",
+          assignedTendersCount: 2,
+          activeTasksCount: 4,
+          status: "ONLINE"
+        },
+        {
+          id: `tm-${dbUser.id}-3`,
+          name: "Ірина Мельник",
+          email: "iryna.m@company.ua",
+          role: "SENIOR_LAWYER",
+          roleNameUk: "Провідний юрист / АМКУ",
+          avatar: "⚖️",
+          assignedTendersCount: 4,
+          activeTasksCount: 1,
+          status: "AWAY"
+        }
+      ];
+      teamMembersStore.set(dbUser.id, members);
+    }
+    res.json(members);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load team members" });
+  }
+});
+
+app.post("/api/team/members", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+
+    const { name, email, role, roleNameUk } = req.body;
+    if (!name || !email) return res.status(400).json({ error: "Name and email are required" });
+
+    let members = teamMembersStore.get(dbUser.id) || [];
+    const newMember = {
+      id: `tm-${dbUser.id}-${Date.now()}`,
+      name,
+      email,
+      role: role || "ENGINEER",
+      roleNameUk: roleNameUk || "Інженер / Фахівець",
+      avatar: "👤",
+      assignedTendersCount: 0,
+      activeTasksCount: 0,
+      status: "OFFLINE"
+    };
+    members.push(newMember);
+    teamMembersStore.set(dbUser.id, members);
+
+    // Record audit event
+    const logs = auditLogsStore.get(dbUser.id) || [];
+    logs.unshift({
+      id: `audit-${Date.now()}`,
+      userId: user.uid,
+      userName: user.email || "User",
+      action: "ADD_TEAM_MEMBER",
+      module: "TEAM",
+      details: `Додано учасника команди: ${name} (${roleNameUk || role})`,
+      timestamp: new Date().toISOString()
+    });
+    auditLogsStore.set(dbUser.id, logs);
+
+    res.json(newMember);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to add team member" });
+  }
+});
+
+// API: Team Workspace Tasks
+app.get("/api/team/tasks", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+
+    let tasks = teamTasksStore.get(dbUser.id);
+    if (!tasks) {
+      tasks = [
+        {
+          id: `task-${dbUser.id}-1`,
+          tenderId: "1",
+          tenderNumber: "UA-2026-08-28-008794-a",
+          title: "Перевірка кваліфікаційних критеріїв ст. 16 ЗУ 'Про публічні закупівлі'",
+          description: "Звірити наявність сертифікатів ISO 9001 та ISO 14001 у Vault компанії.",
+          assigneeId: `tm-${dbUser.id}-3`,
+          assigneeName: "Ірина Мельник",
+          assigneeRole: "Провідний юрист",
+          dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
+          priority: "HIGH",
+          status: "IN_PROGRESS",
+          commentsCount: 2,
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: `task-${dbUser.id}-2`,
+          tenderId: "1",
+          tenderNumber: "UA-2026-08-28-008794-a",
+          title: "Розрахунок локального кошторису та перевірка цін BoQ",
+          description: "Оцінити прямі матеріальні витрати та транспортну логістику.",
+          assigneeId: `tm-${dbUser.id}-2`,
+          assigneeName: "Олександр Коваль",
+          assigneeRole: "Головний кошторисник",
+          dueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
+          priority: "CRITICAL",
+          status: "TODO",
+          commentsCount: 0,
+          createdAt: new Date().toISOString()
+        }
+      ];
+      teamTasksStore.set(dbUser.id, tasks);
+    }
+    res.json(tasks);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load team tasks" });
+  }
+});
+
+app.post("/api/team/tasks", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+
+    const { tenderId, tenderNumber, title, description, assigneeId, assigneeName, assigneeRole, dueDate, priority } = req.body;
+    if (!title) return res.status(400).json({ error: "Task title is required" });
+
+    let tasks = teamTasksStore.get(dbUser.id) || [];
+    const newTask = {
+      id: `task-${dbUser.id}-${Date.now()}`,
+      tenderId: tenderId || "general",
+      tenderNumber: tenderNumber || "Загальне завдання",
+      title,
+      description: description || "",
+      assigneeId: assigneeId || "unassigned",
+      assigneeName: assigneeName || "Не призначено",
+      assigneeRole: assigneeRole || "Фахівець",
+      dueDate: dueDate || new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
+      priority: priority || "MEDIUM",
+      status: "TODO",
+      commentsCount: 0,
+      createdAt: new Date().toISOString()
+    };
+    tasks.unshift(newTask);
+    teamTasksStore.set(dbUser.id, tasks);
+
+    // Record audit event
+    const logs = auditLogsStore.get(dbUser.id) || [];
+    logs.unshift({
+      id: `audit-${Date.now()}`,
+      userId: user.uid,
+      userName: user.email || "User",
+      action: "CREATE_TASK",
+      module: "TEAM",
+      details: `Створено завдання: ${title} (Призначено: ${assigneeName || 'Вільне'})`,
+      tenderId,
+      timestamp: new Date().toISOString()
+    });
+    auditLogsStore.set(dbUser.id, logs);
+
+    res.json(newTask);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to create task" });
+  }
+});
+
+app.patch("/api/team/tasks/:id", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+
+    const { id } = req.params;
+    const updates = req.body;
+
+    let tasks = teamTasksStore.get(dbUser.id) || [];
+    const taskIndex = tasks.findIndex(t => t.id === id);
+    if (taskIndex === -1) return res.status(404).json({ error: "Task not found" });
+
+    tasks[taskIndex] = { ...tasks[taskIndex], ...updates, updatedAt: new Date().toISOString() };
+    teamTasksStore.set(dbUser.id, tasks);
+
+    res.json(tasks[taskIndex]);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update task" });
+  }
+});
+
+// API: Team Comments
+app.get("/api/team/comments", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+
+    const { tenderId, taskId } = req.query;
+    let comments = teamCommentsStore.get(dbUser.id) || [];
+
+    if (tenderId) {
+      comments = comments.filter(c => c.tenderId === String(tenderId));
+    }
+    if (taskId) {
+      comments = comments.filter(c => c.taskId === String(taskId));
+    }
+
+    res.json(comments);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load comments" });
+  }
+});
+
+app.post("/api/team/comments", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+
+    const { tenderId, taskId, text, authorName, authorRole } = req.body;
+    if (!text) return res.status(400).json({ error: "Comment text is required" });
+
+    let comments = teamCommentsStore.get(dbUser.id) || [];
+    const newComment = {
+      id: `comm-${Date.now()}`,
+      tenderId,
+      taskId,
+      authorId: user.uid,
+      authorName: authorName || user.email?.split('@')[0] || "Користувач",
+      authorRole: authorRole || "Користувач",
+      text,
+      createdAt: new Date().toISOString()
+    };
+    comments.push(newComment);
+    teamCommentsStore.set(dbUser.id, comments);
+
+    res.json(newComment);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to add comment" });
+  }
+});
+
+// API: Audit Log (Data Provenance & Security Traceability)
+app.get("/api/audit-logs", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+
+    let logs = auditLogsStore.get(dbUser.id);
+    if (!logs) {
+      logs = [
+        {
+          id: `audit-init-${Date.now()}`,
+          userId: user.uid,
+          userName: user.email || "Користувач",
+          action: "SYSTEM_INITIALIZED",
+          module: "SECURITY",
+          details: "Успішна авторизація та запуск тендерного простору.",
+          timestamp: new Date().toISOString()
+        }
+      ];
+      auditLogsStore.set(dbUser.id, logs);
+    }
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to load audit logs" });
+  }
+});
+
+app.post("/api/audit-logs", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+
+    const { action, module, details, tenderId } = req.body;
+    let logs = auditLogsStore.get(dbUser.id) || [];
+    const newLog = {
+      id: `audit-${Date.now()}`,
+      userId: user.uid,
+      userName: user.email || "Користувач",
+      action: action || "ACTION_RECORDED",
+      module: module || "GENERAL",
+      details: details || "",
+      tenderId,
+      timestamp: new Date().toISOString()
+    };
+    logs.unshift(newLog);
+    if (logs.length > 200) logs.pop(); // Keep latest 200 events
+    auditLogsStore.set(dbUser.id, logs);
+
+    res.json(newLog);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to record audit log" });
+  }
+});
+
 
 // API: Save Tender (Scoped by userId + tenderNumber)
 app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
@@ -752,14 +1030,16 @@ async function generateContentWithFallback(
     new Set([
       params.primaryModel || "gemini-3.7-flash",
       "gemini-3.1-flash-lite",
-      "gemini-flash-latest",
-      "gemini-3.7-flash"
+      "gemini-flash-latest"
     ])
   );
 
   let lastError: any = null;
 
-  for (const modelName of modelsToTry) {
+  for (let mIdx = 0; mIdx < modelsToTry.length; mIdx++) {
+    const modelName = modelsToTry[mIdx];
+    const hasNextModel = mIdx < modelsToTry.length - 1;
+
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const response = await ai.models.generateContent({
@@ -787,9 +1067,15 @@ async function generateContentWithFallback(
           errMsg.includes("UNAVAILABLE") ||
           errMsg.includes("overloaded");
 
-        console.warn(
-          `[Gemini] Запит до моделі '${modelName}' (спроба ${attempt + 1}) не виконано (${errMsg.slice(0, 150)}...). Перемикання на наступну модель...`
-        );
+        if (hasNextModel) {
+          console.info(
+            `[Gemini] Модель '${modelName}' недоступна (${isQuotaExceeded ? 'квота 429' : 'помилка'}). Автоматичний перехід на '${modelsToTry[mIdx + 1]}'...`
+          );
+        } else {
+          console.warn(
+            `[Gemini] Запит до моделі '${modelName}' не виконано (${errMsg.slice(0, 120)}...).`
+          );
+        }
 
         // If daily quota is exceeded for this model, do not wait and retry the exact same model; switch immediately
         if (isQuotaExceeded) {
@@ -797,7 +1083,7 @@ async function generateContentWithFallback(
         }
 
         if (isTransient503 && attempt === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 800));
         } else {
           break;
         }

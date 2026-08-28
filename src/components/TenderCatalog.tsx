@@ -18,6 +18,14 @@ import {
 } from 'lucide-react';
 
 import { useProzorroSearch, SearchFilters, SortOption } from '../hooks/useProzorroSearch';
+import {
+  CPV_CATEGORIES,
+  LIFECYCLE_TABS,
+  LifecycleStage,
+  matchesLifecycleFilter,
+  getTenderStatusBadge,
+  UKRAINE_REGIONS
+} from '../utils/filterConstants';
 
 interface TenderCatalogProps {
   tenders: Tender[];
@@ -35,6 +43,9 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
   const { token } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'HIGH_RISK' | 'CLEAN' | 'BOQ_READY'>('ALL');
+  const [catalogLifecycleStage, setCatalogLifecycleStage] = useState<LifecycleStage>('ALL');
+  const [catalogCategory, setCatalogCategory] = useState<string>('ALL');
+  const [catalogRegion, setCatalogRegion] = useState<string>('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeModalTenderId, setActiveModalTenderId] = useState<string | null>(null);
 
@@ -90,9 +101,35 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
     const matchesSearch = 
       t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      t.tenderNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      t.tenderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (t.region && t.region.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (t.category && t.category.toLowerCase().includes(searchTerm.toLowerCase()));
 
     if (!matchesSearch) return false;
+
+    if (!matchesLifecycleFilter(t, catalogLifecycleStage)) {
+      return false;
+    }
+
+    if (catalogCategory !== 'ALL') {
+      const cpv = CPV_CATEGORIES.find(c => c.code === catalogCategory);
+      if (cpv) {
+        const tText = `${t.title} ${t.category} ${t.dk021Code || ''}`.toLowerCase();
+        const matchesPrefix = t.dk021Code?.startsWith(cpv.prefix) || t.category?.includes(cpv.prefix);
+        const matchesKeywords = cpv.keywords.some(k => tText.includes(k.toLowerCase()));
+        if (!matchesPrefix && !matchesKeywords && t.category !== cpv.name) {
+          return false;
+        }
+      } else if (t.category !== catalogCategory) {
+        return false;
+      }
+    }
+
+    if (catalogRegion !== 'ALL' && catalogRegion !== 'Всі регіони України') {
+      const regClean = catalogRegion.replace(' область', '').replace(' (м. Київ)', '').toLowerCase();
+      const tRegion = `${t.region} ${t.customerCity}`.toLowerCase();
+      if (!tRegion.includes(regClean)) return false;
+    }
 
     const hasFoulScore = t.foulScore !== null && t.foulScore !== undefined;
     if (filterType === 'HIGH_RISK') return hasFoulScore && (t.foulScore ?? 0) >= 60;
@@ -530,64 +567,109 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
       </div>
 
       {/* Filter & Search Toolbar */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-md space-y-4">
         
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Пошук за назвою, замовником, ID (наприклад UA-2024...)"
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-teal-500"
-          />
+        {/* Stage Filter Tabs in Catalog */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar sm:flex-wrap">
+          {LIFECYCLE_TABS.map((tab) => {
+            const isSelected = catalogLifecycleStage === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setCatalogLifecycleStage(tab.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap border ${
+                  isSelected
+                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-md'
+                    : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Filter Pills */}
-        <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar">
-          <button
-            onClick={() => setFilterType('ALL')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-              filterType === 'ALL'
-                ? 'bg-slate-700 text-white'
-                : 'bg-slate-800 text-slate-400 hover:text-white'
-            }`}
-          >
-            Всі ({tenders.length})
-          </button>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Пошук за назвою, замовником, ID (наприклад UA-2024...)"
+              className="w-full bg-slate-950 border border-slate-800 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 shadow-inner"
+            />
+          </div>
 
-          <button
-            onClick={() => setFilterType('HIGH_RISK')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-              filterType === 'HIGH_RISK'
-                ? 'bg-red-900/80 text-red-200 border border-red-700'
-                : 'bg-slate-800 text-red-400/80 hover:text-red-300'
-            }`}
-          >
-            FoulTender Ризик
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={catalogCategory}
+              onChange={(e) => setCatalogCategory(e.target.value)}
+              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 cursor-pointer max-w-[170px] truncate"
+            >
+              <option value="ALL">Всі категорії</option>
+              {CPV_CATEGORIES.map(c => (
+                <option key={c.code} value={c.code}>{c.prefix}*** — {c.shortName}</option>
+              ))}
+            </select>
 
-          <button
-            onClick={() => setFilterType('CLEAN')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-              filterType === 'CLEAN'
-                ? 'bg-emerald-900/80 text-emerald-200 border border-emerald-700'
-                : 'bg-slate-800 text-emerald-400/80 hover:text-emerald-300'
-            }`}
-          >
-            Чисті торги
-          </button>
+            <select
+              value={catalogRegion}
+              onChange={(e) => setCatalogRegion(e.target.value)}
+              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 cursor-pointer max-w-[160px] truncate"
+            >
+              {UKRAINE_REGIONS.map((r, i) => (
+                <option key={i} value={r}>{r}</option>
+              ))}
+            </select>
 
-          <button
-            onClick={() => setFilterType('BOQ_READY')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-              filterType === 'BOQ_READY'
-                ? 'bg-blue-900/80 text-blue-200 border border-blue-700'
-                : 'bg-slate-800 text-blue-400/80 hover:text-blue-300'
-            }`}
-          >
-            Готовий BoQ
-          </button>
+            {/* Filter Pills */}
+            <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar">
+              <button
+                onClick={() => setFilterType('ALL')}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  filterType === 'ALL'
+                    ? 'bg-slate-800 text-white border border-slate-700'
+                    : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                }`}
+              >
+                Всі ({tenders.length})
+              </button>
+
+              <button
+                onClick={() => setFilterType('HIGH_RISK')}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  filterType === 'HIGH_RISK'
+                    ? 'bg-rose-900/60 text-rose-200 border border-rose-700'
+                    : 'bg-slate-950 text-rose-400/80 hover:text-rose-300 border border-slate-800'
+                }`}
+              >
+                Foul Risk
+              </button>
+
+              <button
+                onClick={() => setFilterType('CLEAN')}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  filterType === 'CLEAN'
+                    ? 'bg-emerald-900/60 text-emerald-200 border border-emerald-700'
+                    : 'bg-slate-950 text-emerald-400/80 hover:text-emerald-300 border border-slate-800'
+                }`}
+              >
+                Чисті
+              </button>
+
+              <button
+                onClick={() => setFilterType('BOQ_READY')}
+                className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  filterType === 'BOQ_READY'
+                    ? 'bg-blue-900/60 text-blue-200 border border-blue-700'
+                    : 'bg-slate-950 text-blue-400/80 hover:text-blue-300 border border-slate-800'
+                }`}
+              >
+                BoQ
+              </button>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -599,18 +681,23 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
           const scoreVal = tender.foulScore ?? 0;
           const isHighRisk = hasScore && scoreVal >= 60;
           const isClean = hasScore && scoreVal < 40;
+          const statusBadge = getTenderStatusBadge(tender);
 
           return (
             <div
               key={tender.id}
-              className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 shadow-md transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+              className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-3xl p-5 shadow-md transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4"
             >
               <div className="space-y-2 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-emerald-400 bg-slate-800 px-2.5 py-0.5 rounded border border-slate-700">
+                  <span className="font-mono text-xs font-bold text-emerald-400 bg-slate-950 px-2.5 py-0.5 rounded-lg border border-slate-800">
                     {tender.tenderNumber}
                   </span>
                   
+                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${statusBadge.bg} ${statusBadge.text} ${statusBadge.border}`}>
+                    {statusBadge.label}
+                  </span>
+
                   <span className="text-xs text-slate-400 flex items-center space-x-1">
                     <MapPin className="w-3 h-3" />
                     <span>{tender.region}</span>
@@ -629,7 +716,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                     <span>Foul Score: {hasScore ? `${scoreVal}/100` : 'Очікує аналізу'}</span>
                   </span>
 
-                  {tender.violations.length > 0 && (
+                  {tender.violations && tender.violations.length > 0 && (
                     <span className="text-xs text-amber-300/90 font-medium">
                       • {tender.violations.length} порушень ТД
                     </span>

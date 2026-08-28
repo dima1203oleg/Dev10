@@ -23,7 +23,8 @@ export type AppSection =
   | 'bid-packages'
   | 'services'
   | 'analytics'
-  | 'documents';
+  | 'documents'
+  | 'team';
 
 export interface BoQItem {
   id: string;
@@ -318,7 +319,9 @@ export interface Tender {
   budgetUah: number | null;
   deadline: string;
   region: string;
-  status: 'ACTIVE' | 'AUDIT_FLAGGED' | 'BID_IN_PREPARATION' | 'COMPLETED' | 'AMCU_FILED' | 'INTERNAL_PROJECT';
+  status: 'ACTIVE' | 'AUDIT_FLAGGED' | 'BID_IN_PREPARATION' | 'COMPLETED' | 'AMCU_FILED' | 'INTERNAL_PROJECT' | 'WON' | 'AWARDED' | 'QUALIFICATION' | 'RETENDERED' | 'CANCELLED' | 'UNSUCCESSFUL' | 'OLD' | string;
+  rawStatus?: string; // e.g. 'active.tendering', 'active.auction', 'active.qualification', 'active.awarded', 'complete', 'cancelled', 'unsuccessful'
+  stage?: 'NEW' | 'ACTIVE' | 'WON' | 'RETENDERED' | 'OLD' | 'CANCELLED';
   category: string;
   dk021Code?: string;
   fitScore?: number | null;
@@ -487,8 +490,21 @@ export interface CompanyProfile {
   };
 }
 
-// REAL DATA ONLY: Standard Provenance Data Model
-export type ProvenanceType = 'FACT' | 'AI_ESTIMATE' | 'NOT_AVAILABLE' | 'INSUFFICIENT_DATA';
+// REAL DATA ONLY: Standard Provenance Data Model & Data Truth Contract
+export type ProvenanceType = 'FACT' | 'CALCULATED' | 'AI_ESTIMATE' | 'INSUFFICIENT_DATA' | 'NOT_AVAILABLE' | 'SOURCE_ERROR' | 'STALE';
+
+export interface DataTruthPoint<T = any> {
+  value: T;
+  type: ProvenanceType;
+  source: string;
+  sourceRecordId?: string;
+  retrievedAt: string;
+  calculatedAt?: string;
+  confidence: number; // 0.0 - 1.0
+  method: string;
+  provenance: string;
+  status: 'AVAILABLE' | 'NOT_AVAILABLE' | 'INSUFFICIENT_DATA' | 'AI_ESTIMATE' | 'CALCULATED' | 'SOURCE_ERROR' | 'STALE';
+}
 
 export interface DataPoint<T = any> {
   value: T;
@@ -497,5 +513,58 @@ export interface DataPoint<T = any> {
   confidence: number; // 0.0 - 1.0
   provenance: string;
   type: ProvenanceType;
+}
+
+// Team Workspace & Multi-User Governance Contract
+export type TeamRole = 'BID_DIRECTOR' | 'LEAD_ESTIMATOR' | 'SENIOR_LAWYER' | 'ENGINEER' | 'ANALYST' | 'ACCOUNTANT';
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: TeamRole;
+  roleNameUk: string;
+  avatar?: string;
+  assignedTendersCount: number;
+  activeTasksCount: number;
+  status: 'ONLINE' | 'AWAY' | 'OFFLINE';
+}
+
+export interface TeamTask {
+  id: string;
+  tenderId: string;
+  tenderNumber: string;
+  title: string;
+  description?: string;
+  assigneeId: string;
+  assigneeName: string;
+  assigneeRole: string;
+  dueDate: string;
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  status: 'TODO' | 'IN_PROGRESS' | 'REVIEW' | 'COMPLETED';
+  commentsCount: number;
+  createdAt: string;
+}
+
+export interface TeamComment {
+  id: string;
+  taskId?: string;
+  tenderId?: string;
+  authorId: string;
+  authorName: string;
+  authorRole: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface AuditLogEvent {
+  id: string;
+  userId: string;
+  userName: string;
+  action: string;
+  module: string;
+  details: string;
+  tenderId?: string;
+  timestamp: string;
 }
 
