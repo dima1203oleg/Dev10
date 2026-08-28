@@ -98,34 +98,46 @@ app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// API: Prozorro Connector Health
+// API: Prozorro Connector Health (Production-Grade Diagnostics)
 app.get("/api/connectors/prozorro/health", async (req, res) => {
   const startTime = Date.now();
+  const diagnostics: any = {
+    connectivity: "PENDING",
+    search: "PENDING",
+    pagination: "PENDING",
+    dataQuality: "PENDING"
+  };
+
   try {
-    const response = await fetch("https://public.api.openprocurement.org/api/2.5/tenders?limit=1");
-    const latency = Date.now() - startTime;
+    // 1. Basic Connectivity
+    const connRes = await fetch("https://public.api.openprocurement.org/api/2.5/tenders?limit=1");
+    diagnostics.connectivity = connRes.ok ? "UP" : "DOWN";
     
-    if (response.ok) {
-      res.json({
-        status: "healthy",
-        latencyMs: latency,
-        lastSuccess: new Date().toISOString(),
-        lastFailure: null,
-        source: "Prozorro Public API v2.5"
-      });
-    } else {
-      res.status(503).json({
-        status: "degraded",
-        latencyMs: latency,
-        errorCode: response.status,
-        lastFailure: new Date().toISOString()
-      });
+    // 2. Search & Detail Functionality
+    const searchRes = await fetch("https://public.api.openprocurement.org/api/2.5/tenders?limit=1&descending=1");
+    const searchJson = await searchRes.json();
+    if (searchJson.data && searchJson.data[0]) {
+      diagnostics.search = "UP";
+      const detailRes = await fetch(`https://public.api.openprocurement.org/api/2.5/tenders/${searchJson.data[0].id}`);
+      diagnostics.dataQuality = detailRes.ok ? "HIGH" : "DEGRADED";
+      diagnostics.pagination = searchJson.next_page?.offset ? "UP" : "DEGRADED";
     }
+
+    const totalLatency = Date.now() - startTime;
+    const isHealthy = diagnostics.connectivity === "UP" && diagnostics.search === "UP";
+
+    res.json({
+      status: isHealthy ? "healthy" : "degraded",
+      latencyMs: totalLatency,
+      diagnostics,
+      timestamp: new Date().toISOString(),
+      version: "2.5.PROD"
+    });
   } catch (error) {
     res.status(500).json({
       status: "unreachable",
-      error: error instanceof Error ? error.message : "Network error",
-      lastFailure: new Date().toISOString()
+      error: error instanceof Error ? error.message : "Internal Error",
+      diagnostics
     });
   }
 });
@@ -250,7 +262,7 @@ app.get("/api/prozorro/radar", requireAuth, async (req: AuthRequest, res) => {
       status: 'active'
     };
 
-    const { tenders: rawTenders } = await searchProzorroTenders(radarQuery, { limit: 12, maxPages: 2 });
+    const { tenders: rawTenders } = await searchProzorroTenders(radarQuery, { limit: 25, maxPages: 25 });
 
     const radarFeed = rawTenders.map((tender) => {
       const matchResult = calculatePersonalRadarMatch(tender, profile);

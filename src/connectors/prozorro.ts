@@ -122,9 +122,22 @@ export async function searchProzorroTenders(
         if (query.minBudget && (amount === null || amount < query.minBudget)) continue;
         if (query.maxBudget && (amount === null || amount > query.maxBudget)) continue;
 
-        // 3. Precise Location
-        const qLoc = query.location?.region?.toLowerCase() || query.location?.city?.toLowerCase();
-        if (qLoc && !regionName.includes(qLoc) && !localityName.includes(qLoc)) continue;
+        // 3. Precise Location (Improved with Kyiv Normalization)
+        const qLoc = (query.location?.region || query.location?.city || "").toLowerCase();
+        let locationMatch = !qLoc;
+        
+        if (qLoc) {
+          const isKyivQuery = qLoc.includes("київ") || qLoc.includes("киев");
+          if (isKyivQuery) {
+            // Kyiv can be in regionName (Київська обл) or localityName (Київ)
+            locationMatch = regionName.includes("київ") || localityName.includes("київ") || 
+                           regionName.includes("киев") || localityName.includes("киев");
+          } else {
+            locationMatch = regionName.includes(qLoc) || localityName.includes(qLoc);
+          }
+        }
+        
+        if (!locationMatch) continue;
 
         // 4. CPV Classification Filter
         const cpv = data.items?.[0]?.classification?.id;
@@ -232,22 +245,42 @@ export function calculatePersonalRadarMatch(
   const reasons: string[] = [];
   const vault = (companyProfile.vaultData as any) || {};
   
-  // 1. CPV / Industry Match (Scientific approach)
+  // 1. CPV / Industry Match (Improved Semantic Mapping)
   let companyFit = 0;
   const companyKveds = companyProfile.kvedCodes || vault.kveds || [];
+  
   if (tender.cpvCode !== 'NOT_AVAILABLE' && companyKveds.length > 0) {
     const tenderPrefix = tender.cpvCode.substring(0, 2);
-    const matchesKved = companyKveds.some((k: string) => k.toString().startsWith(tenderPrefix));
-    if (matchesKved) {
+    const tenderPrefix4 = tender.cpvCode.substring(0, 4);
+    
+    // Semantic Mapping Matrix (Simplified version of Industry Standard)
+    const compatibilityMatrix: Record<string, string[]> = {
+      "45": ["41", "42", "43", "71"], // Construction CPV -> Construction/Engineering KVED
+      "72": ["62", "63", "58"],       // IT CPV -> IT Services/Software KVED
+      "33": ["21", "32", "46"],       // Medical CPV -> Pharma/MedTech/Wholesale KVED
+      "15": ["10", "11", "46"],       // Food CPV -> Food Production/Wholesale KVED
+      "09": ["35", "06", "46"],       // Energy/Fuel CPV -> Energy/Extraction KVED
+      "60": ["49", "50", "52"]        // Transport CPV -> Land Transport/Storage KVED
+    };
+
+    const isDirectMatch = companyKveds.some((k: string) => k.toString().startsWith(tenderPrefix));
+    const isSemanticMatch = compatibilityMatrix[tenderPrefix]?.some(prefix => 
+      companyKveds.some((k: string) => k.toString().startsWith(prefix))
+    );
+
+    if (isDirectMatch) {
       companyFit = 100;
-      reasons.push(`Індустріальна відповідність: Код CPV ${tender.cpvCode} відповідає вашим КВЕД`);
+      reasons.push(`Індустріальна відповідність: Прямий збіг CPV ${tender.cpvCode} з вашим КВЕД`);
+    } else if (isSemanticMatch) {
+      companyFit = 85;
+      reasons.push(`Висока суміжність: Ваш профіль підходить для робіт за CPV ${tenderPrefix4}`);
     } else {
-      companyFit = 30;
+      companyFit = 20;
       reasons.push(`Низька відповідність спеціалізації (CPV: ${tender.cpvCode})`);
     }
   } else {
-    companyFit = 50;
-    reasons.push("Спеціалізацію не верифіковано (Заповніть Vault)");
+    companyFit = 40;
+    reasons.push("Спеціалізацію не верифіковано (Заповніть КВЕД у Vault)");
   }
 
   // 2. Budget Feasibility
@@ -341,8 +374,8 @@ export async function fetchProzorroTenderFullDetail(tenderId: string): Promise<a
     id: doc.id,
     title: doc.title || "Документ ТД",
     format: doc.format || "application/pdf",
-    url: doc.url || "#",
-    datePublished: doc.datePublished || new Date().toISOString(),
+    url: doc.url || null,
+    datePublished: doc.datePublished || null,
     documentType: doc.documentType || "tenderDocumentation"
   }));
 
