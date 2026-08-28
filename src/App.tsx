@@ -301,15 +301,16 @@ export default function App() {
     
     for (const file of files) {
       try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', file.name.toUpperCase().includes('BOQ') ? 'BOQ' : 'TECHNICAL');
+
         const response = await fetch(`/api/tenders/${currentTender.id}/documents`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({
-            name: file.name,
-            type: file.name.toUpperCase().includes('BOQ') ? 'BOQ' : 'TECHNICAL',
-            size: file.size
-          })
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
         });
+        if (!response.ok) throw new Error('Failed to upload document');
         const newDoc = await response.json();
         setTenderDocuments(prev => [...prev, newDoc]);
       } catch (err) {
