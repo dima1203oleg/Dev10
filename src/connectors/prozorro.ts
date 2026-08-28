@@ -11,9 +11,11 @@ export interface ProzorroTenderItem {
   tenderId: string;
   title: string;
   customer: string;
+  customerEdrpou?: string;
   customerCity: string;
   budgetUah: number;
   deadline: string;
+  datePublished: string;
   region: string;
   status: string;
   category: string;
@@ -220,9 +222,11 @@ export async function searchProzorroTenders(
           tenderId: data.tenderID,
           title: data.title,
           customer: data.procuringEntity?.name || "НЕВІДОМО",
+          customerEdrpou: data.procuringEntity?.identifier?.id || "НЕВІДОМО",
           customerCity: localityName || "НЕВІДОМО",
           budgetUah: budget,
           deadline: data.tenderPeriod?.endDate || "НЕВІДОМО",
+          datePublished: data.datePublished || data.date || new Date().toISOString(),
           region: regionName || "НЕВІДОМО",
           status: data.status,
           category: "Будівельні роботи",

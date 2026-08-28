@@ -300,6 +300,7 @@ export default function App() {
     <ResponsiveAppShell
       activeTab={currentSection}
       onNavigate={(sec) => setCurrentSection(sec as AppSection)}
+      hasActiveTender={!!currentTender}
       headerContent={
         <div className="flex items-center space-x-3 text-xs">
           <span className="text-slate-400 font-medium">Режим:</span>

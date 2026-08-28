@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Tender, CompanyProfile, BidDecision } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useProzorroSearch } from '../hooks/useProzorroSearch';
 import { TenderDetailModal } from './TenderDetailModal';
 import { 
   Radar, 
@@ -40,7 +41,17 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
   onNavigateToWarRoom
 }) => {
   const { token } = useAuth();
-  const [tenders, setLocalTenders] = useState<Tender[]>(dbTenders);
+  
+  // Use unified search hook
+  const {
+    isSearching,
+    hasMore,
+    results: searchResults,
+    telemetry: searchTelemetry,
+    error: searchError,
+    search: runSearch
+  } = useProzorroSearch();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [nlPrompt, setNlPrompt] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -50,114 +61,19 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
   const [expandedWhyTenderId, setExpandedWhyTenderId] = useState<string | null>(null);
   const [activeModalTenderId, setActiveModalTenderId] = useState<string | null>(null);
   
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchTelemetry, setSearchTelemetry] = useState<any>(null);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [searchId, setSearchId] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState<boolean>(false);
+  // Combine DB tenders and Search results
+  const allTenders = [...dbTenders, ...searchResults];
+  
+  // Remove duplicates by ID
+  const tenders = Array.from(new Map(allTenders.map(t => [t.id, t])).values());
 
-  // Apply natural language filter
   const handleApplyNlPrompt = async (prompt: string, isAppend = false) => {
-    if (!isAppend) {
-      setNlPrompt(prompt);
-      setLocalTenders([]);
-      setSearchId(null);
-      setHasMore(false);
-    }
-    
-    if (!token) return;
-    
-    setIsSearching(true);
-    setSearchError(null);
-    if (!isAppend) setSearchTelemetry(null);
-
-    try {
-      const url = isAppend && searchId
-        ? `/api/prozorro/search?searchId=${searchId}`
-        : `/api/prozorro/search?query=${encodeURIComponent(prompt)}`;
-        
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      const data = await res.json();
-
-      if (!res.ok) {
-        setSearchError(data.error || "Не вдалося отримати дані з Prozorro. Перевірте з'єднання.");
-        setIsSearching(false);
-        return;
-      }
-
-      if (data.searchId) {
-        setSearchId(data.searchId);
-      }
-      if (data.pagination) {
-        setHasMore(data.pagination.hasMore);
-        setSearchTelemetry({
-          pagesFetched: data.pagination.pagesFetched,
-          recordsFetched: data.pagination.recordsScanned,
-          recordsReturned: data.pagination.recordsMatched,
-          durationMs: data.telemetry?.durationMs || 150
-        });
-      }
-      
-      const tendersToMap = data.results || data.tenders;
-      if (tendersToMap) {
-        // Map backend objects to frontend types
-        const mappedTenders: Tender[] = tendersToMap.map((t: any) => ({
-            id: t.id,
-            tenderNumber: t.tenderId, // Correctly use tenderId (UA-...)
-            title: t.title,
-            customer: t.customer,
-            customerEdrpou: t.customerEdrpou,
-            customerCity: t.customerCity,
-            budgetUah: t.budgetUah,
-            deadline: t.deadline,
-            region: t.region || t.customerCity,
-            status: t.status === 'active' ? 'ACTIVE' : 'AUDIT_FLAGGED',
-            category: t.category,
-            foulScore: t.foulScore,
-            riskLevel: t.riskLevel,
-            summary: t.summary,
-            source: t.source,
-            createdDate: t.datePublished || new Date().toISOString(),
-            boqItems: [],
-            violations: [],
-            requirements: [],
-            opportunityScore: {
-                overallScore: t.fitScore ?? null,
-                bidDecision: t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL' ? 'BID_WITH_CONDITIONS' : 'BID',
-                bidDecisionReason: t.radarReasons?.[0] || "Автоматичний скоринг Prozorro за даними Vault компанії",
-                factors: t.fitFactors || null,
-                whyThisTender: (t.radarReasons || []).map((r: string) => ({
-                  icon: "Shield",
-                  title: "Аналіз відповідності",
-                  description: r,
-                  type: "POSITIVE"
-                }))
-            }
-        }));
-        
-        if (isAppend) {
-          setLocalTenders(prev => {
-            const existingIds = new Set(prev.map(t => t.id));
-            const uniqueNew = mappedTenders.filter(t => !existingIds.has(t.id));
-            return [...prev, ...uniqueNew];
-          });
-        } else {
-          setLocalTenders(mappedTenders);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      setSearchError("Виникла помилка під час пошуку.");
-    } finally {
-      setIsSearching(false);
-    }
+    if (!isAppend) setNlPrompt(prompt);
+    runSearch(prompt, isAppend);
   };
 
   const handleLoadMore = () => {
-    if (searchId && hasMore) {
+    if (hasMore) {
       handleApplyNlPrompt(nlPrompt, true);
     }
   };
@@ -335,7 +251,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                 </div>
                 <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
                   <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter mb-1">Дедлайн</div>
-                  <div className="text-sm font-bold text-amber-400 font-mono">{topMatchTender.submissionDeadline}</div>
+                  <div className="text-sm font-bold text-amber-400 font-mono">{topMatchTender.deadline}</div>
                 </div>
                 <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
                   <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter mb-1">Конкуренти</div>

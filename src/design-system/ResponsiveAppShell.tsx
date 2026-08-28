@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Z_INDEX } from './tokens';
 import { motion, AnimatePresence } from 'motion/react';
 import { Menu, X, Bell, User, Search, ShieldAlert, LogOut } from 'lucide-react';
-import { ResponsiveNavigation, navItems } from './ResponsiveNavigation';
+import { ResponsiveNavigation, globalNavItems, workspaceNavItems } from './ResponsiveNavigation';
 
 interface ResponsiveAppShellProps {
   children: React.ReactNode;
@@ -13,6 +13,7 @@ interface ResponsiveAppShellProps {
   contextPanel?: React.ReactNode;
   activeTab?: string;
   onNavigate?: (id: string) => void;
+  hasActiveTender?: boolean;
 }
 
 export const ResponsiveAppShell: React.FC<ResponsiveAppShellProps> = ({
@@ -21,7 +22,8 @@ export const ResponsiveAppShell: React.FC<ResponsiveAppShellProps> = ({
   headerContent,
   contextPanel,
   activeTab = 'dashboard',
-  onNavigate
+  onNavigate,
+  hasActiveTender = false
 }) => {
   const { isMobile, isTablet, isLaptop, isDesktop, isTV } = useViewport();
   const { user, signOut } = useAuth();
@@ -33,11 +35,13 @@ export const ResponsiveAppShell: React.FC<ResponsiveAppShellProps> = ({
     e.preventDefault();
     if (searchQuery.trim()) {
       onNavigate?.('catalog');
-      // In a real app, we would pass the query to the catalog view
-      // For now, we just navigate and close the search overlay
       setIsSearchOpen(false);
     }
   };
+
+  const allItems = hasActiveTender 
+    ? [...globalNavItems, ...workspaceNavItems] 
+    : globalNavItems;
 
   return (
     <div className="min-h-[100dvh] bg-slate-950 text-slate-200 flex flex-row overflow-hidden selection:bg-emerald-500/30">
@@ -142,7 +146,7 @@ export const ResponsiveAppShell: React.FC<ResponsiveAppShellProps> = ({
               </div>
               
               <nav className="flex-1 space-y-3">
-                 {navItems.map((item) => (
+                 {allItems.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => { onNavigate?.(item.id); setIsDrawerOpen(false); }}

@@ -17,6 +17,8 @@ import {
   FileText
 } from 'lucide-react';
 
+import { useProzorroSearch } from '../hooks/useProzorroSearch';
+
 interface TenderCatalogProps {
   tenders: Tender[];
   onSelectTender: (tender: Tender) => void;
@@ -36,7 +38,19 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeModalTenderId, setActiveModalTenderId] = useState<string | null>(null);
 
-  // Modal active tab
+  // Prozorro Search via Hook
+  const { 
+    isSearching, 
+    hasMore, 
+    results: prozorroResults, 
+    telemetry: searchTelemetry, 
+    error: searchError, 
+    search: runProzorroSearch 
+  } = useProzorroSearch();
+
+  const [prozorroSearchQuery, setProzorroSearchQuery] = useState('');
+
+  // Modal active tab & manual import state
   const [activeTab, setActiveTab] = useState<'IMPORT' | 'PRIVATE'>('IMPORT');
   const [prozorroIdInput, setProzorroIdInput] = useState('');
   const [importingState, setImportingState] = useState<'IDLE' | 'LOADING' | 'SUCCESS' | 'ERROR'>('IDLE');
@@ -50,94 +64,8 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
   const [newRegion, setNewRegion] = useState('м. Київ');
   const [newCategory, setNewCategory] = useState('Будівельні роботи');
 
-  // Prozorro Search State
-  const [prozorroSearchQuery, setProzorroSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchId, setSearchId] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [prozorroResults, setProzorroResults] = useState<Tender[]>([]);
-  const [searchTelemetry, setSearchTelemetry] = useState<any>(null);
-  const [searchError, setSearchError] = useState<string | null>(null);
-
   const handleProzorroSearch = async (isAppend = false) => {
-    if (!token || (!prozorroSearchQuery.trim() && !isAppend)) return;
-    
-    setIsSearching(true);
-    setSearchError(null);
-    if (!isAppend) {
-      setProzorroResults([]);
-      setSearchId(null);
-      setHasMore(false);
-      setSearchTelemetry(null);
-    }
-
-    try {
-      const url = isAppend && searchId
-        ? `/api/prozorro/search?searchId=${searchId}`
-        : `/api/prozorro/search?query=${encodeURIComponent(prozorroSearchQuery)}`;
-        
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      const data = await res.json();
-
-      if (!res.ok) {
-        setSearchError(data.error || "Не вдалося отримати дані з Prozorro.");
-        setIsSearching(false);
-        return;
-      }
-
-      if (data.searchId) setSearchId(data.searchId);
-      if (data.pagination) {
-        setHasMore(data.pagination.hasMore);
-        setSearchTelemetry({
-          pagesFetched: data.pagination.pagesFetched,
-          recordsScanned: data.pagination.recordsScanned,
-          recordsMatched: data.pagination.recordsMatched,
-          retrievedAt: data.source?.retrievedAt
-        });
-      }
-      
-      const tendersToMap = data.results || data.tenders;
-      if (tendersToMap) {
-        const mapped: Tender[] = tendersToMap.map((t: any) => ({
-            id: t.id,
-            tenderNumber: t.tenderId || t.tenderNumber,
-            title: t.title,
-            customer: t.customer,
-            customerEdrpou: t.customerEdrpou || 'NOT_AVAILABLE',
-            customerCity: t.customerCity || 'NOT_AVAILABLE',
-            budgetUah: t.budgetUah || 0,
-            deadline: t.deadline || 'NOT_AVAILABLE',
-            region: t.region || t.customerCity || 'Україна',
-            status: 'ACTIVE',
-            category: t.category || 'Будівельні роботи',
-            foulScore: t.foulScore || 0,
-            riskLevel: t.riskLevel || 'LOW',
-            summary: t.summary || '',
-            createdDate: new Date().toISOString(),
-            boqItems: [],
-            violations: [],
-            requirements: []
-        }));
-        
-        if (isAppend) {
-          setProzorroResults(prev => {
-            const existingIds = new Set(prev.map(t => t.id));
-            const uniqueNew = mapped.filter(t => !existingIds.has(t.id));
-            return [...prev, ...uniqueNew];
-          });
-        } else {
-          setProzorroResults(mapped);
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      setSearchError("Виникла помилка під час пошуку.");
-    } finally {
-      setIsSearching(false);
-    }
+    runProzorroSearch(prozorroSearchQuery, isAppend);
   };
 
   const filteredTenders = tenders.filter((t) => {
@@ -220,11 +148,11 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
         tenderNumber: savedTender.tenderNumber,
         title: savedTender.title,
         customer: savedTender.customer,
-        customerEdrpou: savedTender.detailedData?.customerEdrpou || '00000000',
-        customerCity: savedTender.detailedData?.customerCity || 'м. Київ',
+        customerEdrpou: savedTender.detailedData?.customerEdrpou || 'НЕВІДОМО',
+        customerCity: savedTender.detailedData?.customerCity || 'НЕВІДОМО',
         budgetUah: parseFloat(savedTender.budgetUah) || 0,
-        deadline: savedTender.detailedData?.deadline || '',
-        region: savedTender.detailedData?.region || 'м. Київ',
+        deadline: savedTender.detailedData?.deadline || 'НЕВІДОМО',
+        region: savedTender.detailedData?.region || 'Україна',
         status: savedTender.status,
         category: savedTender.detailedData?.category || 'Інше',
         foulScore: savedTender.foulScore || undefined,
@@ -233,7 +161,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
         tenderText: savedTender.detailedData?.tenderText || '',
         boqItems: savedTender.detailedData?.boqItems || [],
         violations: savedTender.detailedData?.violations || [],
-        createdDate: new Date().toISOString().split('T')[0]
+        createdDate: savedTender.detailedData?.datePublished || savedTender.createdAt
       };
       
       onAddNewTender(tenderForUI);
