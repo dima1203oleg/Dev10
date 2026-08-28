@@ -1,4 +1,5 @@
 export type RiskLevel = 'NOT_ANALYZED' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type DataStatus = 'AVAILABLE' | 'NOT_AVAILABLE' | 'NOT_ANALYZED' | 'INSUFFICIENT_DATA' | 'SOURCE_UNAVAILABLE' | 'ERROR';
 export type DecisionType = 'GO' | 'GO_WITH_CONDITIONS' | 'NO_GO';
 export type SystemMode = 'SOLO' | 'TEAM';
 export type EvidenceStatus = 'VERIFIED' | 'INFERRED' | 'CALCULATED' | 'UNKNOWN' | 'CONTRADICTED';

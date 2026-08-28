@@ -13,7 +13,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSelectTender,
   onNavigate,
 }) => {
-  const highRiskTenders = tenders.filter(t => t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL');
+  const highMatch = tenders.filter(t => t.riskLevel === 'LOW').length;
+  const checkMatch = tenders.filter(t => t.riskLevel === 'MEDIUM').length;
+  const lowMatch = tenders.filter(t => t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL').length;
 
   return (
     <div className="space-y-6">
@@ -32,15 +34,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             
             <div className="grid grid-cols-3 gap-4 mb-6">
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                    <div className="text-2xl font-bold text-white mb-1">12</div>
+                    <div className="text-2xl font-bold text-white mb-1">{highMatch}</div>
                     <div className="text-xs text-emerald-400 uppercase tracking-widest">Висока відповідність</div>
                 </div>
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                    <div className="text-2xl font-bold text-white mb-1">23</div>
+                    <div className="text-2xl font-bold text-white mb-1">{checkMatch}</div>
                     <div className="text-xs text-amber-400 uppercase tracking-widest">Потребують перевірки</div>
                 </div>
                 <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 text-center">
-                    <div className="text-2xl font-bold text-white mb-1">12</div>
+                    <div className="text-2xl font-bold text-white mb-1">{lowMatch}</div>
                     <div className="text-xs text-slate-400 uppercase tracking-widest">Низька відповідність</div>
                 </div>
             </div>
@@ -62,24 +64,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             
             <div className="space-y-4">
-                <div className="border border-red-900/50 bg-red-950/10 p-4 rounded-xl">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-red-400 uppercase">🔴 Терміново</span>
-                        <span className="text-xs text-slate-500">2 дні 14 год</span>
-                    </div>
-                    <h4 className="font-bold text-white mb-1">Капітальний ремонт лікарні №7</h4>
-                    <div className="text-sm text-slate-300 mb-2">Бюджет: 18 420 000 ₴</div>
-                    <button className="text-xs bg-red-600 hover:bg-red-500 text-white font-bold py-1 px-3 rounded-lg w-full">ПЕРЕВІРИТИ ТЕНДЕР</button>
-                </div>
-                <div className="border border-slate-700 p-4 rounded-xl">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-amber-400 uppercase">🟡 Підготувати</span>
-                        <span className="text-xs text-slate-500">6 днів</span>
-                    </div>
-                    <h4 className="font-bold text-white mb-1">Реконструкція школи</h4>
-                    <div className="text-sm text-slate-300 mb-2">Бюджет: 12,8 млн ₴</div>
-                    <button className="text-xs bg-slate-700 hover:bg-slate-600 text-white font-bold py-1 px-3 rounded-lg w-full">ВИПРАВИТИ</button>
-                </div>
+                {highMatch + checkMatch + lowMatch === 0 ? (
+                    <div className="text-sm text-slate-500 italic">Немає активних завдань</div>
+                ) : (
+                    tenders.filter(t => t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL').slice(0, 2).map(tender => (
+                        <div key={tender.id} className="border border-red-900/50 bg-red-950/10 p-4 rounded-xl">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-bold text-red-400 uppercase">🔴 Терміново</span>
+                            </div>
+                            <h4 className="font-bold text-white mb-1">{tender.title}</h4>
+                            <div className="text-sm text-slate-300 mb-2">Бюджет: {tender.budgetUah?.toLocaleString()} ₴</div>
+                            <button onClick={() => onSelectTender(tender)} className="text-xs bg-red-600 hover:bg-red-500 text-white font-bold py-1 px-3 rounded-lg w-full">ПЕРЕВІРИТИ ТЕНДЕР</button>
+                        </div>
+                    ))
+                )}
             </div>
         </div>
       </div>

@@ -125,19 +125,10 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
             violations: [],
             requirements: [],
             opportunityScore: {
-                overallScore: t.fitScore || (t.foulScore ? Math.max(10, 100 - t.foulScore) : 70),
+                overallScore: t.fitScore || null,
                 bidDecision: t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL' ? 'BID_WITH_CONDITIONS' : 'BID',
                 bidDecisionReason: t.radarReasons?.[0] || "Автоматичний скоринг Prozorro за даними Vault компанії",
-                factors: t.fitFactors || {
-                  companyFit: company ? 85 : 50,
-                  legalFit: t.riskLevel === 'CRITICAL' ? 40 : 80,
-                  docReadiness: 75,
-                  financialFeasibility: 80,
-                  competitionScore: 60,
-                  historicalWinProb: 0,
-                  executionFeasibility: 85,
-                  riskPenalty: t.foulScore || 20
-                },
+                factors: t.fitFactors || null,
                 whyThisTender: (t.radarReasons || []).map((r: string) => ({
                   icon: "Shield",
                   title: "Аналіз відповідності",
