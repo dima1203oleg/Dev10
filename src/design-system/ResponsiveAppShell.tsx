@@ -1,8 +1,9 @@
 import React from 'react';
 import { useViewport } from './useViewport';
+import { useAuth } from '../contexts/AuthContext';
 import { Z_INDEX } from './tokens';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, X, Bell, User, Search, ShieldAlert } from 'lucide-react';
+import { Menu, X, Bell, User, Search, ShieldAlert, LogOut } from 'lucide-react';
 import { ResponsiveNavigation, navItems } from './ResponsiveNavigation';
 
 interface ResponsiveAppShellProps {
@@ -11,7 +12,7 @@ interface ResponsiveAppShellProps {
   headerContent?: React.ReactNode;
   contextPanel?: React.ReactNode;
   activeTab?: string;
-  onNavigate?: (tab: string) => void;
+  onNavigate?: (id: string) => void;
 }
 
 export const ResponsiveAppShell: React.FC<ResponsiveAppShellProps> = ({
@@ -23,7 +24,20 @@ export const ResponsiveAppShell: React.FC<ResponsiveAppShellProps> = ({
   onNavigate
 }) => {
   const { isMobile, isTablet, isLaptop, isDesktop, isTV } = useViewport();
+  const { user, signOut } = useAuth();
   const [isDrawerOpen, setIsDrawerOpen] = React.useState(false);
+  const [isSearchOpen, setIsSearchOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState('');
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      onNavigate?.('catalog');
+      // In a real app, we would pass the query to the catalog view
+      // For now, we just navigate and close the search overlay
+      setIsSearchOpen(false);
+    }
+  };
 
   return (
     <div className="min-h-[100dvh] bg-slate-950 text-slate-200 flex flex-row overflow-hidden selection:bg-emerald-500/30">
@@ -45,7 +59,12 @@ export const ResponsiveAppShell: React.FC<ResponsiveAppShellProps> = ({
               <span className="font-black text-base tracking-tighter uppercase">Tender<span className="text-emerald-500">AI</span></span>
             </div>
             <div className="flex items-center gap-4">
-               <button className="p-2 text-slate-400"><Search size={20} /></button>
+               <button 
+                 onClick={() => setIsSearchOpen(true)}
+                 className="p-2 text-slate-400 hover:text-white transition-colors"
+               >
+                 <Search size={20} />
+               </button>
                <button onClick={() => setIsDrawerOpen(true)} className="p-2 bg-slate-800 rounded-xl text-white shadow-lg">
                  <Menu size={20} />
                </button>
@@ -138,17 +157,83 @@ export const ResponsiveAppShell: React.FC<ResponsiveAppShellProps> = ({
                 ))}
               </nav>
 
-              <div className="mt-auto pt-8 border-t border-slate-900">
+              <div className="mt-auto pt-8 border-t border-slate-900 space-y-4">
                  <div className="flex items-center gap-4 p-4 bg-slate-900 rounded-2xl">
-                    <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center"><User size={20} className="text-slate-500" /></div>
-                    <div>
-                      <div className="text-xs font-black text-white uppercase tracking-widest">Олександр Б.</div>
-                      <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-tighter">CEO / Admin</div>
+                    <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center border border-slate-700 overflow-hidden">
+                       {user?.photoURL ? (
+                         <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                       ) : (
+                         <User size={24} className="text-slate-500" />
+                       )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-black text-white uppercase tracking-widest truncate">{user?.displayName || 'Користувач'}</div>
+                      <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-tighter truncate">{user?.email}</div>
                     </div>
                  </div>
+                 <button 
+                   onClick={() => { signOut(); setIsDrawerOpen(false); }}
+                   className="w-full flex items-center justify-center gap-2 p-4 bg-rose-900/20 text-rose-400 rounded-2xl text-xs font-black uppercase tracking-widest border border-rose-900/30 transition-all hover:bg-rose-900/30"
+                 >
+                   <LogOut size={18} />
+                   Вийти з облікового запису
+                 </button>
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      {/* 6. MOBILE SEARCH OVERLAY */}
+      <AnimatePresence>
+        {isSearchOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed inset-0 bg-slate-950 z-[200] p-6 flex flex-col"
+          >
+            <div className="flex items-center justify-between mb-8">
+               <h2 className="text-xl font-black uppercase tracking-tighter">Пошук Prozorro</h2>
+               <button onClick={() => setIsSearchOpen(false)} className="p-2 bg-slate-900 rounded-xl text-slate-400">
+                 <X size={24} />
+               </button>
+            </div>
+            
+            <form onSubmit={handleSearch} className="relative mb-6">
+               <Search className="absolute left-4 top-4 text-slate-500" size={24} />
+               <input 
+                 autoFocus
+                 type="text" 
+                 placeholder="Що шукаємо? (напр. будівництво шкіл)"
+                 className="w-full bg-slate-900 border-2 border-slate-800 focus:border-emerald-500 rounded-2xl py-4 pl-14 pr-6 text-lg font-medium text-white outline-none transition-all shadow-xl"
+                 value={searchQuery}
+                 onChange={(e) => setSearchQuery(e.target.value)}
+               />
+            </form>
+            
+            <div className="space-y-4">
+               <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Популярні запити</div>
+               <div className="flex flex-wrap gap-2">
+                  {['Будівництво укриттів', 'Капітальний ремонт', 'Дорожні роботи', 'Меблі для шкіл'].map(tag => (
+                    <button 
+                      key={tag}
+                      onClick={() => setSearchQuery(tag)}
+                      className="px-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs font-bold text-slate-300 hover:border-emerald-500 transition-all"
+                    >
+                      {tag}
+                    </button>
+                  ))}
+               </div>
+            </div>
+
+            <button 
+              onClick={handleSearch}
+              className="mt-auto w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-sm uppercase tracking-widest rounded-2xl shadow-2xl shadow-emerald-900/40 transition-all"
+            >
+              Запустити AI Пошук
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

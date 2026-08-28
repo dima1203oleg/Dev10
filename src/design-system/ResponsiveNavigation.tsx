@@ -1,5 +1,6 @@
 import React from 'react';
 import { useViewport } from './useViewport';
+import { useAuth } from '../contexts/AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, 
@@ -13,7 +14,8 @@ import {
   TrendingUp,
   FileText,
   User,
-  Bell
+  Bell,
+  LogOut
 } from 'lucide-react';
 
 export interface NavItem {
@@ -47,6 +49,7 @@ export const ResponsiveNavigation: React.FC<ResponsiveNavigationProps> = ({
   onCloseDrawer
 }) => {
   const { mode, isMobile, isTablet, isLaptop, isDesktop, isTV } = useViewport();
+  const { user, signOut } = useAuth();
 
   // 1. MOBILE BOTTOM NAVIGATION
   if (isMobile) {
@@ -97,6 +100,12 @@ export const ResponsiveNavigation: React.FC<ResponsiveNavigationProps> = ({
             </button>
           ))}
         </div>
+        <button 
+          onClick={() => signOut()}
+          className="p-3 text-slate-500 hover:text-rose-400 transition-colors mt-auto"
+        >
+          <LogOut size={24} />
+        </button>
       </aside>
     );
   }
@@ -145,14 +154,26 @@ export const ResponsiveNavigation: React.FC<ResponsiveNavigationProps> = ({
             <Bell size={20} />
             <span className="absolute top-2 right-2 w-2 h-2 bg-emerald-500 rounded-full border-2 border-slate-950"></span>
           </button>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <div className="text-[10px] font-black text-white uppercase tracking-widest">Олександр Б.</div>
-              <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-tighter">CEO / Admin</div>
-            </div>
-            <div className="w-10 h-10 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
+          <button 
+            onClick={() => signOut()}
+            className="flex items-center gap-2 text-[10px] font-black text-slate-500 hover:text-rose-400 uppercase tracking-widest transition-colors"
+          >
+            <LogOut size={16} />
+            Вихід
+          </button>
+        </div>
+        
+        <div className="flex items-center gap-3 bg-slate-900/30 p-3 rounded-2xl border border-slate-900">
+          <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 overflow-hidden">
+             {user?.photoURL ? (
+               <img src={user.photoURL} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+             ) : (
                <User size={20} />
-            </div>
+             )}
+          </div>
+          <div className="text-left min-w-0">
+            <div className="text-[10px] font-black text-white uppercase tracking-widest truncate">{user?.displayName || 'Користувач'}</div>
+            <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-tighter truncate">{user?.email}</div>
           </div>
         </div>
       </div>

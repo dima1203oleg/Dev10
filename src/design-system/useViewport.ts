@@ -3,30 +3,69 @@ import { BREAKPOINTS } from './tokens';
 
 export type ViewportMode = 'MOBILE' | 'TABLET' | 'LAPTOP' | 'DESKTOP' | 'TV';
 
-export function useViewport() {
-  const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+export interface ViewportState {
+  width: number;
+  height: number;
+  mode: ViewportMode;
+  orientation: 'portrait' | 'landscape';
+  isMobile: boolean;
+  isTablet: boolean;
+  isLaptop: boolean;
+  isDesktop: boolean;
+  isTV: boolean;
+  hasTouch: boolean;
+  hasHover: boolean;
+}
+
+export function useViewport(): ViewportState {
+  const [state, setState] = useState<ViewportState>({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1200,
+    height: typeof window !== 'undefined' ? window.innerHeight : 800,
+    mode: 'LAPTOP',
+    orientation: 'landscape',
+    isMobile: false,
+    isTablet: false,
+    isLaptop: true,
+    isDesktop: false,
+    isTV: false,
+    hasTouch: false,
+    hasHover: true,
+  });
 
   useEffect(() => {
-    const handleResize = () => setWidth(window.innerWidth);
+    if (typeof window === 'undefined') return;
+
+    const handleResize = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const orientation = w > h ? 'landscape' : 'portrait';
+      
+      let mode: ViewportMode = 'LAPTOP';
+      if (w < BREAKPOINTS.MOBILE) mode = 'MOBILE';
+      else if (w < BREAKPOINTS.TABLET) mode = 'TABLET';
+      else if (w < BREAKPOINTS.LAPTOP) mode = 'LAPTOP';
+      else if (w < BREAKPOINTS.WIDE_DESKTOP) mode = 'DESKTOP';
+      else mode = 'TV';
+
+      setState({
+        width: w,
+        height: h,
+        mode,
+        orientation,
+        isMobile: w < BREAKPOINTS.MOBILE,
+        isTablet: w >= BREAKPOINTS.MOBILE && w < BREAKPOINTS.TABLET,
+        isLaptop: w >= BREAKPOINTS.TABLET && w < BREAKPOINTS.LAPTOP,
+        isDesktop: w >= BREAKPOINTS.LAPTOP && w < BREAKPOINTS.WIDE_DESKTOP,
+        isTV: w >= BREAKPOINTS.WIDE_DESKTOP,
+        hasTouch: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
+        hasHover: window.matchMedia('(hover: hover)').matches,
+      });
+    };
+
+    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const getMode = (): ViewportMode => {
-    if (width < BREAKPOINTS.MOBILE) return 'MOBILE';
-    if (width < BREAKPOINTS.TABLET) return 'TABLET';
-    if (width < BREAKPOINTS.LAPTOP) return 'LAPTOP';
-    if (width < BREAKPOINTS.WIDE_DESKTOP) return 'DESKTOP';
-    return 'TV';
-  };
-
-  return {
-    width,
-    mode: getMode(),
-    isMobile: width < BREAKPOINTS.MOBILE,
-    isTablet: width >= BREAKPOINTS.MOBILE && width < BREAKPOINTS.TABLET,
-    isLaptop: width >= BREAKPOINTS.TABLET && width < BREAKPOINTS.LAPTOP,
-    isDesktop: width >= BREAKPOINTS.LAPTOP && width < BREAKPOINTS.WIDE_DESKTOP,
-    isTV: width >= BREAKPOINTS.WIDE_DESKTOP,
-  };
+  return state;
 }

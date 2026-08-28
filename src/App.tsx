@@ -18,7 +18,7 @@ import { PostTenderModule } from './components/PostTenderModule';
 import { ServicesModelModule } from './components/ServicesModelModule';
 import { AnalyticsDashboard } from './components/AnalyticsDashboard';
 import { useAuth } from './contexts/AuthContext';
-import { Bot, User as UserIcon, ShieldAlert } from 'lucide-react';
+import { Bot, User as UserIcon, ShieldAlert, Search } from 'lucide-react';
 
 import { ResponsiveAppShell } from './design-system/ResponsiveAppShell';
 

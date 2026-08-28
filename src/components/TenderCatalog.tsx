@@ -50,6 +50,96 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
   const [newRegion, setNewRegion] = useState('м. Київ');
   const [newCategory, setNewCategory] = useState('Будівельні роботи');
 
+  // Prozorro Search State
+  const [prozorroSearchQuery, setProzorroSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchId, setSearchId] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [prozorroResults, setProzorroResults] = useState<Tender[]>([]);
+  const [searchTelemetry, setSearchTelemetry] = useState<any>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  const handleProzorroSearch = async (isAppend = false) => {
+    if (!token || (!prozorroSearchQuery.trim() && !isAppend)) return;
+    
+    setIsSearching(true);
+    setSearchError(null);
+    if (!isAppend) {
+      setProzorroResults([]);
+      setSearchId(null);
+      setHasMore(false);
+      setSearchTelemetry(null);
+    }
+
+    try {
+      const url = isAppend && searchId
+        ? `/api/prozorro/search?searchId=${searchId}`
+        : `/api/prozorro/search?query=${encodeURIComponent(prozorroSearchQuery)}`;
+        
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      const data = await res.json();
+
+      if (!res.ok) {
+        setSearchError(data.error || "Не вдалося отримати дані з Prozorro.");
+        setIsSearching(false);
+        return;
+      }
+
+      if (data.searchId) setSearchId(data.searchId);
+      if (data.pagination) {
+        setHasMore(data.pagination.hasMore);
+        setSearchTelemetry({
+          pagesFetched: data.pagination.pagesFetched,
+          recordsScanned: data.pagination.recordsScanned,
+          recordsMatched: data.pagination.recordsMatched,
+          retrievedAt: data.source?.retrievedAt
+        });
+      }
+      
+      const tendersToMap = data.results || data.tenders;
+      if (tendersToMap) {
+        const mapped: Tender[] = tendersToMap.map((t: any) => ({
+            id: t.id,
+            tenderNumber: t.tenderId || t.tenderNumber,
+            title: t.title,
+            customer: t.customer,
+            customerEdrpou: t.customerEdrpou || 'NOT_AVAILABLE',
+            customerCity: t.customerCity || 'NOT_AVAILABLE',
+            budgetUah: t.budgetUah || 0,
+            deadline: t.deadline || 'NOT_AVAILABLE',
+            region: t.region || t.customerCity || 'Україна',
+            status: 'ACTIVE',
+            category: t.category || 'Будівельні роботи',
+            foulScore: t.foulScore || 0,
+            riskLevel: t.riskLevel || 'LOW',
+            summary: t.summary || '',
+            createdDate: new Date().toISOString(),
+            boqItems: [],
+            violations: [],
+            requirements: []
+        }));
+        
+        if (isAppend) {
+          setProzorroResults(prev => {
+            const existingIds = new Set(prev.map(t => t.id));
+            const uniqueNew = mapped.filter(t => !existingIds.has(t.id));
+            return [...prev, ...uniqueNew];
+          });
+        } else {
+          setProzorroResults(mapped);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setSearchError("Виникла помилка під час пошуку.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const filteredTenders = tenders.filter((t) => {
     const matchesSearch = 
       t.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -261,6 +351,117 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
           <Plus className="w-4 h-4" />
           <span>+ Додати закупівлю</span>
         </button>
+      </div>
+
+      {/* Live Prozorro Search Engine */}
+      <div className="bg-slate-900 border-2 border-emerald-500/20 rounded-3xl p-6 shadow-xl space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+             <div className="flex items-center gap-2 text-[10px] font-black text-emerald-400 uppercase tracking-widest">
+               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+               Live Prozorro Connector
+             </div>
+             <h2 className="text-xl font-black text-white">Глобальний пошук Prozorro</h2>
+          </div>
+          {searchTelemetry && (
+            <div className="flex items-center gap-3 text-[10px] font-mono text-slate-500">
+              <div className="px-2 py-1 bg-slate-950 rounded border border-slate-800">
+                SCANNED: {searchTelemetry.recordsScanned}
+              </div>
+              <div className="px-2 py-1 bg-slate-950 rounded border border-slate-800">
+                MATCHED: {searchTelemetry.recordsMatched}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-4 text-slate-500" size={20} />
+            <input 
+              type="text" 
+              placeholder="Введіть запит (напр. будівництво шкіл у київській області)..."
+              className="w-full bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-2xl py-4 pl-12 pr-6 text-sm font-medium text-white outline-none transition-all"
+              value={prozorroSearchQuery}
+              onChange={(e) => setProzorroSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleProzorroSearch(false)}
+            />
+          </div>
+          <button 
+            onClick={() => handleProzorroSearch(false)}
+            disabled={isSearching}
+            className="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-slate-950 font-black text-xs uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            {isSearching ? <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" /> : <Search size={18} />}
+            <span>{isSearching ? 'Пошук...' : 'Знайти в Prozorro'}</span>
+          </button>
+        </div>
+
+        {searchError && (
+          <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl text-rose-400 text-xs font-bold flex items-center gap-2">
+            <ShieldAlert size={16} />
+            {searchError}
+          </div>
+        )}
+
+        {prozorroResults.length > 0 && (
+          <div className="space-y-4 pt-4 border-t border-slate-800">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {prozorroResults.map((tender) => (
+                <div key={tender.id} className="bg-slate-950 border border-slate-800 hover:border-emerald-500/30 rounded-2xl p-5 space-y-4 transition-all group">
+                   <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-mono font-bold text-slate-500">{tender.tenderNumber}</span>
+                      <span className="text-[10px] font-black text-emerald-500 uppercase tracking-tighter">New Result</span>
+                   </div>
+                   <h4 className="text-sm font-bold text-white leading-snug group-hover:text-emerald-400 transition-colors line-clamp-2 h-10">{tender.title}</h4>
+                   <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-widest pt-2 border-t border-slate-900">
+                      <span className="text-emerald-400 font-mono">{(tender.budgetUah).toLocaleString()} ₴</span>
+                      <span>{tender.customerCity}</span>
+                   </div>
+                   <div className="flex items-center gap-2 pt-2">
+                      <button 
+                        onClick={() => setActiveModalTenderId(tender.id)}
+                        className="flex-1 py-2 bg-slate-900 hover:bg-slate-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400 border border-slate-800 transition-all"
+                      >
+                        Деталі
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          if (!token) return;
+                          try {
+                            const res = await fetch('/api/tenders', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                              body: JSON.stringify(tender)
+                            });
+                            if (!res.ok) throw new Error();
+                            const saved = await res.json();
+                            onAddNewTender(tender);
+                            onSelectTender(tender);
+                            alert('Тендер успішно імпортовано до вашої бази!');
+                          } catch(e) { alert('Помилка при імпорті.'); }
+                        }}
+                        className="flex-1 py-2 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 rounded-xl text-[10px] font-black uppercase tracking-widest border border-emerald-500/20 transition-all"
+                      >
+                        Імпортувати
+                      </button>
+                   </div>
+                </div>
+              ))}
+            </div>
+            
+            {hasMore && (
+              <button 
+                onClick={() => handleProzorroSearch(true)}
+                disabled={isSearching}
+                className="w-full py-4 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 transition-all border border-slate-700 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isSearching ? <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" /> : <Plus size={16} />}
+                Завантажити ще результати з Prozorro
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Filter & Search Toolbar */}
