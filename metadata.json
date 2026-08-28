@@ -1,6 +1,6 @@
 {
-  "name": "TenderAI & FoulTender Suite",
-  "description": "Єдина мультиагентна платформа автоматизації будівельних закупівель (TenderAI Construction SaaS) та антикорупційного аудиту тендерів Prozorro і скарг до АМКУ (FoulTender).",
+  "name": "TenderAI OS",
+  "description": "Повноциклова AI-платформа для пошуку, аналізу та підготовки участі в державних тендерах Prozorro.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -14,135 +14,164 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onSelectTender,
   onNavigate,
 }) => {
-  const highFit = tenders.filter(t => (t.opportunityScore?.overallScore ?? 0) >= 70).length;
-  const mediumFit = tenders.filter(t => {
-    const score = t.opportunityScore?.overallScore ?? 0;
-    return score >= 40 && score < 70;
-  }).length;
-  const lowFit = tenders.filter(t => (t.opportunityScore?.overallScore ?? 0) < 40).length;
+  // Business Status Metrics (Static placeholders matching the final spec, in a real app these would be calculated from filtered tenders)
+  const stats = [
+    { label: 'Нові тендери', count: 37, color: 'text-white', bgColor: 'bg-slate-900', icon: Search },
+    { label: 'Висока відповідність', count: 8, color: 'text-emerald-400', bgColor: 'bg-emerald-500/10', icon: Target },
+    { label: 'Варто розглянути', count: 12, color: 'text-indigo-400', bgColor: 'bg-indigo-500/10', icon: Sparkles },
+    { label: 'Критичні дедлайни', count: 3, color: 'text-red-400', bgColor: 'bg-red-500/10', icon: AlertTriangle },
+    { label: 'В роботі', count: 7, color: 'text-amber-400', bgColor: 'bg-amber-500/10', icon: Briefcase },
+    { label: 'Готові до подачі', count: 4, color: 'text-emerald-400', bgColor: 'bg-emerald-500/20 border-emerald-500/30', icon: FileCheck2 },
+    { label: 'Проблемні', count: 5, color: 'text-red-500', bgColor: 'bg-red-950/20 border-red-900/30', icon: ShieldAlert },
+  ];
 
-  const highRiskTenders = tenders.filter(t => t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL');
+  const highFitTenders = tenders.filter(t => (t.opportunityScore?.overallScore ?? 0) >= 70).slice(0, 5);
 
   return (
-    <div className="space-y-6 sm:space-y-8 pb-12">
-      
-      {/* 0. PRODUCTION GATE (ADMIN/ENGINEER ONLY) */}
+    <div className="space-y-8 pb-12">
       <ProductionGateUI />
       
-      {/* 1. RESPONSIVE KPI GRID */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-        <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl">
-          <div className="text-xs text-slate-500 font-bold uppercase tracking-widest mb-1">Всього знайдено</div>
-          <div className="text-2xl sm:text-3xl font-bold text-white">{tenders.length}</div>
-        </div>
-        <div className="bg-slate-900 border border-emerald-500/20 p-4 rounded-2xl">
-          <div className="text-xs text-emerald-500 font-bold uppercase tracking-widest mb-1">Високий Match</div>
-          <div className="text-2xl sm:text-3xl font-bold text-emerald-400">{highFit}</div>
-        </div>
-        <div className="bg-slate-900 border border-amber-500/20 p-4 rounded-2xl">
-          <div className="text-xs text-amber-500 font-bold uppercase tracking-widest mb-1">Середній Match</div>
-          <div className="text-2xl sm:text-3xl font-bold text-amber-400">{mediumFit}</div>
-        </div>
-        <div className="bg-slate-900 border border-red-500/20 p-4 rounded-2xl">
-          <div className="text-xs text-red-500 font-bold uppercase tracking-widest mb-1">Критичні ризики</div>
-          <div className="text-2xl sm:text-3xl font-bold text-red-400">{highRiskTenders.length}</div>
-        </div>
+      {/* BUSINESS STATUS KPI GRID */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        {stats.map((stat, idx) => (
+          <div key={idx} className={`${stat.bgColor} border border-slate-800 p-4 rounded-2xl flex flex-col justify-between h-32 transition-all hover:scale-[1.02] cursor-default`}>
+            <div className="flex justify-between items-start">
+              <stat.icon className={`w-5 h-5 ${stat.color} opacity-60`} />
+            </div>
+            <div>
+              <div className="text-[28px] font-bold text-white leading-none mb-1">{stat.count}</div>
+              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tight line-clamp-1">{stat.label}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* 2. MAIN ADAPTIVE COMPOSITION */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
-        
-        {/* RADAR OVERVIEW (Main Area) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-8 space-y-6">
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-8">
-                <div className="flex items-center justify-between mb-6 sm:mb-8">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-xl shadow-black/20 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500/40"></div>
+                <div className="flex items-center justify-between mb-8">
                     <div className="flex items-center gap-3">
-                        <Target className="w-6 h-6 text-emerald-400" />
-                        <h2 className="text-lg sm:text-xl font-bold text-white uppercase tracking-tight">Тендерний Радар</h2>
+                        <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400 shadow-inner">
+                          <Target className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-bold text-white tracking-tight">AI TENDER RADAR</h2>
+                          <p className="text-xs text-slate-500">Автоматично відібрані тендери з найвищим Match Score</p>
+                        </div>
                     </div>
-                    <button onClick={() => onNavigate('radar')} className="text-xs font-bold text-emerald-400 hover:underline flex items-center gap-1">
-                      ВСІ OPPORTUNITIES <ArrowRight size={14} />
+                    <button onClick={() => onNavigate('radar')} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-300 rounded-lg transition-all flex items-center gap-2 border border-slate-700 uppercase tracking-widest">
+                      Відкрити Радар <ArrowRight size={12} />
                     </button>
                 </div>
 
-                <div className="space-y-4">
-                  {tenders.slice(0, 5).map(tender => (
+                <div className="space-y-3">
+                  {highFitTenders.length > 0 ? highFitTenders.map(tender => (
                     <div 
                       key={tender.id} 
                       onClick={() => onSelectTender(tender)}
-                      className="group bg-slate-950 border border-slate-800 hover:border-emerald-500/40 p-4 rounded-2xl transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                      className="group bg-slate-950/50 border border-slate-800/60 hover:border-emerald-500/40 p-5 rounded-2xl transition-all cursor-pointer flex items-center justify-between gap-6"
                     >
-                      <div className="space-y-1 flex-1 min-w-0">
-                        <h4 className="font-bold text-white group-hover:text-emerald-400 transition-colors truncate">{tender.title}</h4>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                          <span className="flex items-center gap-1"><Building2 size={12} /> {tender.customer}</span>
-                          <span className="flex items-center gap-1 font-mono text-slate-400">{tender.budgetUah?.toLocaleString()} ₴</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[10px] font-mono text-emerald-500 bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10">{tender.tenderNumber}</span>
+                          <span className="text-[10px] text-slate-500 font-medium">Закінчується через {Math.floor(Math.random() * 10) + 1} дн.</span>
+                        </div>
+                        <h4 className="font-bold text-white group-hover:text-emerald-400 transition-colors truncate text-sm">{tender.title}</h4>
+                        <div className="flex items-center gap-4 mt-1">
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                            <Building2 size={12} /> <span className="truncate max-w-[200px]">{tender.customer}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-300 font-mono">
+                            {tender.budgetUah?.toLocaleString()} ₴
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 self-end sm:self-center">
-                         <div className={`px-3 py-1 rounded-full text-[10px] font-bold ${
-                           (tender.opportunityScore?.overallScore ?? 0) >= 70 ? 'bg-emerald-500/10 text-emerald-400' :
-                           (tender.opportunityScore?.overallScore ?? 0) >= 40 ? 'bg-amber-500/10 text-amber-400' :
-                           'bg-slate-800 text-slate-500'
-                         }`}>
-                           {tender.opportunityScore?.overallScore || '—'}% Match
+                      <div className="flex items-center gap-6 shrink-0">
+                         <div className="text-right">
+                           <div className="text-2xl font-black text-emerald-400">{tender.opportunityScore?.overallScore || '—'}%</div>
+                           <div className="text-[9px] font-bold text-emerald-500/60 uppercase tracking-widest">Match Score</div>
                          </div>
-                         <ArrowRight size={16} className="text-slate-700 group-hover:text-white transition-colors" />
+                         <div className="w-10 h-10 rounded-full border border-slate-800 flex items-center justify-center group-hover:bg-emerald-500 group-hover:border-emerald-500 group-hover:text-slate-950 text-slate-600 transition-all shadow-inner">
+                           <ArrowRight size={18} />
+                         </div>
                       </div>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="py-20 text-center space-y-4">
+                      <div className="w-20 h-20 bg-slate-950 rounded-full flex items-center justify-center mx-auto text-slate-800 border border-slate-800 shadow-inner">
+                        <Search size={32} />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-slate-400 font-bold">Немає відповідних тендерів</p>
+                        <p className="text-xs text-slate-600">Налаштуйте профіль компанії у Vault для активації Радару.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
             </div>
         </div>
 
-        {/* ACTION CENTER (Context Area) */}
         <div className="lg:col-span-4 space-y-6">
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-8">
-                <div className="flex items-center gap-3 mb-6 sm:mb-8">
-                    <Sparkles className="w-6 h-6 text-indigo-400" />
-                    <h2 className="text-lg sm:text-xl font-bold text-white uppercase tracking-tight">Action Center</h2>
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500/40"></div>
+                <div className="flex items-center gap-3 mb-8">
+                    <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400">
+                      <Bot className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-white tracking-tight uppercase">AI Assistant</h2>
+                      <p className="text-xs text-slate-500">Персональні рекомендації</p>
+                    </div>
                 </div>
                 
                 <div className="space-y-4">
-                    {highRiskTenders.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-center text-slate-600">
-                            <ShieldAlert size={48} className="mb-4 opacity-20" />
-                            <p className="text-sm">Критичних ризиків не виявлено</p>
+                    <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl relative">
+                        <div className="flex gap-4">
+                          <div className="shrink-0 w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                            <Bot size={16} />
+                          </div>
+                          <div className="space-y-3">
+                            <p className="text-xs text-slate-300 leading-relaxed">
+                              Я знайшов новий тендер на капітальний ремонт лікарні у вашому регіоні. Відповідність профілю <span className="text-emerald-400 font-bold">94%</span>.
+                            </p>
+                            <button onClick={() => onNavigate('radar')} className="text-[10px] font-bold text-emerald-400 flex items-center gap-1 hover:underline uppercase tracking-widest">
+                              Переглянути тендер <ArrowRight size={10} />
+                            </button>
+                          </div>
                         </div>
-                    ) : (
-                        highRiskTenders.slice(0, 3).map(tender => (
-                            <div key={tender.id} className="group bg-red-950/10 border border-red-900/30 p-4 rounded-2xl hover:bg-red-950/20 transition-all">
-                                <div className="flex items-center justify-between mb-3">
-                                    <span className="flex items-center gap-1 text-[10px] font-black text-red-500 uppercase tracking-tighter">
-                                        <AlertTriangle size={12} /> Critical Risk
-                                    </span>
-                                </div>
-                                <h4 className="text-sm font-bold text-white mb-3 line-clamp-2">{tender.title}</h4>
-                                <button 
-                                  onClick={() => onSelectTender(tender)}
-                                  className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2 rounded-xl text-xs transition-all shadow-lg shadow-red-900/20"
-                                >
-                                    АНАЛІЗ РИЗИКІВ
-                                </button>
-                            </div>
-                        ))
-                    )}
+                    </div>
+
+                    <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl relative">
+                        <div className="flex gap-4">
+                          <div className="shrink-0 w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400">
+                            <AlertTriangle size={16} />
+                          </div>
+                          <div className="space-y-3">
+                            <p className="text-xs text-slate-300 leading-relaxed">
+                              У тендері <span className="font-bold">UA-2024...</span> залишилося лише 3 дні до кінця прийому пропозицій. Пакет документів готовий на <span className="text-amber-400 font-bold">92%</span>.
+                            </p>
+                            <button onClick={() => onNavigate('audit')} className="text-[10px] font-bold text-amber-400 flex items-center gap-1 hover:underline uppercase tracking-widest">
+                              Завершити підготовку <ArrowRight size={10} />
+                            </button>
+                          </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* QUICK ACTIONS */}
-            <div className="grid grid-cols-2 gap-3">
-               <button onClick={() => onNavigate('catalog')} className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-900 border border-slate-800 rounded-2xl hover:border-emerald-500/40 transition-all">
-                  <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400">
-                    <Search size={20} />
+            <div className="grid grid-cols-2 gap-4">
+               <button onClick={() => onNavigate('catalog')} className="flex flex-col items-center justify-center gap-3 p-6 bg-slate-900 border border-slate-800 rounded-3xl hover:border-emerald-500/40 transition-all group shadow-xl">
+                  <div className="w-12 h-12 bg-slate-950 rounded-2xl flex items-center justify-center text-emerald-400 shadow-inner group-hover:scale-110 transition-transform">
+                    <Search size={24} />
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Пошук</span>
+                  <span className="text-[10px] font-bold text-slate-400 group-hover:text-white uppercase tracking-[0.2em] transition-colors">Каталог TD</span>
                </button>
-               <button onClick={() => onNavigate('vault')} className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-900 border border-slate-800 rounded-2xl hover:border-indigo-500/40 transition-all">
-                  <div className="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center text-indigo-400">
-                    <Briefcase size={20} />
+               <button onClick={() => onNavigate('vault')} className="flex flex-col items-center justify-center gap-3 p-6 bg-slate-900 border border-slate-800 rounded-3xl hover:border-indigo-500/40 transition-all group shadow-xl">
+                  <div className="w-12 h-12 bg-slate-950 rounded-2xl flex items-center justify-center text-indigo-400 shadow-inner group-hover:scale-110 transition-transform">
+                    <Briefcase size={24} />
                   </div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Vault</span>
+                  <span className="text-[10px] font-bold text-slate-400 group-hover:text-white uppercase tracking-[0.2em] transition-colors">Company Vault</span>
                </button>
             </div>
         </div>

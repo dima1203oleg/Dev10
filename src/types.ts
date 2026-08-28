@@ -315,7 +315,7 @@ export interface Tender {
   customer: string;
   customerEdrpou: string;
   customerCity: string;
-  budgetUah: number;
+  budgetUah: number | null;
   deadline: string;
   region: string;
   status: 'ACTIVE' | 'AUDIT_FLAGGED' | 'BID_IN_PREPARATION' | 'COMPLETED' | 'AMCU_FILED' | 'INTERNAL_PROJECT';
@@ -347,7 +347,7 @@ export interface Tender {
     retrievedAt: string;
     hash?: string;
   };
-  createdDate: string;
+  createdDate: string | null;
 }
 
 export interface ChatMessage {
@@ -467,6 +467,17 @@ export interface CompanyProfile {
   staff: StaffMember[];
   contracts: ExperienceContract[];
   vaultDocuments: VaultDocument[];
+  
+  // New Radar Profile Fields
+  regionsOfWork?: string[];
+  minBudgetUah?: number;
+  maxBudgetUah?: number;
+  preferredMarginPercent?: number;
+  subcontractingReadiness?: boolean;
+  rapidScalingCapability?: boolean;
+  cpvCodes?: string[];
+  typesOfWork?: string[];
+
   historicalStats?: {
     totalParticipated: number;
     wonCount: number;
@@ -474,5 +485,17 @@ export interface CompanyProfile {
     disqualifiedCount: number;
     totalWonAmountUah: number;
   };
+}
+
+// REAL DATA ONLY: Standard Provenance Data Model
+export type ProvenanceType = 'FACT' | 'AI_ESTIMATE' | 'NOT_AVAILABLE' | 'INSUFFICIENT_DATA';
+
+export interface DataPoint<T = any> {
+  value: T;
+  source: string;
+  timestamp: string;
+  confidence: number; // 0.0 - 1.0
+  provenance: string;
+  type: ProvenanceType;
 }
 

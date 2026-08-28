@@ -38,6 +38,20 @@ export default function App() {
   
   const [dbLoading, setDbLoading] = useState(false);
 
+  // Fetch documents when tender changes
+  useEffect(() => {
+    if (currentTender && token) {
+      fetch(`/api/tenders/${currentTender.id}/documents`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(data => setTenderDocuments(data))
+      .catch(console.error);
+    } else {
+      setTenderDocuments([]);
+    }
+  }, [currentTender, token]);
+
   useEffect(() => {
     if (user && token) {
       setDbLoading(true);
@@ -231,6 +245,61 @@ export default function App() {
     setCurrentTender(newTender);
   };
 
+  const handleUploadDocuments = async (files: File[]) => {
+    if (!currentTender || !token) return;
+    
+    for (const file of files) {
+      try {
+        const response = await fetch(`/api/tenders/${currentTender.id}/documents`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            name: file.name,
+            type: file.name.toUpperCase().includes('BOQ') ? 'BOQ' : 'TECHNICAL',
+            size: file.size
+          })
+        });
+        const newDoc = await response.json();
+        setTenderDocuments(prev => [...prev, newDoc]);
+      } catch (err) {
+        console.error('Failed to upload doc:', err);
+      }
+    }
+  };
+
+  const handleProcessDocumentAI = async (docId: string) => {
+    if (!currentTender || !token) return;
+    
+    // Optimistic UI
+    setTenderDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: 'PROCESSING' } : d));
+    
+    try {
+      const response = await fetch(`/api/tenders/${currentTender.id}/documents/${docId}/analyze`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error('AI Analysis failed');
+      const updatedDoc = await response.json();
+      setTenderDocuments(prev => prev.map(d => d.id === docId ? updatedDoc : d));
+    } catch (err) {
+      console.error('AI Analysis failed:', err);
+      setTenderDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: 'ERROR' } : d));
+    }
+  };
+
+  const handleDeleteDocument = async (docId: string) => {
+    if (!currentTender || !token) return;
+    try {
+      await fetch(`/api/tenders/${currentTender.id}/documents/${docId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setTenderDocuments(prev => prev.filter(d => d.id !== docId));
+    } catch (err) {
+      console.error('Delete doc failed:', err);
+    }
+  };
+
   const handleUpdateCompany = async (updated: CompanyProfile) => {
     setCompanyProfile(updated);
     if (!token) return;
@@ -412,16 +481,9 @@ export default function App() {
               <DocumentWorkspace 
                 tender={currentTender} 
                 documents={tenderDocuments}
-                onUpload={(files) => {
-                  // Mock upload for now, real implementation would hit /api/tenders/:id/documents
-                  console.log('Uploading files:', files);
-                }}
-                onProcessAI={(docId) => {
-                  console.log('Processing AI for doc:', docId);
-                }}
-                onDelete={(docId) => {
-                  setTenderDocuments(prev => prev.filter(d => d.id !== docId));
-                }}
+                onUpload={handleUploadDocuments}
+                onProcessAI={handleProcessDocumentAI}
+                onDelete={handleDeleteDocument}
               />
             )}
           </>

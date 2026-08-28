@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
 import { db } from "./src/db/index.ts";
-import { tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable } from "./src/db/schema.ts";
+import { tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments } from "./src/db/schema.ts";
 import { eq, and } from "drizzle-orm";
 import { searchProzorroTenders, calculatePersonalRadarMatch, fetchProzorroTenderFullDetail } from "./src/connectors/prozorro.ts";
 import { parseTenderQuery } from "./src/connectors/queryParser.ts";
@@ -494,126 +494,123 @@ app.get("/api/prozorro/tender/:id", requireAuth, async (req: AuthRequest, res) =
   }
 });
 
+// API: Document Management
+app.get("/api/tenders/:tenderId/documents", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { tenderId } = req.params;
+    const docs = await db.select().from(tenderDocuments).where(eq(tenderDocuments.tenderId, parseInt(tenderId)));
+    res.json(docs);
+  } catch (error) {
+    console.error("Fetch documents error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
-// Mock Gemini client to support zero-config seamless local development without popping up API key requests
-class MockGoogleGenAI {
-  models = {
-    generateContent: async ({ model, contents, config }: any) => {
-      const prompt = String(contents || "");
-      let text = "";
+app.post("/api/tenders/:tenderId/documents", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { tenderId } = req.params;
+    const { name, type, size } = req.body;
+    
+    const newDoc = await db.insert(tenderDocuments).values({
+      id: crypto.randomUUID(),
+      tenderId: parseInt(tenderId),
+      name,
+      type: type || 'OTHER',
+      status: 'IDLE',
+      size: size || 0,
+      uploadedAt: new Date()
+    }).returning();
+    
+    res.json(newDoc[0]);
+  } catch (error) {
+    console.error("Create document error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
-      if (prompt.includes("foulScore") || prompt.includes("violations") || prompt.includes("DISCRIMINATORY_REQUIREMENT")) {
-        text = JSON.stringify({
-          foulScore: 45,
-          riskLevel: "MEDIUM",
-          summary: "Аналіз виявив помірний корупційний ризик. Виявлено декілька потенційно дискримінаційних кваліфікаційних вимог, зокрема щодо надмірного досвіду та територіальних обмежень для лабораторії.",
-          violations: [
-            {
-              type: "DISCRIMINATORY_REQUIREMENT",
-              severity: "HIGH",
-              title: "Обмеження відстані до випробувальної лабораторії",
-              description: "Вимога щодо наявності лабораторії на відстані не більше 15 км штучно звужує коло потенційних учасників та надає неправомірну перевагу місцевим компаніям.",
-              exactQuote: "наявність власної акредитованої лабораторії не далі 15 км від об'єкта",
-              legalBasis: "ст. 5 ч. 4 ЗУ 'Про публічні закупівлі' (дискримінаційні вимоги заборонені)",
-              amcuPrecedent: "Рішення Колегії АМКУ № 4920-р/пк-пк: вимоги щодо конкретної відстані до бази або лабораторії є дискримінаційними та підлягають усуненню."
-            },
-            {
-              type: "UNREALISTIC_TIMELINE",
-              severity: "MEDIUM",
-              title: "Штучно стислий термін виконання робіт",
-              description: "Строк виконання 10 робочих днів для капітального будівництва є нереалістичним та може свідчити про завчасну домовленість з конкретним виконавцем.",
-              exactQuote: "термін виконання робіт 10 робочих днів",
-              legalBasis: "ст. 5 ч. 1 ЗУ 'Про публічні закупівлі' (максимальна економія та ефективність)",
-              amcuPrecedent: "Колегія АМКУ неодноразово зазначала, що строк виконання має бути обґрунтованим обсягом робіт."
-            }
-          ],
-          amcuAppealRecommendation: {
-            recommended: true,
-            prospectsText: "Високі шанси на задоволення скарги в Колегії АМКУ щодо відстані лабораторії.",
-            appealGrounds: "Встановлення вимог про географічну обмеженість лабораторії прямо порушує закон.",
-            estimatedAmcuFeeUah: 15000
-          }
-        }, null, 2);
-      } else if (prompt.includes("СКАРГА") || prompt.includes("complainantName") || prompt.includes("generate-complaint")) {
-        text = `# СКАРГА
-до Постійно діючої адміністративної колегії Антимонопольного комітету України з розгляду скарг про порушення законодавства у сфері публічних закупівель
+app.delete("/api/tenders/:tenderId/documents/:docId", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { docId } = req.params;
+    await db.delete(tenderDocuments).where(eq(tenderDocuments.id, docId));
+    res.json({ status: "deleted" });
+  } catch (error) {
+    console.error("Delete document error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
-**Суб'єкт оскарження:** ТОВ "БудПостач-Сервіс" (ЄДРПОУ 39201948)
-**Замовник:** Департамент інфраструктури та житлово-комунального господарства
-
-## ПОЛОЖЕННЯ ТЕНДЕРНОЇ ДОКУМЕНТАЦІЇ, ЩО ОСКАРЖУЮТЬСЯ
-Замовником у Додатку 2 до Тендерної документації встановлено дискримінаційну вимогу: "наявність власної акредитованої лабораторії не далі 15 км від об'єкта".
-
-## ОБҐРУНТУВАННЯ НАЯВНОСТІ ПОРУШЕНИХ ПРАВ
-Зазначена вимога штучно обмежує коло учасників лише тими підприємствами, які географічно розташовані безпосередньо поруч із місцем надання послуг. Скаржник має акредитовану мобільну лабораторію на відстані 40 км, яка повністю задовольняє технологічним вимогам, але формально не відповідає критерію відстані.
-
-## РІШЕННЯ АМКУ ТА ПРАКТИКА
-Згідно зі сталою практикою Колегії АМКУ, географічні обмеження на відстань до баз, заводів чи лабораторій визнаються дискримінаційними (див. Рішення № 4920-р/пк-пк).
-
-## ПРОСИМО:
-1. Прийняти скаргу до розгляду.
-2. Зобов'язати Замовника усунути дискримінаційну вимогу щодо відстані лабораторії.
-
-З повагою,
-Директор ТОВ "БудПостач-Сервіс"`;
-      } else if (prompt.includes("multi-agent-analyze")) {
-        text = JSON.stringify({
-          summary: "Мультиагентний консиліум завершив перевірку тендеру. Виявлено клюжові зони ризику та надано спільні рекомендації щодо стратегії участі.",
-          agents: {
-            "Legal Auditor": "Правові ризики середнього рівня. Рекомендовано оскаржити вимогу щодо лабораторії в АМКУ.",
-            "Risk Assessor": "Фінансові ризики мінімальні. Бюджет відповідає ринку, але терміни виконання занадто жорсткі.",
-            "Technical Expert": "Технічна специфікація стандартна, але містить приховане посилання на одного виробника матеріалів."
-          },
-          conclusion: "Рекомендується участь за умови оскарження дискримінаційних умов до закінчення строку подання."
-        });
-      } else if (prompt.includes("collusion") || prompt.includes("collusion-detect")) {
-        text = JSON.stringify({
-          collusionScore: 78,
-          riskFactors: [
-            "Ідентичні помилки у текстових документах та метаданих файлів конкурентів.",
-            "Спільне використання однієї IP-адреси для подання пропозицій за минулими закупівлями.",
-            "Синхронне завантаження файлів з інтервалом у 2 хвилини."
-          ],
-          analysis: "Виявлено високу ймовірність координації дій між ТОВ 'Альфа-Буд' та ТОВ 'Бета-Груп'. Рекомендується провести поглиблений аудит перед поданням."
-        });
-      } else if (prompt.includes("version-diff")) {
-        text = JSON.stringify({
-          hasChanges: true,
-          changesDetected: [
-            "Додано вимогу про наявність аналогічного договору на суму не менше 100% бюджету (раніше було 50%).",
-            "Змінено строк оплати з 30 календарних днів на 180 робочих днів."
-          ],
-          impactAssessment: "Зміни суттєво погіршують умови для невеликих компаній та створюють касові розриви через затримку оплати."
-        });
-      } else if (prompt.includes("readiness") || prompt.includes("readiness-audit")) {
-        text = JSON.stringify({
-          isReady: false,
-          score: 82,
-          missingDocuments: [
-            "Довідка про наявність матеріально-технічної бази (Додаток 1.1)",
-            "Копія ліцензії на провадження господарської діяльності"
-          ],
-          validationErrors: [
-            "У файлі 'Цінова_пропозиція.pdf' вказана сума без ПДВ, що суперечить вимогам ТД."
-          ]
-        });
-      } else {
-        text = "Я проаналізував ваш запит щодо закупівлі Prozorro. Відповідно до статті 16 Закону України «Про публічні закупівлі», замовник має право встановлювати виключно передбачені кваліфікаційні критерії. Якщо у вас виникли додаткові питання щодо технічної документації, напишіть їх.";
-      }
-
-      return { text };
+app.post("/api/tenders/:tenderId/documents/:docId/analyze", requireAuth, async (req: AuthRequest, res) => {
+  const { tenderId, docId } = req.params;
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    
+    if (!apiKey) {
+      return res.status(503).json({ error: "Gemini API Key missing" });
     }
-  };
-}
 
-// Lazy Google GenAI initialization
+    // 1. Mark as processing
+    await db.update(tenderDocuments).set({ status: 'PROCESSING' }).where(eq(tenderDocuments.id, docId));
+
+    // 2. Fetch tender context for better AI analysis
+    const tender = await db.select().from(tendersTable).where(eq(tendersTable.id, parseInt(tenderId)));
+    const tenderData = tender[0];
+    const doc = await db.select().from(tenderDocuments).where(eq(tenderDocuments.id, docId));
+    const docData = doc[0];
+
+    const ai = getGeminiClient();
+    if (!ai) throw new Error("AI Client init failed");
+
+    // Since we don't have the real file content in DB (only metadata for now in this sandbox), 
+    // we simulate the extraction of *real-looking* data based on the tender title if content is missing.
+    // In a real prod app, you'd send the PDF buffer to Gemini.
+    const prompt = `
+      Аналізуй документ "${docData.name}" для тендеру "${tenderData.title}".
+      Тендер №: ${tenderData.tenderNumber}
+      Замовник: ${tenderData.customer}
+      
+      ЗАВДАННЯ:
+      Витягни ключові умови:
+      1. Перелік необхідних документів.
+      2. Технічні характеристики (BOQ).
+      3. Кваліфікаційні вимоги.
+      4. Ризики (дискримінація).
+      
+      Відповідь надай ТІЛЬКИ в JSON:
+      {
+        "type": "TECHNICAL" | "BOQ" | "LEGAL",
+        "extractedRequirements": ["вимога 1", "вимога 2"],
+        "riskFlags": ["ризик 1"],
+        "summary": "стислий опис змісту"
+      }
+    `;
+
+    const result = await generateContentWithFallback(ai, {
+      contents: prompt,
+      config: { responseMimeType: "application/json" }
+    });
+
+    const cleanJson = result.text.replace(/```json|```/g, "").trim();
+    const extracted = JSON.parse(cleanJson);
+
+    const updated = await db.update(tenderDocuments).set({
+      status: 'EXTRACTED',
+      type: extracted.type || docData.type,
+      extractedData: extracted
+    }).where(eq(tenderDocuments.id, docId)).returning();
+
+    res.json(updated[0]);
+  } catch (error) {
+    console.error("Analyze document error:", error);
+    await db.update(tenderDocuments).set({ status: 'ERROR' }).where(eq(tenderDocuments.id, docId));
+    res.status(500).json({ error: "Internal server error during analysis" });
+  }
+});
+
+
+// Google GenAI initialization
 function getGeminiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("[Gemini] GEMINI_API_KEY is not configured. Falling back to Mock Client for seamless development.");
-      return new MockGoogleGenAI() as any;
-    }
     return null;
   }
   return new GoogleGenAI({
@@ -802,10 +799,8 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
 
     // 6. AI Engine
     const ai = getGeminiClient();
-    if (ai && !(ai instanceof MockGoogleGenAI)) {
+    if (ai) {
       results.ai_engine = { status: "PASS", details: "Gemini Pro configured" };
-    } else if (ai instanceof MockGoogleGenAI) {
-      results.ai_engine = { status: "WARNING", details: "Using Mock AI (Non-Production)" };
     } else {
       results.ai_engine = { status: "FAIL", details: "Gemini API key missing" };
     }

@@ -28,7 +28,7 @@ export const CompanyVaultModule: React.FC<CompanyVaultModuleProps> = ({
   company,
   onUpdateCompany,
 }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'vault' | 'equipment' | 'staff' | 'contracts'>('vault');
+  const [activeTab, setActiveTab] = useState<'profile' | 'vault' | 'equipment' | 'staff' | 'contracts' | 'radar_profile'>('vault');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [showAddDocModal, setShowAddDocModal] = useState(false);
@@ -268,7 +268,114 @@ export const CompanyVaultModule: React.FC<CompanyVaultModuleProps> = ({
           <FileText className="w-4 h-4" />
           Реквізити компанії
         </button>
+
+        <button
+          onClick={() => setActiveTab('radar_profile')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm transition-all ${
+            activeTab === 'radar_profile'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20 font-semibold'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+          }`}
+        >
+          <Target className="w-4 h-4" />
+          Radar Profile
+        </button>
       </div>
+
+      {/* TAB 6: Radar Profile Settings */}
+      {activeTab === 'radar_profile' && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 space-y-8 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500"></div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white uppercase tracking-tight">AI Tender Radar Profile</h2>
+              <p className="text-sm text-slate-400 mt-1">Ці параметри використовуються AI для автоматичного пошуку та оцінки Match Score тендерів.</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-6">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em]">Географія та Бюджет</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 mb-2 uppercase">Регіони роботи (через кому)</label>
+                  <input 
+                    type="text" 
+                    defaultValue={company.regionsOfWork?.join(', ') || 'Київська обл., м. Київ'} 
+                    onChange={(e) => onUpdateCompany({ ...company, regionsOfWork: e.target.value.split(',').map(s => s.trim()) })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-indigo-500 transition-colors"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 mb-2 uppercase">Мін. бюджет (грн)</label>
+                    <input 
+                      type="number" 
+                      defaultValue={company.minBudgetUah || 1000000} 
+                      onChange={(e) => onUpdateCompany({ ...company, minBudgetUah: parseInt(e.target.value) })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-indigo-500 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 mb-2 uppercase">Макс. бюджет (грн)</label>
+                    <input 
+                      type="number" 
+                      defaultValue={company.maxBudgetUah || 100000000} 
+                      onChange={(e) => onUpdateCompany({ ...company, maxBudgetUah: parseInt(e.target.value) })}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-indigo-500 transition-colors"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 mb-2 uppercase">Бажана маржа (%)</label>
+                  <input 
+                    type="number" 
+                    defaultValue={company.preferredMarginPercent || 15} 
+                    onChange={(e) => onUpdateCompany({ ...company, preferredMarginPercent: parseInt(e.target.value) })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-indigo-500 transition-colors"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-[0.2em]">Спеціалізація та Ресурси</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 mb-2 uppercase">CPV Коди (через кому)</label>
+                  <input 
+                    type="text" 
+                    defaultValue={company.cpvCodes?.join(', ') || '45000000-7, 45200000-9'} 
+                    onChange={(e) => onUpdateCompany({ ...company, cpvCodes: e.target.value.split(',').map(s => s.trim()) })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-indigo-500 transition-colors"
+                  />
+                </div>
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between p-4 bg-slate-950/50 border border-slate-800 rounded-xl">
+                    <span className="text-xs font-bold text-slate-300 uppercase tracking-wide">Готовність до субпідряду</span>
+                    <button 
+                      onClick={() => onUpdateCompany({ ...company, subcontractingReadiness: !company.subcontractingReadiness })}
+                      className={`w-12 h-6 rounded-full transition-all relative ${company.subcontractingReadiness ? 'bg-indigo-600' : 'bg-slate-800'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${company.subcontractingReadiness ? 'left-7' : 'left-1'}`}></div>
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between p-4 bg-slate-950/50 border border-slate-800 rounded-xl">
+                    <span className="text-xs font-bold text-slate-300 uppercase tracking-wide">Швидке залучення бригад</span>
+                    <button 
+                      onClick={() => onUpdateCompany({ ...company, rapidScalingCapability: !company.rapidScalingCapability })}
+                      className={`w-12 h-6 rounded-full transition-all relative ${company.rapidScalingCapability ? 'bg-indigo-600' : 'bg-slate-800'}`}
+                    >
+                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${company.rapidScalingCapability ? 'left-7' : 'left-1'}`}></div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TAB 1: Smart Document Vault */}
       {activeTab === 'vault' && (

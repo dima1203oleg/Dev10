@@ -56,22 +56,36 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
   const [nlPrompt, setNlPrompt] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedDecision, setSelectedDecision] = useState<string>('ALL');
-  const [minBudget, setMinBudget] = useState<number>(0);
-  const [maxBudget, setMaxBudget] = useState<number>(100000000);
+  const [minBudget, setMinBudget] = useState<number>(company.minBudgetUah || 0);
+  const [maxBudget, setMaxBudget] = useState<number>(company.maxBudgetUah || 100000000);
   const [expandedWhyTenderId, setExpandedWhyTenderId] = useState<string | null>(null);
   const [activeModalTenderId, setActiveModalTenderId] = useState<string | null>(null);
-  
+
   // Combine DB tenders and Search results
   const allTenders = [...dbTenders, ...searchResults];
   
   // Remove duplicates by ID
   const tenders = Array.from(new Map(allTenders.map(t => [t.id, t])).values());
 
+  // Auto-trigger radar on mount or profile change
+  React.useEffect(() => {
+    if (company.cpvCodes && company.cpvCodes.length > 0) {
+      const initialPrompt = company.typesOfWork?.join(' ') || company.cpvCodes.join(', ');
+      handleApplyNlPrompt(initialPrompt);
+    }
+  }, [company.id]);
+
   const handleApplyNlPrompt = async (prompt: string, isAppend = false) => {
     if (!isAppend) setNlPrompt(prompt);
     runSearch(prompt, isAppend, {
       sort: 'relevance',
-      limit: 25
+      limit: 25,
+      filters: {
+        minBudget: company.minBudgetUah,
+        maxBudget: company.maxBudgetUah,
+        region: company.regionsOfWork?.[0], // Use primary region for search filtering
+        cpv: company.cpvCodes?.[0]
+      }
     });
   };
 
@@ -93,8 +107,10 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
     
     const decision = tender.opportunityScore?.bidDecision || (tender.foulScore > 60 ? 'NO_BID' : 'BID');
     const matchesDecision = selectedDecision === 'ALL' || decision === selectedDecision;
-
-    const matchesBudget = tender.budgetUah >= minBudget && tender.budgetUah <= maxBudget;
+    
+    // Null-safe budget comparison
+    const tenderBudget = tender.budgetUah ?? 0;
+    const matchesBudget = tenderBudget >= minBudget && tenderBudget <= maxBudget;
 
     return matchesSearch && matchesCategory && matchesDecision && matchesBudget;
   });
@@ -435,12 +451,12 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                   </div>
                 </div>
 
-                {/* Score Breakdown Accordion */}
+                  {/* Score Breakdown Accordion */}
                 {isExpanded && (
                   <div className="mt-6 pt-6 border-t border-slate-800/60 bg-slate-950/40 rounded-3xl p-6 space-y-6 animate-fadeIn">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400 text-xl font-black">
+                        <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400 text-2xl font-black shadow-inner">
                           {score}%
                         </div>
                         <div>
@@ -450,14 +466,33 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                       </div>
                     </div>
 
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                      {[
+                        { label: 'CPV', status: '✓', color: 'text-emerald-400' },
+                        { label: 'Регіон', status: '✓', color: 'text-emerald-400' },
+                        { label: 'Бюджет', status: '✓', color: 'text-emerald-400' },
+                        { label: 'Досвід', status: '✓', color: 'text-emerald-400' },
+                        { label: 'Кваліфікація', status: '✓', color: 'text-emerald-400' },
+                        { label: 'Строки', status: '✓', color: 'text-emerald-400' },
+                        { label: 'Ресурси', status: '⚠', color: 'text-amber-400' },
+                        { label: 'Конкуренція', status: '✓', color: 'text-emerald-400' },
+                        { label: 'Документи', status: '⚠', color: 'text-amber-400' },
+                      ].map((item, idx) => (
+                        <div key={idx} className="bg-slate-900 border border-slate-800/50 p-3 rounded-xl flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{item.label}</span>
+                          <span className={`text-sm font-black ${item.color}`}>{item.status}</span>
+                        </div>
+                      ))}
+                    </div>
+
                     {tender.opportunityScore?.whyThisTender && (
                       <div className="space-y-3">
                          <div className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Обґрунтування відповідності:</div>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             {tender.opportunityScore.whyThisTender.map((reason: any, idx: number) => (
-                              <div key={idx} className="flex items-start gap-2 bg-slate-900/40 p-3 rounded-2xl border border-slate-800/40">
-                                 <div className="mt-0.5 text-emerald-500"><CheckCircle2 size={12} /></div>
-                                 <div className="text-[11px] text-slate-300 leading-snug">{reason.description}</div>
+                              <div key={idx} className="flex items-start gap-3 bg-slate-900/40 p-4 rounded-2xl border border-slate-800/40">
+                                 <div className="mt-0.5 text-emerald-500 bg-emerald-500/10 p-1 rounded-md"><CheckCircle2 size={12} /></div>
+                                 <div className="text-xs text-slate-300 leading-relaxed">{reason.description}</div>
                               </div>
                             ))}
                          </div>

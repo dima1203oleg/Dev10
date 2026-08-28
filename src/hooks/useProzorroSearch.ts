@@ -105,15 +105,15 @@ export function useProzorroSearch() {
             customer: t.customer || "НЕВІДОМИЙ ЗАМОВНИК",
             customerEdrpou: t.customerEdrpou || t.detailedData?.customerEdrpou || 'NOT_AVAILABLE',
             customerCity: t.customerCity || t.detailedData?.customerCity || 'НЕВІДОМО',
-            budgetUah: parseFloat(t.budgetUah) || 0,
+            budgetUah: t.budgetUah !== undefined && t.budgetUah !== null ? parseFloat(t.budgetUah) : null,
             deadline: t.deadline || t.detailedData?.deadline || 'НЕВІДОМО',
             region: t.region || t.customerCity || t.detailedData?.region || 'Україна',
             status: t.status === 'active' ? 'ACTIVE' : 'AUDIT_FLAGGED',
             category: t.category || t.detailedData?.category || 'Будівельні роботи',
-            foulScore: t.foulScore || 0,
-            riskLevel: t.riskLevel || 'LOW',
+            foulScore: t.foulScore !== undefined ? t.foulScore : null,
+            riskLevel: t.riskLevel || 'NOT_ANALYZED',
             summary: t.summary || '',
-            createdDate: t.datePublished || t.retrievedAt || new Date().toISOString(),
+            createdDate: t.datePublished || null,
             boqItems: [],
             violations: [],
             requirements: [],
@@ -121,12 +121,12 @@ export function useProzorroSearch() {
             opportunityScore: t.fitScore ? {
                 overallScore: t.fitScore,
                 bidDecision: t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL' ? 'BID_WITH_CONDITIONS' : 'BID',
-                bidDecisionReason: t.radarReasons?.[0] || "Аналіз за даними Vault",
+                bidDecisionReason: (t.radarReasons?.[0]?.description || t.radarReasons?.[0] || "Аналіз за даними Vault"),
                 factors: t.fitFactors || null,
-                whyThisTender: (t.radarReasons || []).map((r: string) => ({
+                whyThisTender: (t.radarReasons || []).map((r: any) => ({
                   icon: "Shield",
                   title: "Відповідність",
-                  description: r,
+                  description: typeof r === 'string' ? r : r.description,
                   type: "POSITIVE"
                 }))
             } : undefined
@@ -136,6 +136,12 @@ export function useProzorroSearch() {
           setResults(prev => {
             const existingIds = new Set(prev.map(t => t.id));
             const uniqueNew = mapped.filter(t => !existingIds.has(t.id));
+            
+            // PRODUCTION GATE: If no new unique results found, stop pagination
+            if (uniqueNew.length === 0 && mapped.length > 0) {
+              setHasMore(false);
+            }
+            
             return [...prev, ...uniqueNew];
           });
         } else {

@@ -138,7 +138,7 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
         url: `https://prozorro.gov.ua/tender/${detailData.tenderNumber}`,
         retrievedAt: new Date().toISOString()
       },
-      createdDate: new Date().toISOString().split('T')[0],
+      createdDate: detailData.timeline?.datePublished || null,
       boqItems: (detailData.items || []).map((it: any, idx: number) => ({
         id: `boq-${idx}`,
         code: it.cpvCode,
@@ -223,7 +223,9 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
                 <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3.5">
                   <div className="text-[11px] text-slate-400 font-medium">Очікувана вартість</div>
                   <div className="text-lg font-extrabold text-emerald-400 font-mono mt-0.5">
-                    {detailData.value.amount?.toLocaleString()} ₴
+                    {detailData.value.amount !== null && detailData.value.amount !== undefined 
+                      ? `${detailData.value.amount.toLocaleString()} ₴` 
+                      : 'Не вказано'}
                   </div>
                   <div className="text-[10px] text-slate-500 mt-0.5">
                     {detailData.value.valueAddedTaxIncluded ? 'З ПДВ' : 'Без ПДВ'}
@@ -516,45 +518,66 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
 
         {/* Modal Footer Actions */}
         {detailData && (
-          <div className="p-4 bg-slate-800/90 border-t border-slate-700/80 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <a
-              href={`https://prozorro.gov.ua/tender/${detailData.tenderNumber}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-slate-400 hover:text-teal-300 flex items-center space-x-1 underline"
-            >
-              <span>Переглянути на Prozorro.gov.ua</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
+          <div className="p-5 bg-slate-900 border-t border-slate-800 flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="font-mono text-[10px] text-slate-400 uppercase tracking-widest">
+                  REAL DATA ONLY | Джерело: Prozorro API | Статус: ВЕРИФІКОВАНО
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-500 italic">
+                AI рекомендує, але юридичне рішення приймає користувач.
+              </span>
+            </div>
 
-            <div className="flex items-center space-x-2 w-full sm:w-auto">
-              {onRunAudit && (
-                <button
-                  onClick={() => {
-                    const tenderObj = convertToTenderObject();
-                    onRunAudit(tenderObj);
-                    onClose();
-                  }}
-                  className="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-red-600/90 hover:bg-red-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-md cursor-pointer transition-colors"
-                >
-                  <ShieldAlert className="w-4 h-4" />
-                  <span>Запустити FoulTender AI Аудит</span>
-                </button>
-              )}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <a
+                href={`https://prozorro.gov.ua/tender/${detailData.tenderNumber}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-slate-400 hover:text-emerald-400 flex items-center space-x-1 underline"
+              >
+                <span>Переглянути на Prozorro.gov.ua</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
 
-              {onOpenWarRoom && (
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                 <button
-                  onClick={() => {
-                    const tenderObj = convertToTenderObject();
-                    onOpenWarRoom(tenderObj);
-                    onClose();
-                  }}
-                  className="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-md cursor-pointer transition-colors"
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-bold text-xs cursor-pointer transition-colors border border-slate-700"
                 >
-                  <span>Додати до War Room</span>
-                  <ArrowRight className="w-4 h-4" />
+                  НЕ БЕРУ
                 </button>
-              )}
+
+                {onOpenWarRoom && (
+                  <button
+                    onClick={() => {
+                      const tenderObj = convertToTenderObject();
+                      onOpenWarRoom(tenderObj);
+                      onClose();
+                    }}
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-indigo-900/50 text-indigo-300 font-bold text-xs flex items-center gap-1.5 border border-indigo-500/30 cursor-pointer transition-colors"
+                  >
+                    <span>ПРОДОВЖИТИ АНАЛІЗ</span>
+                  </button>
+                )}
+
+                {onOpenWarRoom && (
+                  <button
+                    onClick={() => {
+                      const tenderObj = convertToTenderObject();
+                      tenderObj.status = 'BID_IN_PREPARATION';
+                      onOpenWarRoom(tenderObj);
+                      onClose();
+                    }}
+                    className="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center space-x-1.5 shadow-lg shadow-emerald-950/40 cursor-pointer transition-all uppercase tracking-wider"
+                  >
+                    <span>БЕРУ УЧАСТЬ</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}

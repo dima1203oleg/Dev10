@@ -138,9 +138,9 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
         tenderNumber: importedPreview.tenderNumber || importedPreview.id,
         title: importedPreview.title,
         customer: importedPreview.customer || "Невідомий замовник",
-        budgetUah: importedPreview.budgetUah || 0,
+        budgetUah: (importedPreview.budgetUah !== undefined && importedPreview.budgetUah !== null) ? importedPreview.budgetUah : null,
         status: 'ACTIVE',
-        foulScore: importedPreview.foulScore,
+        foulScore: importedPreview.foulScore !== undefined ? importedPreview.foulScore : null,
         riskLevel: importedPreview.riskLevel || 'NOT_ANALYZED',
         summary: importedPreview.summary || 'Імпортовано з Prozorro.',
         detailedData: importedPreview
@@ -168,18 +168,18 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
         customer: savedTender.customer,
         customerEdrpou: savedTender.detailedData?.customerEdrpou || 'НЕВІДОМО',
         customerCity: savedTender.detailedData?.customerCity || 'НЕВІДОМО',
-        budgetUah: parseFloat(savedTender.budgetUah) || 0,
+        budgetUah: (savedTender.budgetUah !== undefined && savedTender.budgetUah !== null) ? parseFloat(savedTender.budgetUah) : null,
         deadline: savedTender.detailedData?.deadline || 'НЕВІДОМО',
         region: savedTender.detailedData?.region || 'Україна',
         status: savedTender.status,
         category: savedTender.detailedData?.category || 'Інше',
-        foulScore: savedTender.foulScore || undefined,
-        riskLevel: savedTender.riskLevel || 'LOW',
+        foulScore: savedTender.foulScore !== undefined ? savedTender.foulScore : null,
+        riskLevel: savedTender.riskLevel || 'NOT_ANALYZED',
         summary: savedTender.summary || '',
         tenderText: savedTender.detailedData?.tenderText || '',
         boqItems: savedTender.detailedData?.boqItems || [],
         violations: savedTender.detailedData?.violations || [],
-        createdDate: savedTender.detailedData?.datePublished || savedTender.createdAt
+        createdDate: savedTender.detailedData?.datePublished || null
       };
       
       onAddNewTender(tenderForUI);
@@ -206,7 +206,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
         tenderNumber: tempId,
         title: newTitle,
         customer: newCustomer,
-        budgetUah: parseFloat(newBudget) || 0,
+        budgetUah: newBudget ? parseFloat(newBudget) : null,
         status: 'INTERNAL_PROJECT',
         foulScore: null,
         riskLevel: 'LOW',
@@ -242,7 +242,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
         customer: saved.customer,
         customerEdrpou: 'INTERNAL',
         customerCity: newRegion,
-        budgetUah: parseFloat(saved.budgetUah) || 0,
+        budgetUah: (saved.budgetUah !== undefined && saved.budgetUah !== null) ? parseFloat(saved.budgetUah) : null,
         deadline: saved.detailedData?.deadline || '',
         region: newRegion,
         status: 'INTERNAL_PROJECT',
@@ -439,8 +439,10 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                       <span className="text-[10px] font-black text-emerald-500 uppercase tracking-tighter">New Result</span>
                    </div>
                    <h4 className="text-sm font-bold text-white leading-snug group-hover:text-emerald-400 transition-colors line-clamp-2 h-10">{tender.title}</h4>
-                   <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-widest pt-2 border-t border-slate-900">
-                      <span className="text-emerald-400 font-mono">{(tender.budgetUah).toLocaleString()} ₴</span>
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-widest pt-2 border-t border-slate-900">
+                      <span className="text-emerald-400 font-mono">
+                        {tender.budgetUah !== null ? `${tender.budgetUah.toLocaleString()} ₴` : 'Не вказано'}
+                      </span>
                       <span>{tender.customerCity}</span>
                    </div>
                    <div className="flex items-center gap-2 pt-2">
@@ -616,7 +618,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
 
                   <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center space-x-1 ${
                     !hasScore
-                      ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                      ? 'bg-slate-800 text-slate-500 border border-slate-700'
                       : isHighRisk 
                       ? 'bg-red-500/20 text-red-300 border border-red-500/40' 
                       : isClean 
@@ -624,7 +626,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                       : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                   }`}>
                     <ShieldAlert className="w-3 h-3" />
-                    <span>Foul Score: {hasScore ? `${scoreVal}/100` : 'Не аналізовано'}</span>
+                    <span>Foul Score: {hasScore ? `${scoreVal}/100` : 'Очікує аналізу'}</span>
                   </span>
 
                   {tender.violations.length > 0 && (
@@ -644,8 +646,10 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
 
                 <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300 pt-1">
                   <div>Замовник: <strong className="text-slate-200">{tender.customer}</strong></div>
-                  <div>Очікувана вартість: <strong className="text-emerald-400 font-mono">{(tender.budgetUah).toLocaleString()} ₴</strong></div>
-                  <div>Термін подання: <strong className="text-slate-300">{tender.deadline}</strong></div>
+                  <div>Очікувана вартість: <strong className="text-emerald-400 font-mono">
+                    {tender.budgetUah !== null ? `${tender.budgetUah.toLocaleString()} ₴` : 'Не вказано'}
+                  </strong></div>
+                  <div>Термін подання: <strong className="text-slate-300">{tender.deadline || 'Не вказано'}</strong></div>
                 </div>
               </div>
 
@@ -779,7 +783,11 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                     <h4 className="font-bold text-white text-sm line-clamp-2">{importedPreview.title}</h4>
                     <div className="space-y-1 text-slate-300">
                       <div>Замовник: <strong className="text-slate-200">{importedPreview.customer || importedPreview.customerName}</strong></div>
-                      <div>Очікувана вартість: <strong className="text-emerald-400 font-mono">{(importedPreview.budgetUah || importedPreview.value?.amount || 0).toLocaleString()} ₴</strong></div>
+                      <div>Очікувана вартість: <strong className="text-emerald-400 font-mono">
+                        {(importedPreview.budgetUah || importedPreview.value?.amount) 
+                          ? (importedPreview.budgetUah || importedPreview.value?.amount).toLocaleString() + ' ₴' 
+                          : 'Не вказано'}
+                      </strong></div>
                     </div>
                     <div className="pt-2 border-t border-slate-700/50 flex justify-end">
                       <button

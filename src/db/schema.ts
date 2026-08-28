@@ -31,7 +31,7 @@ export const tenders = pgTable('tenders', {
   tenderNumber: text('tender_number').notNull(),
   title: text('title').notNull(),
   customer: text('customer'),
-  budgetUah: integer('budget_uah'),
+  budgetUah: text('budget_uah'), // Stored as text to handle large numbers safely or use bigint
   status: text('status'),
   foulScore: integer('foul_score'),
   riskLevel: text('risk_level'),
@@ -39,6 +39,18 @@ export const tenders = pgTable('tenders', {
   detailedData: jsonb('detailed_data'), // Stores requirements, boqItems, etc.
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Tender documents
+export const tenderDocuments = pgTable('tender_documents', {
+  id: text('id').primaryKey(),
+  tenderId: integer('tender_id').references(() => tenders.id).notNull(),
+  name: text('name').notNull(),
+  type: text('type').notNull(), // 'TECHNICAL', 'BOQ', 'LEGAL', 'OTHER'
+  status: text('status').notNull(), // 'IDLE', 'PROCESSING', 'EXTRACTED', 'ERROR'
+  size: integer('size'),
+  uploadedAt: timestamp('uploaded_at').defaultNow(),
+  extractedData: jsonb('extracted_data'),
 });
 
 // Complaints
@@ -89,6 +101,14 @@ export const tendersRelations = relations(tenders, ({ one, many }) => ({
     references: [users.id],
   }),
   complaints: many(complaints),
+  documents: many(tenderDocuments),
+}));
+
+export const tenderDocumentsRelations = relations(tenderDocuments, ({ one }) => ({
+  tender: one(tenders, {
+    fields: [tenderDocuments.tenderId],
+    references: [tenders.id],
+  }),
 }));
 
 export const complaintsRelations = relations(complaints, ({ one }) => ({

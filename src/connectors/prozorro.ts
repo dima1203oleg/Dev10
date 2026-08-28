@@ -13,16 +13,18 @@ export interface ProzorroTenderItem {
   customer: string;
   customerEdrpou?: string;
   customerCity: string;
-  budgetUah: number;
+  budgetUah: number | null;
   currency: string;
   isVatIncluded: boolean;
-  deadline: string;
-  datePublished: string;
+  deadline: string | null;
+  datePublished: string | null;
   region: string;
   status: string;
   category: string;
   summary: string;
   relevanceScore: number;
+  riskLevel: 'NOT_ANALYZED' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  foulScore: number | null;
   retrievedAt: string;
 }
 
@@ -75,25 +77,72 @@ export async function fetchProzorroTenderFullDetail(id: string): Promise<any> {
 
 /**
  * Calculates match score between a tender and a company profile (Radar Match)
+ * Deterministic matching engine (No Mock)
  */
 export function calculatePersonalRadarMatch(tender: any, profile: any): any {
-  // Production logic: Compare tender CPV and keywords with company vault capabilities
-  let score = 50; // Baseline
-  if (profile.vaultData) {
-    score = 75;
+  if (!profile || !profile.vaultData) {
+    return {
+      fitScore: 0,
+      factors: { companyFit: 0, legalFit: 0, docReadiness: 0, executionFeasibility: 0 },
+      reasons: [{ description: "Профіль компанії не налаштовано. Налаштуйте Vault для активації Радару." }]
+    };
   }
+
+  const vault = profile.vaultData;
+  const reasons: { description: string }[] = [];
+  let score = 0;
+  
+  // 1. CPV Code Match (Strongest Signal)
+  const tenderCpv = tender.items?.[0]?.classification?.id || tender.category || "";
+  const companyCpvs = vault.cpvCodes || [];
+  const cpvMatch = companyCpvs.some((c: string) => tenderCpv.startsWith(c.substring(0, 3)));
+  
+  if (cpvMatch) {
+    score += 40;
+    reasons.push({ description: "CPV код тендера відповідає спеціалізації вашої компанії." });
+  }
+
+  // 2. Budget Range
+  const budget = tender.budgetUah || 0;
+  const minBudget = vault.minTenderBudget || 0;
+  const maxBudget = vault.maxTenderBudget || Infinity;
+  
+  if (budget >= minBudget && budget <= maxBudget) {
+    score += 20;
+    reasons.push({ description: "Очікувана вартість закупівлі в межах вашого цільового діапазону." });
+  } else if (budget > maxBudget) {
+    reasons.push({ description: "Бюджет значно перевищує ваші типові ліміти (Можливий ризик)." });
+  }
+
+  // 3. Region Match
+  const tenderRegion = (tender.region || "").toLowerCase();
+  const companyRegion = (vault.preferredRegion || "").toLowerCase();
+  if (companyRegion && tenderRegion.includes(companyRegion)) {
+    score += 20;
+    reasons.push({ description: "Тендер проводиться у вашому пріоритетному регіоні." });
+  }
+
+  // 4. Keyword Match
+  const title = (tender.title || "").toLowerCase();
+  const keywords = vault.preferredKeywords || [];
+  const matchedKeywords = keywords.filter((k: string) => title.includes(k.toLowerCase()));
+  if (matchedKeywords.length > 0) {
+    score += 20;
+    reasons.push({ description: `Знайдено збіг за ключовими словами: ${matchedKeywords.join(", ")}.` });
+  }
+
+  // Ensure baseline score for relevant items
+  if (score === 0 && (cpvMatch || matchedKeywords.length > 0)) score = 15;
+
   return {
-    fitScore: score,
+    fitScore: Math.min(score, 100),
     factors: {
       companyFit: score,
-      legalFit: 80,
-      docReadiness: 70,
-      executionFeasibility: 85
+      legalFit: 85, // Placeholder for future legal engine integration
+      docReadiness: vault.vaultDocuments?.length > 0 ? 90 : 40,
+      executionFeasibility: vault.staff?.length > 5 ? 95 : 60
     },
-    reasons: [
-      { description: "Ваша компанія має досвід у схожих CPV категоріях" },
-      { description: "Бюджет закупівлі відповідає вашим фінансовим можливостям" }
-    ]
+    reasons: reasons.length > 0 ? reasons : [{ description: "Низька відповідність за основними параметрами профілю." }]
   };
 }
 
@@ -157,7 +206,7 @@ export async function searchProzorroTenders(
           const title = (data.title || "").toLowerCase();
           const description = (data.description || "").toLowerCase();
           const cpv = data.items?.[0]?.classification?.id || "";
-          const budget = data.value?.amount || 0;
+          const budget = data.value?.amount !== undefined ? data.value.amount : null;
           const currency = data.value?.currency || "UAH";
           const isVatIncluded = data.value?.valueAddedTaxIncluded ?? true;
           const regionName = (data.procuringEntity?.address?.region || "").toLowerCase();
@@ -168,11 +217,11 @@ export async function searchProzorroTenders(
             rejectionTelemetry.rejected_cpv++;
             continue;
           }
-          if (options.filters?.minBudget && budget < options.filters.minBudget) {
+          if (options.filters?.minBudget && (budget === null || budget < options.filters.minBudget)) {
             rejectionTelemetry.rejected_budget++;
             continue;
           }
-          if (options.filters?.maxBudget && budget > options.filters.maxBudget) {
+          if (options.filters?.maxBudget && (budget === null || budget > options.filters.maxBudget)) {
             rejectionTelemetry.rejected_budget++;
             continue;
           }
@@ -198,13 +247,15 @@ export async function searchProzorroTenders(
             budgetUah: budget,
             currency,
             isVatIncluded,
-            deadline: data.tenderPeriod?.endDate || "НЕВІДОМО",
-            datePublished: data.datePublished || data.dateModified || new Date().toISOString(),
+            deadline: data.tenderPeriod?.endDate || null,
+            datePublished: data.datePublished || data.dateModified || null,
             region: regionName || "НЕВІДОМО",
             status: data.status,
             category: data.mainProcurementCategory || "works",
             summary: data.description || "",
             relevanceScore: matchedKeywords.length,
+            riskLevel: 'NOT_ANALYZED',
+            foulScore: null,
             retrievedAt: new Date().toISOString()
           });
         }
@@ -222,11 +273,11 @@ export async function searchProzorroTenders(
     if (options.sort) {
       tenders.sort((a, b) => {
         switch (options.sort) {
-          case 'price_asc': return a.budgetUah - b.budgetUah;
-          case 'price_desc': return b.budgetUah - a.budgetUah;
-          case 'date_desc': return new Date(b.datePublished).getTime() - new Date(a.datePublished).getTime();
-          case 'date_asc': return new Date(a.datePublished).getTime() - new Date(b.datePublished).getTime();
-          case 'deadline_asc': return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+          case 'price_asc': return (a.budgetUah || 0) - (b.budgetUah || 0);
+          case 'price_desc': return (b.budgetUah || 0) - (a.budgetUah || 0);
+          case 'date_desc': return (b.datePublished ? new Date(b.datePublished).getTime() : 0) - (a.datePublished ? new Date(a.datePublished).getTime() : 0);
+          case 'date_asc': return (a.datePublished ? new Date(a.datePublished).getTime() : 0) - (b.datePublished ? new Date(b.datePublished).getTime() : 0);
+          case 'deadline_asc': return (a.deadline ? new Date(a.deadline).getTime() : 0) - (b.deadline ? new Date(b.deadline).getTime() : 0);
           case 'relevance': return b.relevanceScore - a.relevanceScore;
           default: return 0;
         }
