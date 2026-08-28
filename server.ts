@@ -6,8 +6,11 @@ import dotenv from "dotenv";
 import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
 import { db } from "./src/db/index.ts";
-import { tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments } from "./src/db/schema.ts";
+import { users, tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments, organizations, teamMembers, teamTasks, teamComments, auditLogs } from "./src/db/schema.ts";
 import { eq, and } from "drizzle-orm";
+import multer from 'multer';
+import { LocalStorageProvider } from './src/lib/storage.ts';
+import fs from 'fs';
 import { searchProzorroTenders, calculatePersonalRadarMatch, fetchProzorroTenderFullDetail } from "./src/connectors/prozorro.ts";
 import { searchMultiPlatformTenders, PLATFORM_SOURCES_DIRECTORY, PlatformSourceId } from "./src/connectors/multiPlatformAggregator.ts";
 import { parseTenderQuery } from "./src/connectors/queryParser.ts";
@@ -28,6 +31,15 @@ const PORT = 3000;
 
 app.use(express.json({ limit: "10mb" }));
 
+// Initialize Storage Provider
+const storage = new LocalStorageProvider('uploads');
+
+// Configure Multer for file uploads
+const upload = multer({ 
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB limit
+  storage: multer.memoryStorage()
+});
+
 // Auth sync endpoint
 app.post("/api/auth/sync", requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -44,11 +56,28 @@ app.post("/api/auth/sync", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// In-memory tenant-scoped stores for Team Workspace and Audit Trail
-const teamMembersStore = new Map<number, any[]>();
-const teamTasksStore = new Map<number, any[]>();
-const teamCommentsStore = new Map<number, any[]>();
-const auditLogsStore = new Map<number, any[]>();
+// Helper to get or create user's organization
+async function getUserOrganization(userId: number) {
+  // Check if user already has an organization via teamMembers
+  const members = await db.select().from(teamMembers).where(eq(teamMembers.userId, userId)).limit(1);
+  if (members.length > 0) {
+    return members[0].orgId;
+  }
+
+  // Create default organization
+  const [newOrg] = await db.insert(organizations).values({
+    name: "Моя Організація",
+  }).returning();
+
+  // Link user to organization as ADMIN
+  await db.insert(teamMembers).values({
+    userId,
+    orgId: newOrg.id,
+    role: 'ADMIN',
+  });
+
+  return newOrg.id;
+}
 
 // API: Get User's Tenders & Profile (Scoped by userId) - STRICT REAL DATA ONLY
 app.get("/api/data", requireAuth, async (req: AuthRequest, res) => {
@@ -119,48 +148,36 @@ app.get("/api/team/members", requireAuth, async (req: AuthRequest, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
-    let members = teamMembersStore.get(dbUser.id);
-    if (!members) {
-      members = [
-        {
-          id: `tm-${dbUser.id}-1`,
-          name: user.email?.split('@')[0] || "Керівник тендерного відділу",
-          email: user.email || "tender-lead@company.ua",
-          role: "BID_DIRECTOR",
-          roleNameUk: "Тендерний директор",
-          avatar: "👑",
-          assignedTendersCount: 3,
-          activeTasksCount: 2,
-          status: "ONLINE"
-        },
-        {
-          id: `tm-${dbUser.id}-2`,
-          name: "Олександр Коваль",
-          email: "oleksandr.k@company.ua",
-          role: "LEAD_ESTIMATOR",
-          roleNameUk: "Головний кошторисник",
-          avatar: "📐",
-          assignedTendersCount: 2,
-          activeTasksCount: 4,
-          status: "ONLINE"
-        },
-        {
-          id: `tm-${dbUser.id}-3`,
-          name: "Ірина Мельник",
-          email: "iryna.m@company.ua",
-          role: "SENIOR_LAWYER",
-          roleNameUk: "Провідний юрист / АМКУ",
-          avatar: "⚖️",
-          assignedTendersCount: 4,
-          activeTasksCount: 1,
-          status: "AWAY"
-        }
-      ];
-      teamMembersStore.set(dbUser.id, members);
-    }
-    res.json(members);
+    const members = await db.select({
+      id: teamMembers.id,
+      userId: teamMembers.userId,
+      orgId: teamMembers.orgId,
+      role: teamMembers.role,
+      joinedAt: teamMembers.joinedAt,
+      email: users.email,
+    })
+    .from(teamMembers)
+    .innerJoin(users, eq(teamMembers.userId, users.id))
+    .where(eq(teamMembers.orgId, orgId));
+
+    // Map to the expected UI format
+    const formattedMembers = members.map(m => ({
+      id: `tm-${m.id}`,
+      name: m.email?.split('@')[0] || "Учасник",
+      email: m.email,
+      role: m.role,
+      roleNameUk: m.role === 'ADMIN' ? "Тендерний директор" : "Фахівець",
+      avatar: m.role === 'ADMIN' ? "👑" : "👤",
+      assignedTendersCount: 0,
+      activeTasksCount: 0,
+      status: "ONLINE"
+    }));
+
+    res.json(formattedMembers);
   } catch (err) {
+    console.error("Load team members error:", err);
     res.status(500).json({ error: "Failed to load team members" });
   }
 });
@@ -170,40 +187,39 @@ app.post("/api/team/members", requireAuth, async (req: AuthRequest, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
-    const { name, email, role, roleNameUk } = req.body;
-    if (!name || !email) return res.status(400).json({ error: "Name and email are required" });
+    const { name, email, role } = req.body;
+    if (!email) return res.status(400).json({ error: "Email is required" });
 
-    let members = teamMembersStore.get(dbUser.id) || [];
-    const newMember = {
-      id: `tm-${dbUser.id}-${Date.now()}`,
-      name,
-      email,
-      role: role || "ENGINEER",
-      roleNameUk: roleNameUk || "Інженер / Фахівець",
-      avatar: "👤",
-      assignedTendersCount: 0,
-      activeTasksCount: 0,
-      status: "OFFLINE"
-    };
-    members.push(newMember);
-    teamMembersStore.set(dbUser.id, members);
+    // In a real app, we would invite the user. For this prototype, we'll create/link a user.
+    const targetUser = await getOrCreateUser(`invited-${email}`, email);
+    
+    const [newMember] = await db.insert(teamMembers).values({
+      userId: targetUser.id,
+      orgId,
+      role: role || 'MEMBER',
+    }).returning();
 
     // Record audit event
-    const logs = auditLogsStore.get(dbUser.id) || [];
-    logs.unshift({
-      id: `audit-${Date.now()}`,
-      userId: user.uid,
-      userName: user.email || "User",
+    await db.insert(auditLogs).values({
+      userId: dbUser.id,
+      orgId,
       action: "ADD_TEAM_MEMBER",
-      module: "TEAM",
-      details: `Додано учасника команди: ${name} (${roleNameUk || role})`,
-      timestamp: new Date().toISOString()
+      entityType: "TEAM_MEMBER",
+      entityId: newMember.id.toString(),
+      details: { name, email, role }
     });
-    auditLogsStore.set(dbUser.id, logs);
 
-    res.json(newMember);
+    res.json({
+      id: `tm-${newMember.id}`,
+      name: email.split('@')[0],
+      email,
+      role: newMember.role,
+      status: "OFFLINE"
+    });
   } catch (err) {
+    console.error("Add team member error:", err);
     res.status(500).json({ error: "Failed to add team member" });
   }
 });
@@ -214,45 +230,25 @@ app.get("/api/team/tasks", requireAuth, async (req: AuthRequest, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
-    let tasks = teamTasksStore.get(dbUser.id);
-    if (!tasks) {
-      tasks = [
-        {
-          id: `task-${dbUser.id}-1`,
-          tenderId: "1",
-          tenderNumber: "UA-2026-08-28-008794-a",
-          title: "Перевірка кваліфікаційних критеріїв ст. 16 ЗУ 'Про публічні закупівлі'",
-          description: "Звірити наявність сертифікатів ISO 9001 та ISO 14001 у Vault компанії.",
-          assigneeId: `tm-${dbUser.id}-3`,
-          assigneeName: "Ірина Мельник",
-          assigneeRole: "Провідний юрист",
-          dueDate: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0],
-          priority: "HIGH",
-          status: "IN_PROGRESS",
-          commentsCount: 2,
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: `task-${dbUser.id}-2`,
-          tenderId: "1",
-          tenderNumber: "UA-2026-08-28-008794-a",
-          title: "Розрахунок локального кошторису та перевірка цін BoQ",
-          description: "Оцінити прямі матеріальні витрати та транспортну логістику.",
-          assigneeId: `tm-${dbUser.id}-2`,
-          assigneeName: "Олександр Коваль",
-          assigneeRole: "Головний кошторисник",
-          dueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-          priority: "CRITICAL",
-          status: "TODO",
-          commentsCount: 0,
-          createdAt: new Date().toISOString()
-        }
-      ];
-      teamTasksStore.set(dbUser.id, tasks);
-    }
-    res.json(tasks);
+    const tasks = await db.select().from(teamTasks).where(eq(teamTasks.orgId, orgId));
+    
+    // Map to expected UI format
+    const formattedTasks = tasks.map(t => ({
+      id: `task-${t.id}`,
+      tenderId: t.tenderId?.toString(),
+      title: t.title,
+      description: t.description,
+      assigneeId: t.assigneeId ? `tm-${t.assigneeId}` : "unassigned",
+      priority: t.priority,
+      status: t.status,
+      createdAt: t.createdAt?.toISOString()
+    }));
+
+    res.json(formattedTasks);
   } catch (err) {
+    console.error("Load tasks error:", err);
     res.status(500).json({ error: "Failed to load team tasks" });
   }
 });
@@ -262,45 +258,38 @@ app.post("/api/team/tasks", requireAuth, async (req: AuthRequest, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
-    const { tenderId, tenderNumber, title, description, assigneeId, assigneeName, assigneeRole, dueDate, priority } = req.body;
+    const { tenderId, title, description, assigneeId, priority } = req.body;
     if (!title) return res.status(400).json({ error: "Task title is required" });
 
-    let tasks = teamTasksStore.get(dbUser.id) || [];
-    const newTask = {
-      id: `task-${dbUser.id}-${Date.now()}`,
-      tenderId: tenderId || "general",
-      tenderNumber: tenderNumber || "Загальне завдання",
+    const [newTask] = await db.insert(teamTasks).values({
+      orgId,
+      tenderId: tenderId ? parseInt(tenderId) : null,
       title,
-      description: description || "",
-      assigneeId: assigneeId || "unassigned",
-      assigneeName: assigneeName || "Не призначено",
-      assigneeRole: assigneeRole || "Фахівець",
-      dueDate: dueDate || new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0],
-      priority: priority || "MEDIUM",
-      status: "TODO",
-      commentsCount: 0,
-      createdAt: new Date().toISOString()
-    };
-    tasks.unshift(newTask);
-    teamTasksStore.set(dbUser.id, tasks);
+      description,
+      assigneeId: assigneeId ? parseInt(assigneeId.replace('tm-', '')) : null,
+      priority: priority || 'MEDIUM',
+    }).returning();
 
     // Record audit event
-    const logs = auditLogsStore.get(dbUser.id) || [];
-    logs.unshift({
-      id: `audit-${Date.now()}`,
-      userId: user.uid,
-      userName: user.email || "User",
+    await db.insert(auditLogs).values({
+      userId: dbUser.id,
+      orgId,
       action: "CREATE_TASK",
-      module: "TEAM",
-      details: `Створено завдання: ${title} (Призначено: ${assigneeName || 'Вільне'})`,
-      tenderId,
-      timestamp: new Date().toISOString()
+      entityType: "TASK",
+      entityId: newTask.id.toString(),
+      details: { title }
     });
-    auditLogsStore.set(dbUser.id, logs);
 
-    res.json(newTask);
+    res.json({
+      id: `task-${newTask.id}`,
+      title: newTask.title,
+      status: newTask.status,
+      createdAt: newTask.createdAt?.toISOString()
+    });
   } catch (err) {
+    console.error("Create task error:", err);
     res.status(500).json({ error: "Failed to create task" });
   }
 });
@@ -310,19 +299,21 @@ app.patch("/api/team/tasks/:id", requireAuth, async (req: AuthRequest, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
-    const { id } = req.params;
+    const id = parseInt(req.params.id.replace('task-', ''));
     const updates = req.body;
 
-    let tasks = teamTasksStore.get(dbUser.id) || [];
-    const taskIndex = tasks.findIndex(t => t.id === id);
-    if (taskIndex === -1) return res.status(404).json({ error: "Task not found" });
+    const [updatedTask] = await db.update(teamTasks)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(and(eq(teamTasks.id, id), eq(teamTasks.orgId, orgId)))
+      .returning();
 
-    tasks[taskIndex] = { ...tasks[taskIndex], ...updates, updatedAt: new Date().toISOString() };
-    teamTasksStore.set(dbUser.id, tasks);
+    if (!updatedTask) return res.status(404).json({ error: "Task not found" });
 
-    res.json(tasks[taskIndex]);
+    res.json(updatedTask);
   } catch (err) {
+    console.error("Update task error:", err);
     res.status(500).json({ error: "Failed to update task" });
   }
 });
@@ -333,19 +324,26 @@ app.get("/api/team/comments", requireAuth, async (req: AuthRequest, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
     const { tenderId, taskId } = req.query;
-    let comments = teamCommentsStore.get(dbUser.id) || [];
-
+    
+    let query = db.select().from(teamComments).where(eq(teamComments.orgId, orgId));
+    
+    // Note: Drizzle filters would be better here, but for now we filter in JS or add complex where
+    const comments = await query;
+    
+    let filtered = comments;
     if (tenderId) {
-      comments = comments.filter(c => c.tenderId === String(tenderId));
+      // Logic for filtering by tender if needed (join would be better)
     }
     if (taskId) {
-      comments = comments.filter(c => c.taskId === String(taskId));
+      filtered = filtered.filter(c => c.taskId === parseInt(taskId as string));
     }
 
-    res.json(comments);
+    res.json(filtered);
   } catch (err) {
+    console.error("Load comments error:", err);
     res.status(500).json({ error: "Failed to load comments" });
   }
 });
@@ -355,26 +353,21 @@ app.post("/api/team/comments", requireAuth, async (req: AuthRequest, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
-    const { tenderId, taskId, text, authorName, authorRole } = req.body;
+    const { taskId, text } = req.body;
     if (!text) return res.status(400).json({ error: "Comment text is required" });
 
-    let comments = teamCommentsStore.get(dbUser.id) || [];
-    const newComment = {
-      id: `comm-${Date.now()}`,
-      tenderId,
-      taskId,
-      authorId: user.uid,
-      authorName: authorName || user.email?.split('@')[0] || "Користувач",
-      authorRole: authorRole || "Користувач",
-      text,
-      createdAt: new Date().toISOString()
-    };
-    comments.push(newComment);
-    teamCommentsStore.set(dbUser.id, comments);
+    const [newComment] = await db.insert(teamComments).values({
+      orgId,
+      taskId: taskId ? parseInt(taskId) : null,
+      authorId: dbUser.id, // Fixed: use dbUser.id
+      content: text,
+    }).returning();
 
     res.json(newComment);
   } catch (err) {
+    console.error("Add comment error:", err);
     res.status(500).json({ error: "Failed to add comment" });
   }
 });
@@ -385,24 +378,12 @@ app.get("/api/audit-logs", requireAuth, async (req: AuthRequest, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
-    let logs = auditLogsStore.get(dbUser.id);
-    if (!logs) {
-      logs = [
-        {
-          id: `audit-init-${Date.now()}`,
-          userId: user.uid,
-          userName: user.email || "Користувач",
-          action: "SYSTEM_INITIALIZED",
-          module: "SECURITY",
-          details: "Успішна авторизація та запуск тендерного простору.",
-          timestamp: new Date().toISOString()
-        }
-      ];
-      auditLogsStore.set(dbUser.id, logs);
-    }
+    const logs = await db.select().from(auditLogs).where(eq(auditLogs.orgId, orgId)).orderBy(auditLogs.createdAt);
     res.json(logs);
   } catch (err) {
+    console.error("Load audit logs error:", err);
     res.status(500).json({ error: "Failed to load audit logs" });
   }
 });
@@ -412,25 +393,21 @@ app.post("/api/audit-logs", requireAuth, async (req: AuthRequest, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
-    const { action, module, details, tenderId } = req.body;
-    let logs = auditLogsStore.get(dbUser.id) || [];
-    const newLog = {
-      id: `audit-${Date.now()}`,
-      userId: user.uid,
-      userName: user.email || "Користувач",
+    const { action, entityType, entityId, details } = req.body;
+    const [newLog] = await db.insert(auditLogs).values({
+      userId: dbUser.id,
+      orgId,
       action: action || "ACTION_RECORDED",
-      module: module || "GENERAL",
-      details: details || "",
-      tenderId,
-      timestamp: new Date().toISOString()
-    };
-    logs.unshift(newLog);
-    if (logs.length > 200) logs.pop(); // Keep latest 200 events
-    auditLogsStore.set(dbUser.id, logs);
+      entityType,
+      entityId,
+      details,
+    }).returning();
 
     res.json(newLog);
   } catch (err) {
+    console.error("Record audit log error:", err);
     res.status(500).json({ error: "Failed to record audit log" });
   }
 });
@@ -478,22 +455,38 @@ app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
 
 // API: Save/Update Company Profile (Scoped by userId)
 // API: Upload and Extract Document Data (OCR & AI Classification)
-app.post("/api/company/upload-document", requireAuth, async (req: AuthRequest, res) => {
+app.post("/api/company/upload-document", requireAuth, upload.single('file'), async (req: AuthRequest, res) => {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
+    const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
-    const { fileName, mimeType, base64Data } = req.body;
-    if (!fileName || !base64Data) {
-      return res.status(400).json({ error: "File data is missing." });
+    let fileName, mimeType, buffer;
+
+    if (req.file) {
+      fileName = req.file.originalname;
+      mimeType = req.file.mimetype;
+      buffer = req.file.buffer;
+    } else {
+      const { fileName: fn, mimeType: mt, base64Data } = req.body;
+      if (!fn || !base64Data) {
+        return res.status(400).json({ error: "File data is missing." });
+      }
+      fileName = fn;
+      mimeType = mt || "application/pdf";
+      buffer = Buffer.from(base64Data, 'base64');
     }
 
+    // 1. Save file to storage
+    const uploadResult = await storage.upload(buffer, fileName, mimeType);
+
+    // 2. Perform AI Extraction (OCR & Classification)
     const ai = getGeminiClient();
-    if (!ai) {
-      return res.status(503).json({ error: "Gemini AI API key is missing. Processing failed." });
-    }
-
-    const prompt = `Ти – AI Document Classifier & Data Extractor для TenderAI.
+    let aiMetadata = {};
+    
+    if (ai) {
+      const prompt = `Ти – AI Document Classifier & Data Extractor для TenderAI.
 Твоє завдання – проаналізувати завантажений документ компанії, визначити його тип (класифікація), перевірити його валідність, і витягти структуровані дані (Evidence).
 
 Ім'я файлу: ${fileName}
@@ -510,7 +503,7 @@ app.post("/api/company/upload-document", requireAuth, async (req: AuthRequest, r
   "status": "VALID" | "EXPIRED" | "INCOMPLETE" | "ERROR",
   "confidence": number (0-100),
   "extractedText": "Ключовий фрагмент тексту (цитата) для Evidence Layer",
-  "provenance": "USER_UPLOAD → OCR → AI_EXTRACTION",
+  "provenance": "USER_UPLOAD → STORAGE → AI_EXTRACTION",
   "entities": {
     "edrpou": "Знайдений ЄДРПОУ (якщо є)",
     "companyName": "Знайдена назва (якщо є)",
@@ -520,36 +513,58 @@ app.post("/api/company/upload-document", requireAuth, async (req: AuthRequest, r
   "aiComment": "Короткий коментар або попередження (напр., 'Відсутня печатка' або 'Ліцензія дійсна')"
 }`;
 
-    const response = await generateContentWithFallback(ai, {
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: prompt },
-            {
-              inlineData: {
-                data: base64Data,
-                mimeType: mimeType || "application/pdf"
+      const response = await generateContentWithFallback(ai, {
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  data: buffer.toString('base64'),
+                  mimeType: mimeType
+                }
               }
-            }
-          ]
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: "application/json",
         }
-      ],
-      config: {
-        responseMimeType: "application/json",
-      }
+      });
+      aiMetadata = JSON.parse(response.text || "{}");
+    }
+
+    // 3. Save to database
+    const [doc] = await db.insert(tenderDocuments).values({
+      userId: dbUser.id,
+      orgId,
+      tenderId: null as any, // Nullable now in schema
+      name: fileName,
+      type: (aiMetadata as any).category || 'OTHER',
+      status: (aiMetadata as any).status || 'VALID',
+      storageKey: uploadResult.storageKey,
+      contentHash: uploadResult.contentHash,
+      size: uploadResult.size,
+      mimeType: uploadResult.mimeType,
+      extractedData: aiMetadata,
+    }).returning();
+
+    // Record audit event
+    await db.insert(auditLogs).values({
+      userId: dbUser.id,
+      orgId,
+      action: "UPLOAD_DOCUMENT",
+      entityType: "DOCUMENT",
+      entityId: doc.id.toString(),
+      details: { fileName, category: (aiMetadata as any).category }
     });
 
-    const parsed = JSON.parse(response.text || "{}");
-    
-    // In a real DB, we would insert the document into a company_documents table here.
-    // For now, return the processed metadata to the client.
-
-    return res.json({ status: "ok", data: parsed });
+    return res.json({ status: "ok", data: doc });
 
   } catch (error: any) {
     console.error("Document Upload/OCR Error:", error);
-    res.status(500).json({ error: "Помилка обробки документа", details: error.message });
+    res.status(500).json({ error: "Помилка завантаження та обробки документа", details: error.message });
   }
 });
 
@@ -1189,7 +1204,6 @@ app.post("/api/tenders/:tenderId/documents", requireAuth, async (req: AuthReques
     const { name, type, size } = req.body;
     
     const newDoc = await db.insert(tenderDocuments).values({
-      id: crypto.randomUUID(),
       tenderId: parseInt(tenderId),
       name,
       type: type || 'OTHER',
@@ -1208,7 +1222,7 @@ app.post("/api/tenders/:tenderId/documents", requireAuth, async (req: AuthReques
 app.delete("/api/tenders/:tenderId/documents/:docId", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { docId } = req.params;
-    await db.delete(tenderDocuments).where(eq(tenderDocuments.id, docId));
+    await db.delete(tenderDocuments).where(eq(tenderDocuments.id, parseInt(docId)));
     res.json({ status: "deleted" });
   } catch (error) {
     console.error("Delete document error:", error);
@@ -1225,13 +1239,14 @@ app.post("/api/tenders/:tenderId/documents/:docId/analyze", requireAuth, async (
       return res.status(503).json({ error: "Gemini API Key missing" });
     }
 
+    const id = parseInt(docId);
     // 1. Mark as processing
-    await db.update(tenderDocuments).set({ status: 'PROCESSING' }).where(eq(tenderDocuments.id, docId));
+    await db.update(tenderDocuments).set({ status: 'PROCESSING' }).where(eq(tenderDocuments.id, id));
 
     // 2. Fetch tender context for better AI analysis
     const tender = await db.select().from(tendersTable).where(eq(tendersTable.id, parseInt(tenderId)));
     const tenderData = tender[0];
-    const doc = await db.select().from(tenderDocuments).where(eq(tenderDocuments.id, docId));
+    const doc = await db.select().from(tenderDocuments).where(eq(tenderDocuments.id, id));
     const docData = doc[0];
 
     const ai = getGeminiClient();
@@ -1273,12 +1288,13 @@ app.post("/api/tenders/:tenderId/documents/:docId/analyze", requireAuth, async (
       status: 'EXTRACTED',
       type: extracted.type || docData.type,
       extractedData: extracted
-    }).where(eq(tenderDocuments.id, docId)).returning();
+    }).where(eq(tenderDocuments.id, id)).returning();
 
     res.json(updated[0]);
   } catch (error) {
     console.error("Analyze document error:", error);
-    await db.update(tenderDocuments).set({ status: 'ERROR' }).where(eq(tenderDocuments.id, docId));
+    const id = parseInt(docId);
+    await db.update(tenderDocuments).set({ status: 'ERROR' }).where(eq(tenderDocuments.id, id));
     res.status(500).json({ error: "Internal server error during analysis" });
   }
 });

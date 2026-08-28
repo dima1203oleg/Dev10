@@ -43,15 +43,100 @@ export const tenders = pgTable('tenders', {
 
 // Tender documents
 export const tenderDocuments = pgTable('tender_documents', {
-  id: text('id').primaryKey(),
-  tenderId: integer('tender_id').references(() => tenders.id).notNull(),
+  id: serial('id').primaryKey(),
+  tenderId: integer('tender_id').references(() => tenders.id), // Made nullable
   name: text('name').notNull(),
   type: text('type').notNull(), // 'TECHNICAL', 'BOQ', 'LEGAL', 'OTHER'
   status: text('status').notNull(), // 'IDLE', 'PROCESSING', 'EXTRACTED', 'ERROR'
   size: integer('size'),
+  storageKey: text('storage_key'), // Key for real S3/Local storage
+  contentHash: text('content_hash'), // SHA-256 for integrity
   uploadedAt: timestamp('uploaded_at').defaultNow(),
   extractedData: jsonb('extracted_data'),
+  mimeType: text('mime_type'),
+  userId: integer('user_id').references(() => users.id),
+  orgId: integer('org_id').references(() => organizations.id),
 });
+
+// Organizations for multi-tenancy
+export const organizations = pgTable('organizations', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  edrpou: text('edrpou'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Team members linked to users and organizations
+export const teamMembers = pgTable('team_members', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  orgId: integer('org_id').references(() => organizations.id).notNull(),
+  role: text('role').notNull().default('MEMBER'), // 'ADMIN', 'MANAGER', 'MEMBER', 'VIEWER'
+  joinedAt: timestamp('joined_at').defaultNow(),
+});
+
+// Team tasks (War Room)
+export const teamTasks = pgTable('team_tasks', {
+  id: serial('id').primaryKey(),
+  orgId: integer('org_id').references(() => organizations.id).notNull(),
+  tenderId: integer('tender_id').references(() => tenders.id),
+  title: text('title').notNull(),
+  description: text('description'),
+  status: text('status').notNull().default('TODO'), // 'TODO', 'IN_PROGRESS', 'DONE'
+  priority: text('priority').notNull().default('MEDIUM'),
+  assigneeId: integer('assignee_id').references(() => teamMembers.id),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Team comments
+export const teamComments = pgTable('team_comments', {
+  id: serial('id').primaryKey(),
+  orgId: integer('org_id').references(() => organizations.id).notNull(),
+  taskId: integer('task_id').references(() => teamTasks.id),
+  authorId: integer('author_id').references(() => users.id).notNull(),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+export const auditLogs = pgTable('audit_logs', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id),
+  orgId: integer('org_id').references(() => organizations.id),
+  action: text('action').notNull(),
+  entityType: text('entity_type'),
+  entityId: text('entity_id'),
+  details: jsonb('details'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+// Relations update
+export const organizationsRelations = relations(organizations, ({ many }) => ({
+  members: many(teamMembers),
+  tasks: many(teamTasks),
+  auditLogs: many(auditLogs),
+}));
+
+export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
+  user: one(users, { fields: [teamMembers.userId], references: [users.id] }),
+  organization: one(organizations, { fields: [teamMembers.orgId], references: [organizations.id] }),
+}));
+
+export const teamTasksRelations = relations(teamTasks, ({ one }) => ({
+  organization: one(organizations, { fields: [teamTasks.orgId], references: [organizations.id] }),
+  tender: one(tenders, { fields: [teamTasks.tenderId], references: [tenders.id] }),
+  assignee: one(teamMembers, { fields: [teamTasks.assigneeId], references: [teamMembers.id] }),
+}));
+
+export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
+  user: one(users, { fields: [auditLogs.userId], references: [users.id] }),
+  organization: one(organizations, { fields: [auditLogs.orgId], references: [organizations.id] }),
+}));
+
+export const teamCommentsRelations = relations(teamComments, ({ one }) => ({
+  organization: one(organizations, { fields: [teamComments.orgId], references: [organizations.id] }),
+  author: one(users, { fields: [teamComments.authorId], references: [users.id] }),
+  task: one(teamTasks, { fields: [teamComments.taskId], references: [teamTasks.id] }),
+}));
 
 // Complaints
 export const complaints = pgTable('complaints', {

@@ -111,7 +111,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ tenders 
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white">Аналітика Портфеля Закупівель</h1>
-            <p className="text-sm text-slate-400">Зведена статистика збережених закупівель, бюджетів та ризиків закупівлі</p>
+            <p className="text-sm text-slate-400">Зведена статистика збережених закупівель, бюджетів та ризиків (на основі даних вашого ворксплейсу)</p>
           </div>
         </div>
 
