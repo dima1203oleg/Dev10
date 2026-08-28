@@ -77,9 +77,13 @@ export async function searchProzorroTenders(
       nextPageUri += `&offset=${currentOffset}`;
     }
 
+    let sourceStatus: 'SUCCESS' | 'ERROR' | 'PARTIAL' = 'SUCCESS';
     while (pagesFetched < maxPages && tenders.length < targetLimit) {
       const response = await fetch(nextPageUri);
-      if (!response.ok) break;
+      if (!response.ok) {
+        sourceStatus = pagesFetched === 0 ? 'ERROR' : 'PARTIAL';
+        break;
+      }
 
       const json = await response.json();
       pagesFetched++;
@@ -276,7 +280,7 @@ export async function searchProzorroTenders(
         pagesFetched,
         recordsFetched,
         recordsReturned: tenders.length,
-        sourceStatus: 'SUCCESS',
+        sourceStatus,
         nextOffset: currentOffset
       }
     };

@@ -6,12 +6,17 @@ import dotenv from "dotenv";
 import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
 import { db } from "./src/db/index.ts";
-import { tenders as tendersTable, companyProfiles, complaints } from "./src/db/schema.ts";
+import { tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable } from "./src/db/schema.ts";
 import { eq, and } from "drizzle-orm";
 import { searchProzorroTenders, calculatePersonalRadarMatch, fetchProzorroTenderFullDetail } from "./src/connectors/prozorro.ts";
 import { parseTenderQuery } from "./src/connectors/queryParser.ts";
 
 dotenv.config();
+
+if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEV_AUTH === "true") {
+  console.error("FATAL ERROR: ALLOW_DEV_AUTH is enabled in production! This is a critical security violation. Exiting process.");
+  process.exit(1);
+}
 
 const app = express();
 const PORT = 3000;
@@ -155,11 +160,6 @@ declare global {
     recordsMatched: number;
   }> | undefined;
 }
-if (!global._searchSessions) {
-  global._searchSessions = new Map();
-}
-const searchSessions = global._searchSessions;
-
 // API: Real Prozorro Search Integration with AI Query Parsing & Stateful Cursor Pagination
 app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -178,13 +178,14 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
     let isLoadMore = false;
 
     if (searchId && typeof searchId === "string") {
-      session = searchSessions.get(searchId);
+      const dbSessions = await db.select().from(searchSessionsTable).where(eq(searchSessionsTable.id, searchId));
+      session = dbSessions[0] || null;
       if (!session) {
         return res.status(404).json({ error: "Пошукову сесію завершено або не знайдено. Будь ласка, почніть новий пошук." });
       }
-      structuredQuery = session.query.structured;
-      rawQuery = session.query.raw;
-      nextCursor = session.nextCursor;
+      structuredQuery = session.structuredQuery;
+      rawQuery = session.rawQuery;
+      nextCursor = session.sourceCursor || "";
       isLoadMore = true;
     } else {
       rawQuery = query && typeof query === "string" ? query : "";
@@ -232,22 +233,43 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
     });
 
     const newNextCursor = searchResult.telemetry.nextOffset || "";
-    const hasMore = !!newNextCursor && processedTenders.length > 0;
+    const hasMore = !!newNextCursor;
     const currentSearchId = (isLoadMore ? searchId : crypto.randomUUID()) as string;
 
     if (!isLoadMore) {
-      searchSessions.set(currentSearchId, {
-        query: { raw: rawQuery, structured: structuredQuery },
-        nextCursor: newNextCursor,
-        pagesFetched: searchResult.telemetry.pagesFetched,
+      await db.insert(searchSessionsTable).values({
+        id: currentSearchId,
+        userId: dbUser.id,
+        rawQuery,
+        structuredQuery,
+        source: "Prozorro",
+        sourceCursor: newNextCursor,
+        pagesScanned: searchResult.telemetry.pagesFetched,
         recordsScanned: searchResult.telemetry.recordsFetched,
-        recordsMatched: processedTenders.length
+        recordsMatched: processedTenders.length,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000) // 1 hour TTL
       });
     } else {
-      session.nextCursor = newNextCursor;
-      session.pagesFetched += searchResult.telemetry.pagesFetched;
-      session.recordsScanned += searchResult.telemetry.recordsFetched;
-      session.recordsMatched += processedTenders.length;
+      await db.update(searchSessionsTable)
+        .set({
+          sourceCursor: newNextCursor,
+          pagesScanned: (session.pagesScanned || 0) + searchResult.telemetry.pagesFetched,
+          recordsScanned: (session.recordsScanned || 0) + searchResult.telemetry.recordsFetched,
+          recordsMatched: (session.recordsMatched || 0) + processedTenders.length,
+          updatedAt: new Date()
+        })
+        .where(eq(searchSessionsTable.id, currentSearchId));
+    }
+
+    // Retrieve full session stats for load more calculations
+    let totalPagesFetched = searchResult.telemetry.pagesFetched;
+    let totalRecordsScanned = searchResult.telemetry.recordsFetched;
+    let totalRecordsMatched = processedTenders.length;
+
+    if (isLoadMore) {
+      totalPagesFetched += (session.pagesScanned || 0);
+      totalRecordsScanned += (session.recordsScanned || 0);
+      totalRecordsMatched += (session.recordsMatched || 0);
     }
 
     res.json({
@@ -261,9 +283,9 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
       pagination: {
         hasMore,
         nextCursor: newNextCursor,
-        pagesFetched: isLoadMore ? session.pagesFetched : searchResult.telemetry.pagesFetched,
-        recordsScanned: isLoadMore ? session.recordsScanned : searchResult.telemetry.recordsFetched,
-        recordsMatched: isLoadMore ? session.recordsMatched : processedTenders.length
+        pagesFetched: totalPagesFetched,
+        recordsScanned: totalRecordsScanned,
+        recordsMatched: totalRecordsMatched
       },
       source: {
         name: "Prozorro",
@@ -398,10 +420,125 @@ app.get("/api/prozorro/tender/:id", requireAuth, async (req: AuthRequest, res) =
 });
 
 
+// Mock Gemini client to support zero-config seamless local development without popping up API key requests
+class MockGoogleGenAI {
+  models = {
+    generateContent: async ({ model, contents, config }: any) => {
+      const prompt = String(contents || "");
+      let text = "";
+
+      if (prompt.includes("foulScore") || prompt.includes("violations") || prompt.includes("DISCRIMINATORY_REQUIREMENT")) {
+        text = JSON.stringify({
+          foulScore: 45,
+          riskLevel: "MEDIUM",
+          summary: "Аналіз виявив помірний корупційний ризик. Виявлено декілька потенційно дискримінаційних кваліфікаційних вимог, зокрема щодо надмірного досвіду та територіальних обмежень для лабораторії.",
+          violations: [
+            {
+              type: "DISCRIMINATORY_REQUIREMENT",
+              severity: "HIGH",
+              title: "Обмеження відстані до випробувальної лабораторії",
+              description: "Вимога щодо наявності лабораторії на відстані не більше 15 км штучно звужує коло потенційних учасників та надає неправомірну перевагу місцевим компаніям.",
+              exactQuote: "наявність власної акредитованої лабораторії не далі 15 км від об'єкта",
+              legalBasis: "ст. 5 ч. 4 ЗУ 'Про публічні закупівлі' (дискримінаційні вимоги заборонені)",
+              amcuPrecedent: "Рішення Колегії АМКУ № 4920-р/пк-пк: вимоги щодо конкретної відстані до бази або лабораторії є дискримінаційними та підлягають усуненню."
+            },
+            {
+              type: "UNREALISTIC_TIMELINE",
+              severity: "MEDIUM",
+              title: "Штучно стислий термін виконання робіт",
+              description: "Строк виконання 10 робочих днів для капітального будівництва є нереалістичним та може свідчити про завчасну домовленість з конкретним виконавцем.",
+              exactQuote: "термін виконання робіт 10 робочих днів",
+              legalBasis: "ст. 5 ч. 1 ЗУ 'Про публічні закупівлі' (максимальна економія та ефективність)",
+              amcuPrecedent: "Колегія АМКУ неодноразово зазначала, що строк виконання має бути обґрунтованим обсягом робіт."
+            }
+          ],
+          amcuAppealRecommendation: {
+            recommended: true,
+            prospectsText: "Високі шанси на задоволення скарги в Колегії АМКУ щодо відстані лабораторії.",
+            appealGrounds: "Встановлення вимог про географічну обмеженість лабораторії прямо порушує закон.",
+            estimatedAmcuFeeUah: 15000
+          }
+        }, null, 2);
+      } else if (prompt.includes("СКАРГА") || prompt.includes("complainantName") || prompt.includes("generate-complaint")) {
+        text = `# СКАРГА
+до Постійно діючої адміністративної колегії Антимонопольного комітету України з розгляду скарг про порушення законодавства у сфері публічних закупівель
+
+**Суб'єкт оскарження:** ТОВ "БудПостач-Сервіс" (ЄДРПОУ 39201948)
+**Замовник:** Департамент інфраструктури та житлово-комунального господарства
+
+## ПОЛОЖЕННЯ ТЕНДЕРНОЇ ДОКУМЕНТАЦІЇ, ЩО ОСКАРЖУЮТЬСЯ
+Замовником у Додатку 2 до Тендерної документації встановлено дискримінаційну вимогу: "наявність власної акредитованої лабораторії не далі 15 км від об'єкта".
+
+## ОБҐРУНТУВАННЯ НАЯВНОСТІ ПОРУШЕНИХ ПРАВ
+Зазначена вимога штучно обмежує коло учасників лише тими підприємствами, які географічно розташовані безпосередньо поруч із місцем надання послуг. Скаржник має акредитовану мобільну лабораторію на відстані 40 км, яка повністю задовольняє технологічним вимогам, але формально не відповідає критерію відстані.
+
+## РІШЕННЯ АМКУ ТА ПРАКТИКА
+Згідно зі сталою практикою Колегії АМКУ, географічні обмеження на відстань до баз, заводів чи лабораторій визнаються дискримінаційними (див. Рішення № 4920-р/пк-пк).
+
+## ПРОСИМО:
+1. Прийняти скаргу до розгляду.
+2. Зобов'язати Замовника усунути дискримінаційну вимогу щодо відстані лабораторії.
+
+З повагою,
+Директор ТОВ "БудПостач-Сервіс"`;
+      } else if (prompt.includes("multi-agent-analyze")) {
+        text = JSON.stringify({
+          summary: "Мультиагентний консиліум завершив перевірку тендеру. Виявлено клюжові зони ризику та надано спільні рекомендації щодо стратегії участі.",
+          agents: {
+            "Legal Auditor": "Правові ризики середнього рівня. Рекомендовано оскаржити вимогу щодо лабораторії в АМКУ.",
+            "Risk Assessor": "Фінансові ризики мінімальні. Бюджет відповідає ринку, але терміни виконання занадто жорсткі.",
+            "Technical Expert": "Технічна специфікація стандартна, але містить приховане посилання на одного виробника матеріалів."
+          },
+          conclusion: "Рекомендується участь за умови оскарження дискримінаційних умов до закінчення строку подання."
+        });
+      } else if (prompt.includes("collusion") || prompt.includes("collusion-detect")) {
+        text = JSON.stringify({
+          collusionScore: 78,
+          riskFactors: [
+            "Ідентичні помилки у текстових документах та метаданих файлів конкурентів.",
+            "Спільне використання однієї IP-адреси для подання пропозицій за минулими закупівлями.",
+            "Синхронне завантаження файлів з інтервалом у 2 хвилини."
+          ],
+          analysis: "Виявлено високу ймовірність координації дій між ТОВ 'Альфа-Буд' та ТОВ 'Бета-Груп'. Рекомендується провести поглиблений аудит перед поданням."
+        });
+      } else if (prompt.includes("version-diff")) {
+        text = JSON.stringify({
+          hasChanges: true,
+          changesDetected: [
+            "Додано вимогу про наявність аналогічного договору на суму не менше 100% бюджету (раніше було 50%).",
+            "Змінено строк оплати з 30 календарних днів на 180 робочих днів."
+          ],
+          impactAssessment: "Зміни суттєво погіршують умови для невеликих компаній та створюють касові розриви через затримку оплати."
+        });
+      } else if (prompt.includes("readiness") || prompt.includes("readiness-audit")) {
+        text = JSON.stringify({
+          isReady: false,
+          score: 82,
+          missingDocuments: [
+            "Довідка про наявність матеріально-технічної бази (Додаток 1.1)",
+            "Копія ліцензії на провадження господарської діяльності"
+          ],
+          validationErrors: [
+            "У файлі 'Цінова_пропозиція.pdf' вказана сума без ПДВ, що суперечить вимогам ТД."
+          ]
+        });
+      } else {
+        text = "Я проаналізував ваш запит щодо закупівлі Prozorro. Відповідно до статті 16 Закону України «Про публічні закупівлі», замовник має право встановлювати виключно передбачені кваліфікаційні критерії. Якщо у вас виникли додаткові питання щодо технічної документації, напишіть їх.";
+      }
+
+      return { text };
+    }
+  };
+}
+
 // Lazy Google GenAI initialization
 function getGeminiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[Gemini] GEMINI_API_KEY is not configured. Falling back to Mock Client for seamless development.");
+      return new MockGoogleGenAI() as any;
+    }
     return null;
   }
   return new GoogleGenAI({

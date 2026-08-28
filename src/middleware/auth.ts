@@ -13,14 +13,19 @@ export const requireAuth = async (
 ) => {
   const authHeader = req.headers.authorization;
   
+  // Dev bypass is allowed in all non-production environments during development to prevent API key prompt interference
+  const isDevBypassAllowed = process.env.NODE_ENV !== 'production';
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    // Development / Preview Mode Fallback: allow uninterrupted testing
-    req.user = {
-      uid: 'dev-user-001',
-      email: 'dev@tenderai.ua',
-      name: 'Користувач TenderAI'
-    } as any;
-    return next();
+    if (isDevBypassAllowed) {
+      req.user = {
+        uid: 'dev-user-001',
+        email: 'dev@tenderai.ua',
+        name: 'Користувач TenderAI'
+      } as any;
+      return next();
+    }
+    return res.status(401).json({ error: 'Unauthorized: No Bearer Token Provided' });
   }
 
   const token = authHeader.split('Bearer ')[1];
@@ -29,13 +34,15 @@ export const requireAuth = async (
     req.user = decodedToken;
     next();
   } catch (error) {
-    // If token verification fails (e.g. dev mock token or expired token in dev mode), fallback smoothly
-    req.user = {
-      uid: 'dev-user-001',
-      email: 'dev@tenderai.ua',
-      name: 'Користувач (Dev Session)'
-    } as any;
-    next();
+    if (isDevBypassAllowed) {
+      req.user = {
+        uid: 'dev-user-001',
+        email: 'dev@tenderai.ua',
+        name: 'Користувач (Dev Session)'
+      } as any;
+      return next();
+    }
+    return res.status(401).json({ error: 'Unauthorized: Invalid or Expired Token' });
   }
 };
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Tender, AppSection } from '../types';
 import { TenderDetailModal } from './TenderDetailModal';
+import { useAuth } from '../contexts/AuthContext';
 import { 
   FolderSearch, 
   Search, 
@@ -29,14 +30,21 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
   onNavigate,
   onAddNewTender,
 }) => {
+  const { token } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'HIGH_RISK' | 'CLEAN' | 'BOQ_READY'>('ALL');
   const [showAddModal, setShowAddModal] = useState(false);
   const [activeModalTenderId, setActiveModalTenderId] = useState<string | null>(null);
 
-  // New tender form state
+  // Modal active tab
+  const [activeTab, setActiveTab] = useState<'IMPORT' | 'PRIVATE'>('IMPORT');
+  const [prozorroIdInput, setProzorroIdInput] = useState('');
+  const [importingState, setImportingState] = useState<'IDLE' | 'LOADING' | 'SUCCESS' | 'ERROR'>('IDLE');
+  const [importedPreview, setImportedPreview] = useState<any>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  // Private project form state
   const [newTitle, setNewTitle] = useState('');
-  const [newNumber, setNewNumber] = useState(`UA-2026-${Date.now().toString().slice(-6)}-a`);
   const [newCustomer, setNewCustomer] = useState('');
   const [newBudget, setNewBudget] = useState('25000000');
   const [newRegion, setNewRegion] = useState('м. Київ');
@@ -58,46 +66,173 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
     return true;
   });
 
-  const handleCreateTender = (e: React.FormEvent) => {
+  const handleFetchProzorro = async () => {
+    if (!prozorroIdInput.trim() || !token) return;
+    setImportingState('LOADING');
+    setImportError(null);
+    setImportedPreview(null);
+    try {
+      let id = prozorroIdInput.trim();
+      if (id.includes('tenders/')) {
+        const parts = id.split('tenders/');
+        id = parts[parts.length - 1].split('?')[0];
+      }
+      
+      const res = await fetch(`/api/prozorro/tender/${encodeURIComponent(id)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        throw new Error("Закупівлю з таким ID не знайдено в базі Prozorro. Будь ласка, перевірте правильність ID.");
+      }
+      const data = await res.json();
+      setImportedPreview(data.structured || data);
+      setImportingState('SUCCESS');
+    } catch (err: any) {
+      console.error(err);
+      setImportError(err.message || "Не вдалося завантажити дані.");
+      setImportingState('ERROR');
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!importedPreview || !token) return;
+    setImportingState('LOADING');
+    try {
+      const body = {
+        tenderNumber: importedPreview.tenderNumber || importedPreview.id,
+        title: importedPreview.title,
+        customer: importedPreview.customer || "Невідомий замовник",
+        budgetUah: importedPreview.budgetUah || 0,
+        status: 'ACTIVE',
+        foulScore: importedPreview.foulScore,
+        riskLevel: importedPreview.riskLevel || 'NOT_ANALYZED',
+        summary: importedPreview.summary || 'Імпортовано з Prozorro.',
+        detailedData: importedPreview
+      };
+      
+      const res = await fetch('/api/tenders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      });
+      
+      if (!res.ok) {
+        throw new Error("Не вдалося зберегти закупівлю в каталозі.");
+      }
+      
+      const savedTender = await res.json();
+      
+      const tenderForUI: Tender = {
+        id: savedTender.id.toString(),
+        tenderNumber: savedTender.tenderNumber,
+        title: savedTender.title,
+        customer: savedTender.customer,
+        customerEdrpou: savedTender.detailedData?.customerEdrpou || '00000000',
+        customerCity: savedTender.detailedData?.customerCity || 'м. Київ',
+        budgetUah: parseFloat(savedTender.budgetUah) || 0,
+        deadline: savedTender.detailedData?.deadline || '',
+        region: savedTender.detailedData?.region || 'м. Київ',
+        status: savedTender.status,
+        category: savedTender.detailedData?.category || 'Інше',
+        foulScore: savedTender.foulScore || undefined,
+        riskLevel: savedTender.riskLevel || 'LOW',
+        summary: savedTender.summary || '',
+        tenderText: savedTender.detailedData?.tenderText || '',
+        boqItems: savedTender.detailedData?.boqItems || [],
+        violations: savedTender.detailedData?.violations || [],
+        createdDate: new Date().toISOString().split('T')[0]
+      };
+      
+      onAddNewTender(tenderForUI);
+      onSelectTender(tenderForUI);
+      setShowAddModal(false);
+      setProzorroIdInput('');
+      setImportedPreview(null);
+      setImportingState('IDLE');
+    } catch (err: any) {
+      console.error(err);
+      setImportError(err.message || "Не вдалося імпортувати.");
+      setImportingState('ERROR');
+    }
+  };
+
+  const handleCreatePrivateProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle || !newCustomer) return;
-
-    const created: Tender = {
-      id: `tender-${Date.now()}`,
-      tenderNumber: newNumber,
-      title: newTitle,
-      customer: newCustomer,
-      customerEdrpou: '39201948',
-      customerCity: newRegion,
-      budgetUah: parseFloat(newBudget) || 25000000,
-      deadline: '2024-12-31',
-      region: newRegion,
-      status: 'ACTIVE',
-      category: newCategory,
-      foulScore: undefined,
-      riskLevel: 'LOW',
-      summary: 'Новий тендер додано до системи для проведення аналізу.',
-      tenderText: 'Вимоги до учасників: наявність досвіду, МТБ та кваліфікованого персоналу згідно ст. 16 ЗУ «Про публічні закупівлі».',
-      boqItems: [
-        {
-          id: `boq-gen-1`,
-          code: 'ДБН Р-1-001',
-          description: 'Основні будівельно-монтажні роботи за проєктом',
-          unit: 'компл',
-          quantity: 1,
-          standardPriceUah: parseFloat(newBudget) || 0,
-          marketPriceUah: parseFloat(newBudget) || 0,
-          laborHours: 0,
-          anomaly: 'NORMAL',
+    if (!newTitle || !newCustomer || !token) return;
+    
+    setImportingState('LOADING');
+    try {
+      const tempId = `INTERNAL-PROJECT-${Date.now().toString().slice(-6)}`;
+      const body = {
+        tenderNumber: tempId,
+        title: newTitle,
+        customer: newCustomer,
+        budgetUah: parseFloat(newBudget) || 0,
+        status: 'INTERNAL_PROJECT',
+        foulScore: null,
+        riskLevel: 'LOW',
+        summary: 'Внутрішній приватний проект організації (не є публічною закупівлею Prozorro).',
+        detailedData: {
+          category: newCategory,
+          region: newRegion,
+          customerCity: newRegion,
+          customerEdrpou: 'INTERNAL',
+          deadline: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0]
         }
-      ],
-      violations: [],
-      createdDate: new Date().toISOString().split('T')[0],
-    };
-
-    onAddNewTender(created);
-    onSelectTender(created);
-    setShowAddModal(false);
+      };
+      
+      const res = await fetch('/api/tenders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      });
+      
+      if (!res.ok) {
+        throw new Error("Не вдалося створити приватний проект.");
+      }
+      
+      const saved = await res.json();
+      
+      const tenderForUI: Tender = {
+        id: saved.id.toString(),
+        tenderNumber: saved.tenderNumber,
+        title: saved.title,
+        customer: saved.customer,
+        customerEdrpou: 'INTERNAL',
+        customerCity: newRegion,
+        budgetUah: parseFloat(saved.budgetUah) || 0,
+        deadline: saved.detailedData?.deadline || '',
+        region: newRegion,
+        status: 'INTERNAL_PROJECT',
+        category: newCategory,
+        foulScore: undefined,
+        riskLevel: 'LOW',
+        summary: saved.summary || '',
+        tenderText: '',
+        boqItems: [],
+        violations: [],
+        createdDate: new Date().toISOString().split('T')[0]
+      };
+      
+      onAddNewTender(tenderForUI);
+      onSelectTender(tenderForUI);
+      setShowAddModal(false);
+      
+      setNewTitle('');
+      setNewCustomer('');
+      setNewBudget('25000000');
+      setImportingState('IDLE');
+    } catch (err: any) {
+      console.error(err);
+      setImportError(err.message || "Помилка при створенні проекту.");
+      setImportingState('ERROR');
+    }
   };
 
   return (
@@ -293,112 +428,202 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl animate-scaleUp">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-base text-white">Додати нову закупівлю для моніторингу</h3>
+              <h3 className="font-bold text-base text-white">Додати нову закупівлю</h3>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  setShowAddModal(false);
+                  setImportedPreview(null);
+                  setProzorroIdInput('');
+                  setImportingState('IDLE');
+                  setImportError(null);
+                }}
                 className="text-slate-400 hover:text-white text-sm"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleCreateTender} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">
-                  Назва закупівлі
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="наприклад: Капітальний ремонт дорожнього покриття..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+            {/* Tab switchers */}
+            <div className="flex bg-slate-800 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('IMPORT');
+                  setImportError(null);
+                }}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                  activeTab === 'IMPORT'
+                    ? 'bg-emerald-600 text-white'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Імпорт з Prozorro
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('PRIVATE');
+                  setImportError(null);
+                }}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                  activeTab === 'PRIVATE'
+                    ? 'bg-emerald-600 text-white'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Приватний проект
+              </button>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
+            {activeTab === 'IMPORT' ? (
+              <div className="space-y-3 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-300 mb-1">
-                    Ідентифікатор (Prozorro ID)
+                    Prozorro ID або повне посилання на закупівлю
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={prozorroIdInput}
+                      onChange={(e) => setProzorroIdInput(e.target.value)}
+                      placeholder="наприклад: UA-2024-09-15-001234-a"
+                      className="flex-1 bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      disabled={importingState === 'LOADING'}
+                      onClick={handleFetchProzorro}
+                      className="px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/30 font-bold transition-all cursor-pointer"
+                    >
+                      {importingState === 'LOADING' ? 'Пошук...' : 'Перевірити'}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Введіть офіційний ідентифікатор Prozorro для завантаження оригінальних файлів документації, специфікацій та BoQ.
+                  </p>
+                </div>
+
+                {importError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-300">
+                    {importError}
+                  </div>
+                )}
+
+                {importedPreview && (
+                  <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-2">
+                    <div className="text-[10px] uppercase font-bold text-emerald-400">Знайдено в Prozorro API</div>
+                    <h4 className="font-bold text-white text-sm line-clamp-2">{importedPreview.title}</h4>
+                    <div className="space-y-1 text-slate-300">
+                      <div>Замовник: <strong className="text-slate-200">{importedPreview.customer || importedPreview.customerName}</strong></div>
+                      <div>Очікувана вартість: <strong className="text-emerald-400 font-mono">{(importedPreview.budgetUah || importedPreview.value?.amount || 0).toLocaleString()} ₴</strong></div>
+                    </div>
+                    <div className="pt-2 border-t border-slate-700/50 flex justify-end">
+                      <button
+                        type="button"
+                        disabled={importingState === 'LOADING'}
+                        onClick={handleConfirmImport}
+                        className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer"
+                      >
+                        {importingState === 'LOADING' ? 'Збереження...' : 'Підтвердити імпорт в каталог'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <form onSubmit={handleCreatePrivateProject} className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">
+                    Назва проекту (Внутрішній)
                   </label>
                   <input
                     type="text"
-                    value={newNumber}
-                    onChange={(e) => setNewNumber(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-emerald-400 font-mono focus:outline-none"
+                    required
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    placeholder="наприклад: Капітальний ремонт офісного приміщення..."
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">
-                    Очікувана вартість (грн)
-                  </label>
-                  <input
-                    type="number"
-                    value={newBudget}
-                    onChange={(e) => setNewBudget(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white font-mono focus:outline-none"
-                  />
-                </div>
-              </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1">
+                      Очікувана вартість (грн)
+                    </label>
+                    <input
+                      type="number"
+                      value={newBudget}
+                      onChange={(e) => setNewBudget(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white font-mono focus:outline-none"
+                    />
+                  </div>
 
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">
-                  Замовник (Найменування)
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newCustomer}
-                  onChange={(e) => setNewCustomer(e.target.value)}
-                  placeholder="наприклад: Департамент інфраструктури..."
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">
-                    Регіон / Місто
-                  </label>
-                  <input
-                    type="text"
-                    value={newRegion}
-                    onChange={(e) => setNewRegion(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none"
-                  />
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1">
+                      Категорія робіт
+                    </label>
+                    <input
+                      type="text"
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">
-                    Категорія
-                  </label>
-                  <input
-                    type="text"
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none"
-                  />
-                </div>
-              </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1">
+                      Замовник / Клієнт
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newCustomer}
+                      onChange={(e) => setNewCustomer(e.target.value)}
+                      placeholder="наприклад: Приватний інвестор..."
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none"
+                    />
+                  </div>
 
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300"
-                >
-                  Скасувати
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
-                >
-                  Додати та перейти
-                </button>
-              </div>
-            </form>
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1">
+                      Регіон реалізації
+                    </label>
+                    <input
+                      type="text"
+                      value={newRegion}
+                      onChange={(e) => setNewRegion(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {importError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-300">
+                    {importError}
+                  </div>
+                )}
+
+                <div className="pt-3 border-t border-slate-800 flex items-center justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+                  >
+                    Скасувати
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={importingState === 'LOADING'}
+                    className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer"
+                  >
+                    {importingState === 'LOADING' ? 'Створення...' : 'Створити проект'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}

@@ -301,7 +301,7 @@ export interface Tender {
   budgetUah: number;
   deadline: string;
   region: string;
-  status: 'ACTIVE' | 'AUDIT_FLAGGED' | 'BID_IN_PREPARATION' | 'COMPLETED' | 'AMCU_FILED';
+  status: 'ACTIVE' | 'AUDIT_FLAGGED' | 'BID_IN_PREPARATION' | 'COMPLETED' | 'AMCU_FILED' | 'INTERNAL_PROJECT';
   category: string;
   dk021Code?: string;
   foulScore?: number | null; // 0 - 100, null if not analyzed yet

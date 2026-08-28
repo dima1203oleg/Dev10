@@ -8,6 +8,7 @@ interface AuthContextType {
   token: string | null;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  signInAsDev: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -16,6 +17,7 @@ const AuthContext = createContext<AuthContextType>({
   token: null,
   signIn: async () => {},
   signOut: async () => {},
+  signInAsDev: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -26,6 +28,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const isDev = (import.meta as any).env.DEV || (import.meta as any).env.MODE !== 'production';
+    if (isDev && localStorage.getItem('dev_bypass') === 'true') {
+      const mockUser = {
+        uid: 'dev-user-001',
+        email: 'dev@tenderai.ua',
+        displayName: 'Користувач TenderAI (Локально)',
+        photoURL: null,
+        emailVerified: true,
+        getIdToken: async () => 'dev-mock-token'
+      } as any;
+      setUser(mockUser);
+      setToken('dev-mock-token');
+      setLoading(false);
+      
+      // Keep syncing in background if needed
+      fetch('/api/auth/sync', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer dev-mock-token`
+        }
+      }).catch(err => console.warn("Dev sync failed:", err));
+      
+      return;
+    }
+
     const unsubscribe = onIdTokenChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -60,7 +87,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signInAsDev = () => {
+    const mockUser = {
+      uid: 'dev-user-001',
+      email: 'dev@tenderai.ua',
+      displayName: 'Користувач TenderAI (Локально)',
+      photoURL: null,
+      emailVerified: true,
+      getIdToken: async () => 'dev-mock-token'
+    } as any;
+    setUser(mockUser);
+    setToken('dev-mock-token');
+    localStorage.setItem('dev_bypass', 'true');
+    
+    fetch('/api/auth/sync', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer dev-mock-token`
+      }
+    }).catch(err => console.warn("Dev sync failed:", err));
+  };
+
   const signOut = async () => {
+    localStorage.removeItem('dev_bypass');
     try {
       await firebaseSignOut(auth);
     } catch (error) {
@@ -71,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, token, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, token, signIn, signOut, signInAsDev }}>
       {children}
     </AuthContext.Provider>
   );

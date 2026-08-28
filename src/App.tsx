@@ -23,7 +23,7 @@ import { useAuth } from './contexts/AuthContext';
 import { Bot, User as UserIcon, ShieldAlert } from 'lucide-react';
 
 export default function App() {
-  const { user, loading: authLoading, token, signIn } = useAuth();
+  const { user, loading: authLoading, token, signIn, signInAsDev } = useAuth();
   
   const [currentSection, setCurrentSection] = useState<AppSection>('dashboard');
   const [systemMode, setSystemMode] = useState<SystemMode>('TEAM');
@@ -120,11 +120,21 @@ export default function App() {
           <div className="space-y-3">
             <button
               onClick={signIn}
-              className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-emerald-900/30 transition-all cursor-pointer"
+              className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-emerald-900/30 transition-all cursor-pointer text-sm"
             >
               <UserIcon className="w-5 h-5" />
               <span>Увійти з Google Workspace</span>
             </button>
+
+            {((import.meta as any).env.DEV || (import.meta as any).env.MODE !== 'production') && (
+              <button
+                onClick={signInAsDev}
+                className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/20 font-bold py-3 px-4 rounded-xl transition-all cursor-pointer text-sm"
+              >
+                <Bot className="w-5 h-5 animate-pulse" />
+                <span>Увійти локально (Режим розробника)</span>
+              </button>
+            )}
           </div>
           
           <div className="text-[10px] text-slate-500 pt-4 border-t border-slate-800">

@@ -51,11 +51,29 @@ export const complaints = pgTable('complaints', {
   createdAt: timestamp('created_at').defaultNow(),
 });
 
+// Search sessions
+export const searchSessions = pgTable('search_sessions', {
+  id: text('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id).notNull(),
+  rawQuery: text('raw_query').notNull(),
+  structuredQuery: jsonb('structured_query').notNull(),
+  source: text('source').default('Prozorro'),
+  sourceCursor: text('source_cursor'),
+  pagesScanned: integer('pages_scanned').default(0),
+  recordsScanned: integer('records_scanned').default(0),
+  recordsMatched: integer('records_matched').default(0),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+  expiresAt: timestamp('expires_at'),
+  status: text('status').default('active'),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   companyProfiles: many(companyProfiles),
   tenders: many(tenders),
   complaints: many(complaints),
+  searchSessions: many(searchSessions),
 }));
 
 export const companyProfilesRelations = relations(companyProfiles, ({ one }) => ({
@@ -81,5 +99,12 @@ export const complaintsRelations = relations(complaints, ({ one }) => ({
   tender: one(tenders, {
     fields: [complaints.tenderId],
     references: [tenders.id],
+  }),
+}));
+
+export const searchSessionsRelations = relations(searchSessions, ({ one }) => ({
+  owner: one(users, {
+    fields: [searchSessions.userId],
+    references: [users.id],
   }),
 }));
