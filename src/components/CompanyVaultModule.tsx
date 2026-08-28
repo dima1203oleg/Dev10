@@ -16,7 +16,8 @@ import {
   Edit3,
   Download,
   FileCheck,
-  Calendar
+  Calendar,
+  Target
 } from 'lucide-react';
 
 interface CompanyVaultModuleProps {
@@ -278,7 +279,7 @@ export const CompanyVaultModule: React.FC<CompanyVaultModuleProps> = ({
           }`}
         >
           <Target className="w-4 h-4" />
-          Radar Profile
+          Профіль Радару
         </button>
       </div>
 
@@ -289,8 +290,8 @@ export const CompanyVaultModule: React.FC<CompanyVaultModuleProps> = ({
           
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold text-white uppercase tracking-tight">AI Tender Radar Profile</h2>
-              <p className="text-sm text-slate-400 mt-1">Ці параметри використовуються AI для автоматичного пошуку та оцінки Match Score тендерів.</p>
+              <h2 className="text-xl font-bold text-white uppercase tracking-tight">Параметри Тендерного Радару</h2>
+              <p className="text-sm text-slate-400 mt-1">Ці критерії використовуються ШІ для автоматичного пошуку та оцінки рівня відповідності (Match Score) державних закупівель.</p>
             </div>
           </div>
 

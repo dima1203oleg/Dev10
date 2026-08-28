@@ -33,7 +33,9 @@ import {
   Zap,
   Info,
   Check,
-  FileText
+  FileText,
+  Search,
+  Target
 } from 'lucide-react';
 
 interface TenderWarRoomModuleProps {
@@ -134,12 +136,12 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
       <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4 overflow-x-auto no-scrollbar">
         <div className="flex items-center justify-between min-w-[800px] px-4">
           {[
-            { step: 1, label: 'Radar', status: 'COMPLETED', icon: Radar },
-            { step: 2, label: 'Analysis', status: 'COMPLETED', icon: Search },
-            { step: 3, label: 'Audit', status: 'COMPLETED', icon: ShieldAlert },
-            { step: 4, label: 'Cost', status: 'IN_PROGRESS', icon: DollarSign },
-            { step: 5, label: 'Documents', status: 'PENDING', icon: FileText },
-            { step: 6, label: 'Pre-Submission', status: 'PENDING', icon: FileCheck2 },
+            { step: 1, label: 'Радар', status: 'COMPLETED', icon: Target },
+            { step: 2, label: 'Аналіз', status: 'COMPLETED', icon: Search },
+            { step: 3, label: 'Аудит', status: 'COMPLETED', icon: ShieldAlert },
+            { step: 4, label: 'Кошторис', status: 'IN_PROGRESS', icon: DollarSign },
+            { step: 5, label: 'Документи', status: 'PENDING', icon: FileText },
+            { step: 6, label: 'Передподання', status: 'PENDING', icon: FileCheck2 },
           ].map((item, idx, arr) => (
             <React.Fragment key={item.step}>
               <div className="flex flex-col items-center gap-2 group">
@@ -164,9 +166,9 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
             </React.Fragment>
           ))}
           <div className="ml-8 pl-8 border-l border-slate-800 flex flex-col items-end">
-             <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Final Status</div>
-             <div className="px-4 py-2 rounded-xl bg-slate-800 text-slate-500 font-black text-xs uppercase tracking-widest border border-slate-700">
-                Awaiting Audit
+             <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Фінальний статус</div>
+             <div className="px-4 py-2 rounded-xl bg-slate-800 text-slate-400 font-black text-xs uppercase tracking-widest border border-slate-700">
+                Очікує аудиту
              </div>
           </div>
         </div>
@@ -478,16 +480,16 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
             <div className="space-y-1 relative z-10">
               <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2">
                 <FileCheck2 className="w-5 h-5 text-emerald-400" />
-                Pre-Submission Audit (QA)
+                Передподачний аудит (Контроль якості)
               </h2>
               <p className="text-sm text-slate-400">
-                Фінальна перевірка пропозиції перед завантаженням у Prozorro.
+                Фінальна перевірка тендерної пропозиції перед завантаженням у систему Prozorro.
               </p>
             </div>
 
             <button className="px-8 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-950/40 transition-all flex items-center gap-2 relative z-10">
               <Zap size={16} />
-              <span>READY TO SUBMIT</span>
+              <span>ГОТОВО ДО ПОДАННЯ</span>
             </button>
           </div>
 
@@ -496,33 +498,33 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
               { 
                 category: 'Юридична відповідність', 
                 items: [
-                  { label: 'Відсутність у санкційних списках', status: 'PASS', evidence: 'Скриншот РНБО від 20.08' },
-                  { label: 'Стаття 17 (відсутність судимостей)', status: 'PASS', evidence: 'Довідка МВС №12345' },
-                  { label: 'Повноваження підписанта', status: 'PASS', evidence: 'Наказ про призначення' }
+                  { label: 'Відсутність у санкційних списках', status: 'ПРОЙДЕНО', evidence: 'Скриншот перевірки РНБО' },
+                  { label: 'Стаття 17 (відсутність судимостей)', status: 'ПРОЙДЕНО', evidence: 'Довідка МВС України' },
+                  { label: 'Повноваження підписанта', status: 'ПРОЙДЕНО', evidence: 'Наказ про призначення керівника' }
                 ]
               },
               { 
                 category: 'Технічна частина', 
                 items: [
-                  { label: 'Повна відповідність BoQ', status: 'PASS', evidence: 'Звіт TenderAI BoQ Analyzer' },
-                  { label: 'Сертифікати на матеріали', status: 'WARN', evidence: 'Відсутній сертифікат на бетон B25' },
-                  { label: 'Гарантійні листи', status: 'PASS', evidence: 'Підписано КЕП' }
+                  { label: 'Повна відповідність відомості робіт', status: 'ПРОЙДЕНО', evidence: 'Звіт аналізатора дефектних актів' },
+                  { label: 'Сертифікати якості на матеріали', status: 'УВАГА', evidence: 'Відсутній паспорт на суміш бетонну' },
+                  { label: 'Гарантійні листи виробників', status: 'ПРОЙДЕНО', evidence: 'Підписано електронним підписом' }
                 ]
               },
               { 
-                category: 'Кваліфікаційні критерії', 
+                category: 'Кваліфікаційні критерії (ст. 16)', 
                 items: [
-                  { label: 'Аналогічний досвід (3 договори)', status: 'PASS', evidence: 'Prozorro: UA-2023-...' },
-                  { label: 'Наявність техніки', status: 'PASS', evidence: 'Техпаспорти + договори оренди' },
-                  { label: 'Наявність працівників', status: 'PASS', evidence: 'Накази про прийняття' }
+                  { label: 'Аналогічний досвід (3 договори)', status: 'ПРОЙДЕНО', evidence: 'Prozorro: договори та відгуки' },
+                  { label: 'Наявність будівельної техніки', status: 'ПРОЙДЕНО', evidence: 'Техпаспорти та договори оренди' },
+                  { label: 'Наявність кваліфікованих працівників', status: 'ПРОЙДЕНО', evidence: 'Накази та посвідчення з ОП' }
                 ]
               },
               { 
                 category: 'Фінансова частина', 
                 items: [
-                  { label: 'Тендерна гарантія', status: 'PASS', evidence: 'Банківська гарантія №789' },
-                  { label: 'Довідка про відсутність заборгованості', status: 'PASS', evidence: 'ДПС: Витяг від 21.08' },
-                  { label: 'Фінансова звітність за 2023', status: 'PASS', evidence: 'Баланс (ф. №1)' }
+                  { label: 'Електронна банківська гарантія', status: 'ПРОЙДЕНО', evidence: 'Банківська гарантія з КЕП банку' },
+                  { label: 'Довідка про відсутність заборгованості', status: 'ПРОЙДЕНО', evidence: 'Витяг ДПС України' },
+                  { label: 'Фінансова звітність за звітний період', status: 'ПРОЙДЕНО', evidence: 'Баланс підприємства (ф. №1)' }
                 ]
               }
             ].map((cat, idx) => (
@@ -534,7 +536,7 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-200">{item.label}</span>
                         <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${
-                          item.status === 'PASS' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
+                          item.status === 'ПРОЙДЕНО' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
                         }`}>
                           {item.status}
                         </div>

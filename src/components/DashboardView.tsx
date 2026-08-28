@@ -56,8 +56,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           <Target className="w-5 h-5" />
                         </div>
                         <div>
-                          <h2 className="text-xl font-bold text-white tracking-tight">AI TENDER RADAR</h2>
-                          <p className="text-xs text-slate-500">Автоматично відібрані тендери з найвищим Match Score</p>
+                          <h2 className="text-xl font-bold text-white tracking-tight">ТЕНДЕРНИЙ РАДАР ШІ</h2>
+                          <p className="text-xs text-slate-500">Автоматично відібрані закупівлі з найвищим рівнем відповідності</p>
                         </div>
                     </div>
                     <button onClick={() => onNavigate('radar')} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-[10px] font-bold text-slate-300 rounded-lg transition-all flex items-center gap-2 border border-slate-700 uppercase tracking-widest">
@@ -90,7 +90,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <div className="flex items-center gap-6 shrink-0">
                          <div className="text-right">
                            <div className="text-2xl font-black text-emerald-400">{tender.opportunityScore?.overallScore || '—'}%</div>
-                           <div className="text-[9px] font-bold text-emerald-500/60 uppercase tracking-widest">Match Score</div>
+                           <div className="text-[9px] font-bold text-emerald-500/60 uppercase tracking-widest">Відповідність</div>
                          </div>
                          <div className="w-10 h-10 rounded-full border border-slate-800 flex items-center justify-center group-hover:bg-emerald-500 group-hover:border-emerald-500 group-hover:text-slate-950 text-slate-600 transition-all shadow-inner">
                            <ArrowRight size={18} />
@@ -104,7 +104,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </div>
                       <div className="space-y-1">
                         <p className="text-slate-400 font-bold">Немає відповідних тендерів</p>
-                        <p className="text-xs text-slate-600">Налаштуйте профіль компанії у Vault для активації Радару.</p>
+                        <p className="text-xs text-slate-600">Налаштуйте профіль компанії у сховищі документів для активації Радару.</p>
                       </div>
                     </div>
                   )}
@@ -120,7 +120,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <Bot className="w-5 h-5" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-white tracking-tight uppercase">AI Assistant</h2>
+                      <h2 className="text-xl font-bold text-white tracking-tight uppercase">ШІ-Помічник</h2>
                       <p className="text-xs text-slate-500">Персональні рекомендації</p>
                     </div>
                 </div>

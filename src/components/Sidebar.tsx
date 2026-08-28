@@ -14,15 +14,15 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onSelectSection }) => {
   const navItems = [
     { id: 'dashboard', icon: Home, label: 'Головна' },
-    { id: 'radar', icon: Target, label: 'AI Radar' },
-    { id: 'catalog', icon: Search, label: 'Пошук' },
-    { id: 'war-room', icon: Briefcase, label: 'Мої тендери' },
-    { id: 'matrix', icon: Scale, label: 'Юридичний' },
-    { id: 'construction', icon: Calculator, label: 'Кошторис' },
+    { id: 'radar', icon: Target, label: 'Тендерний Радар' },
+    { id: 'catalog', icon: Search, label: 'Пошук закупівель' },
+    { id: 'war-room', icon: Briefcase, label: 'Командний Центр' },
+    { id: 'matrix', icon: Scale, label: 'Юридичний аудит' },
+    { id: 'construction', icon: Calculator, label: 'Кошторис та БОК' },
     { id: 'competitors', icon: Users, label: 'Конкуренти' },
-    { id: 'competitors', icon: Share2, label: 'Змови' }, // Using same section for now
+    { id: 'competitors', icon: Share2, label: 'Виявлення змов' },
     { id: 'foultender', icon: AlertTriangle, label: 'Ризики' },
-    { id: 'complaints', icon: FileText, label: 'Документи' },
+    { id: 'complaints', icon: FileText, label: 'Документи та Скарги' },
     { id: 'analytics', icon: BarChart3, label: 'Аналітика' },
     { id: 'multiagent-chat', icon: Bell, label: 'Сповіщення' },
   ];

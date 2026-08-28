@@ -43,19 +43,19 @@ interface ResponsiveNavigationProps {
 export const globalNavItems: NavItem[] = [
   { id: 'dashboard', label: 'Головна', icon: LayoutDashboard, group: 'GLOBAL' },
   { id: 'catalog', label: 'Каталог ТД', icon: Search, group: 'GLOBAL' },
-  { id: 'radar', label: 'Tender Radar', icon: Radar, group: 'GLOBAL' },
-  { id: 'vault', label: 'Smart Vault', icon: FileText, group: 'GLOBAL' },
+  { id: 'radar', label: 'Тендерний Радар', icon: Radar, group: 'GLOBAL' },
+  { id: 'vault', label: 'Сховище документів', icon: FileText, group: 'GLOBAL' },
   { id: 'analytics', label: 'Аналітика', icon: TrendingUp, group: 'GLOBAL' },
 ];
 
 export const workspaceNavItems: NavItem[] = [
-  { id: 'war-room', label: 'War Room', icon: Briefcase, group: 'WORKSPACE' },
+  { id: 'war-room', label: 'Командний Центр', icon: Briefcase, group: 'WORKSPACE' },
   { id: 'documents', label: 'Документи', icon: FileText, group: 'WORKSPACE' },
   { id: 'matrix', label: 'Вимоги ТД', icon: Layers, group: 'WORKSPACE' },
-  { id: 'foultender', label: 'FoulTender', icon: ShieldAlert, group: 'WORKSPACE' },
-  { id: 'construction', label: 'Кошторис (AI)', icon: Calculator, group: 'WORKSPACE' },
-  { id: 'audit', label: 'Pre-Audit', icon: UserCheck, group: 'WORKSPACE' },
-  { id: 'bid-packages', label: 'Bid Package', icon: Package, group: 'WORKSPACE' },
+  { id: 'foultender', label: 'Аудит ризиків', icon: ShieldAlert, group: 'WORKSPACE' },
+  { id: 'construction', label: 'Кошторис (ШІ)', icon: Calculator, group: 'WORKSPACE' },
+  { id: 'audit', label: 'Передподачний аудит', icon: UserCheck, group: 'WORKSPACE' },
+  { id: 'bid-packages', label: 'Тендерний пакет', icon: Package, group: 'WORKSPACE' },
 ];
 
 export const ResponsiveNavigation: React.FC<ResponsiveNavigationProps> = ({
