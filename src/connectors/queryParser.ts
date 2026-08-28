@@ -98,20 +98,31 @@ export async function parseTenderQuery(prompt: string, apiKey: string): Promise<
       } catch (err: any) {
         lastError = err;
         const errMsg = String(err?.message || err || "");
-        console.warn(`[Gemini QueryParser] Call to '${modelName}' (attempt ${attempt + 1}) failed (${errMsg})`);
         
-        const isTransient =
+        const isQuotaExceeded =
+          err?.status === 429 ||
+          err?.code === 429 ||
+          errMsg.includes("429") ||
+          errMsg.includes("RESOURCE_EXHAUSTED") ||
+          errMsg.includes("Quota exceeded") ||
+          errMsg.includes("quota");
+
+        const isTransient503 =
           err?.status === 503 ||
           err?.code === 503 ||
           errMsg.includes("503") ||
           errMsg.includes("high demand") ||
           errMsg.includes("UNAVAILABLE") ||
-          errMsg.includes("overloaded") ||
-          err?.status === 429 ||
-          err?.code === 429;
+          errMsg.includes("overloaded");
 
-        if (isTransient && attempt === 0) {
-          await new Promise((resolve) => setTimeout(resolve, 1200));
+        console.warn(`[Gemini QueryParser] Модель '${modelName}' (спроба ${attempt + 1}) не відповіла (${errMsg.slice(0, 100)}...). Перехід до наступної моделі.`);
+        
+        if (isQuotaExceeded) {
+          break; // Immediately switch model on quota exhaustion
+        }
+
+        if (isTransient503 && attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 800));
         } else {
           break;
         }
