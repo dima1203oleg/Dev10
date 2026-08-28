@@ -323,6 +323,12 @@ export interface Tender {
   readinessScore?: PreSubmissionReadinessScore;
   amcuAppealRecommendation?: AmcuAppealRecommendation;
   multiAgentAnalysis?: MultiAgentReport;
+  source?: {
+    name: string;
+    url: string;
+    retrievedAt: string;
+    hash?: string;
+  };
   createdDate: string;
 }
 

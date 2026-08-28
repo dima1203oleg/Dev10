@@ -111,6 +111,11 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
       foulScore: null,
       riskLevel: 'NOT_ANALYZED',
       summary: detailData.description || `Офіційна закупівля Prozorro № ${detailData.tenderNumber}`,
+      source: {
+        name: 'Prozorro',
+        url: `https://prozorro.gov.ua/tender/${detailData.tenderNumber}`,
+        retrievedAt: new Date().toISOString()
+      },
       createdDate: new Date().toISOString().split('T')[0],
       boqItems: (detailData.items || []).map((it: any, idx: number) => ({
         id: `boq-${idx}`,

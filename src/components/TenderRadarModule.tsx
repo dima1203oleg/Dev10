@@ -51,43 +51,69 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
   const [activeModalTenderId, setActiveModalTenderId] = useState<string | null>(null);
   
   const [isSearching, setIsSearching] = useState(false);
+  const [searchTelemetry, setSearchTelemetry] = useState<any>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [nextOffset, setNextOffset] = useState<string | null>(null);
 
-  // Apply natural language filter simulation
-  const handleApplyNlPrompt = async (prompt: string) => {
-    setNlPrompt(prompt);
+  // Apply natural language filter
+  const handleApplyNlPrompt = async (prompt: string, isAppend = false) => {
+    if (!isAppend) {
+      setNlPrompt(prompt);
+      setLocalTenders([]);
+    }
+    
     if (!token) return;
     
     setIsSearching(true);
+    setSearchError(null);
+    if (!isAppend) setSearchTelemetry(null);
+
     try {
-      const res = await fetch(`/api/prozorro/search?query=${encodeURIComponent(prompt)}`, {
+      const url = `/api/prozorro/search?query=${encodeURIComponent(prompt)}${isAppend && nextOffset ? `&offset=${nextOffset}` : ''}`;
+      const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      
       const data = await res.json();
+
+      if (!res.ok) {
+        setSearchError(data.error || "Не вдалося отримати дані з Prozorro. Перевірте з'єднання.");
+        setIsSearching(false);
+        return;
+      }
+
+      if (data.telemetry) {
+        setSearchTelemetry(data.telemetry);
+        setNextOffset(data.telemetry.nextOffset || null);
+      }
+      
       if (data.tenders) {
         // Map backend objects to frontend types
         const mappedTenders: Tender[] = data.tenders.map((t: any) => ({
             id: t.id,
-            tenderNumber: t.tenderNumber,
+            tenderNumber: t.tenderId, // Correctly use tenderId (UA-...)
             title: t.title,
             customer: t.customer,
             customerEdrpou: t.customerEdrpou,
             customerCity: t.customerCity,
-            budgetUah: t.budgetUah,
+            budgetUah: t.budgetUah || 0,
             deadline: t.deadline,
-            region: t.customerCity,
-            status: t.status,
+            region: t.region || t.customerCity,
+            status: t.status === 'active' ? 'ACTIVE' : 'AUDIT_FLAGGED',
             category: t.category,
             foulScore: t.foulScore,
             riskLevel: t.riskLevel,
             summary: t.summary,
+            source: t.source,
+            createdDate: new Date().toISOString(),
             boqItems: [],
             violations: [],
             requirements: [],
             opportunityScore: {
-                overallScore: t.foulScore ? Math.max(10, 100 - t.foulScore) : 70,
+                overallScore: t.fitScore || (t.foulScore ? Math.max(10, 100 - t.foulScore) : 70),
                 bidDecision: t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL' ? 'BID_WITH_CONDITIONS' : 'BID',
-                bidDecisionReason: "Автоматичний скоринг Prozorro за даними Vault компанії",
-                factors: {
+                bidDecisionReason: t.radarReasons?.[0] || "Автоматичний скоринг Prozorro за даними Vault компанії",
+                factors: t.fitFactors || {
                   companyFit: company ? 85 : 50,
                   legalFit: t.riskLevel === 'CRITICAL' ? 40 : 80,
                   docReadiness: 75,
@@ -97,25 +123,32 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                   executionFeasibility: 85,
                   riskPenalty: t.foulScore || 20
                 },
-                whyThisTender: [
-                  { icon: "Shield", title: "Prozorro імпорт", description: "Отримано безпосередньо з Prozorro API", type: "POSITIVE" }
-                ]
+                whyThisTender: (t.radarReasons || []).map((r: string) => ({
+                  icon: "Shield",
+                  title: "Аналіз відповідності",
+                  description: r,
+                  type: "POSITIVE"
+                }))
             }
         }));
         
-        // Combine DB tenders and new ones (preventing duplicates by tenderNumber)
-        const newTendersList = [...dbTenders];
-        for (const mt of mappedTenders) {
-           if (!newTendersList.find(t => t.tenderNumber === mt.tenderNumber)) {
-             newTendersList.push(mt);
-           }
+        if (isAppend) {
+          setLocalTenders(prev => [...prev, ...mappedTenders]);
+        } else {
+          setLocalTenders(mappedTenders);
         }
-        setLocalTenders(newTendersList);
       }
     } catch (err) {
       console.error(err);
+      setSearchError("Виникла помилка під час пошуку.");
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleLoadMore = () => {
+    if (nlPrompt && nextOffset) {
+      handleApplyNlPrompt(nlPrompt, true);
     }
   };
 
@@ -191,9 +224,28 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-slate-300 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-emerald-400" />
-            AI Пошуковий Промпт (Природна мова поверх Prozorro)
+            AI Пошуковий Промпт (Real-time Prozorro Connector)
           </label>
-          <span className="text-[11px] text-slate-400">AI автоматично розпізнає критерії та фільтрує закупівлі</span>
+          <div className="flex items-center gap-4">
+            {isSearching && (
+              <div className="text-[10px] animate-pulse text-emerald-400 flex items-center gap-1">
+                <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></div>
+                Crawling Prozorro API...
+              </div>
+            )}
+            {searchError && (
+              <div className="text-[10px] text-rose-400 font-bold bg-rose-950/30 px-2 py-0.5 rounded border border-rose-900 flex items-center gap-1">
+                <ShieldAlert className="w-3 h-3" />
+                {searchError}
+              </div>
+            )}
+            {searchTelemetry && !isSearching && (
+              <div className="text-[10px] font-mono text-slate-500 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                Found {searchTelemetry.recordsReturned} in {searchTelemetry.durationMs}ms ({searchTelemetry.pagesFetched} pages)
+              </div>
+            )}
+            <span className="text-[11px] text-slate-400">AI автоматично розпізнає критерії та фільтрує закупівлі</span>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch gap-2">
@@ -446,8 +498,14 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
 
                   <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300 pt-1">
                     <span>Замовник: <strong className="text-slate-200">{tender.customer}</strong></span>
-                    <span>Бюджет: <strong className="text-emerald-400 font-mono">{tender.budgetUah.toLocaleString()} ₴</strong></span>
-                    <span>Дедлайн: <strong className="text-amber-400 font-mono">{tender.submissionDeadline}</strong></span>
+                    <span>Бюджет: <strong className="text-emerald-400 font-mono">{tender.budgetUah?.toLocaleString() || 'NOT_AVAILABLE'} ₴</strong></span>
+                    <span>Дедлайн: <strong className="text-amber-400 font-mono">{tender.deadline}</strong></span>
+                    {tender.source && (
+                      <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3" />
+                        Provenance: Prozorro API • {new Date(tender.source.retrievedAt).toLocaleTimeString()}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -568,6 +626,23 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
           );
         })}
       </div>
+      
+      {nextOffset && (
+        <div className="flex justify-center pt-8 pb-12">
+          <button
+            onClick={handleLoadMore}
+            disabled={isSearching}
+            className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-3 px-8 rounded-xl border border-slate-700 hover:border-slate-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
+          >
+            {isSearching ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-400 border-t-transparent"></div>
+            ) : (
+              <TrendingUp className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform" />
+            )}
+            <span>Завантажити ще результати з Prozorro</span>
+          </button>
+        </div>
+      )}
 
       {/* Real Prozorro Tender Detail Modal */}
       {activeModalTenderId && (

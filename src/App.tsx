@@ -23,7 +23,7 @@ import { useAuth } from './contexts/AuthContext';
 import { Bot, User as UserIcon, ShieldAlert } from 'lucide-react';
 
 export default function App() {
-  const { user, loading: authLoading, token, signIn, signInAsDev } = useAuth();
+  const { user, loading: authLoading, token, signIn } = useAuth();
   
   const [currentSection, setCurrentSection] = useState<AppSection>('dashboard');
   const [systemMode, setSystemMode] = useState<SystemMode>('TEAM');
@@ -124,13 +124,6 @@ export default function App() {
             >
               <UserIcon className="w-5 h-5" />
               <span>Увійти з Google Workspace</span>
-            </button>
-            
-            <button
-              onClick={signInAsDev}
-              className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2.5 px-4 rounded-xl border border-slate-700 hover:border-slate-600 transition-all cursor-pointer text-xs"
-            >
-              <span>Вхід розробника (Dev Sandbox Bypass)</span>
             </button>
           </div>
           

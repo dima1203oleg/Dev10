@@ -8,7 +8,6 @@ interface AuthContextType {
   token: string | null;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
-  signInAsDev: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -17,7 +16,6 @@ const AuthContext = createContext<AuthContextType>({
   token: null,
   signIn: async () => {},
   signOut: async () => {},
-  signInAsDev: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -62,25 +60,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signInAsDev = () => {
-    const devUser = {
-      uid: 'dev-user-001',
-      email: 'dev@tenderai.ua',
-      displayName: 'Користувач TenderAI',
-      photoURL: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&h=150&q=80',
-    } as any;
-    setUser(devUser);
-    setToken('dev-token-001');
-    
-    // Attempt sync
-    fetch('/api/auth/sync', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer dev-token-001`
-      }
-    }).catch(err => console.error("Failed to sync dev user with DB", err));
-  };
-
   const signOut = async () => {
     try {
       await firebaseSignOut(auth);
@@ -92,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, token, signIn, signOut, signInAsDev }}>
+    <AuthContext.Provider value={{ user, loading, token, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

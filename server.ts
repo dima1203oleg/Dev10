@@ -8,7 +8,8 @@ import { getOrCreateUser } from "./src/db/users.ts";
 import { db } from "./src/db/index.ts";
 import { tenders as tendersTable, companyProfiles, complaints } from "./src/db/schema.ts";
 import { eq, and } from "drizzle-orm";
-import { fetchProzorroRecentTenders, calculatePersonalRadarMatch, fetchProzorroTenderFullDetail } from "./src/connectors/prozorro.ts";
+import { searchProzorroTenders, calculatePersonalRadarMatch, fetchProzorroTenderFullDetail } from "./src/connectors/prozorro.ts";
+import { parseTenderQuery } from "./src/connectors/queryParser.ts";
 
 dotenv.config();
 
@@ -97,21 +98,76 @@ app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-// API: Real Prozorro Search Integration (Strictly No Fake FoulScore)
+// API: Prozorro Connector Health
+app.get("/api/connectors/prozorro/health", async (req, res) => {
+  const startTime = Date.now();
+  try {
+    const response = await fetch("https://public.api.openprocurement.org/api/2.5/tenders?limit=1");
+    const latency = Date.now() - startTime;
+    
+    if (response.ok) {
+      res.json({
+        status: "healthy",
+        latencyMs: latency,
+        lastSuccess: new Date().toISOString(),
+        lastFailure: null,
+        source: "Prozorro Public API v2.5"
+      });
+    } else {
+      res.status(503).json({
+        status: "degraded",
+        latencyMs: latency,
+        errorCode: response.status,
+        lastFailure: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      status: "unreachable",
+      error: error instanceof Error ? error.message : "Network error",
+      lastFailure: new Date().toISOString()
+    });
+  }
+});
+
+// API: Real Prozorro Search Integration with AI Query Parsing
 app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { query } = req.query;
-    const qString = query && typeof query === 'string' ? query : undefined;
+    const { query, offset } = req.query;
+    const qString = query && typeof query === 'string' ? query : "";
+    const offsetString = offset && typeof offset === 'string' ? offset : undefined;
     
-    const tenders = await fetchProzorroRecentTenders(6, qString);
-    res.json({ tenders });
+    if (!qString && !offsetString) {
+      return res.json({ tenders: [], telemetry: null });
+    }
+
+    // 1. AI Query Parsing (Production Level)
+    const apiKey = process.env.GEMINI_API_KEY || "";
+    // If we have an offset, we don't need to re-parse the query, we just use the keywords
+    const structuredQuery = offsetString ? { keywords: qString ? [qString] : [] } : await parseTenderQuery(qString, apiKey);
+
+    // 2. Real Prozorro Search
+    const searchResult = await searchProzorroTenders(structuredQuery, { limit: 10, offset: offsetString });
+    
+    if (searchResult.telemetry.sourceStatus === 'ERROR') {
+      return res.status(502).json({ 
+        error: "Prozorro API is currently unreachable or returned an error.",
+        telemetry: searchResult.telemetry 
+      });
+    }
+
+    res.json({ 
+      tenders: searchResult.tenders, 
+      telemetry: searchResult.telemetry,
+      parsedQuery: structuredQuery 
+    });
   } catch (error) {
     console.error("Prozorro API error:", error);
     res.status(500).json({ error: "Failed to fetch from Prozorro API" });
   }
 });
 
-// API: Personal Tender Radar (Matches Prozorro Feed against User's Company Vault)
+// API: Personal Tender Radar (AI-Powered Matching)
 app.get("/api/prozorro/radar", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = req.user;
@@ -121,7 +177,20 @@ app.get("/api/prozorro/radar", requireAuth, async (req: AuthRequest, res) => {
     const userProfiles = await db.select().from(companyProfiles).where(eq(companyProfiles.userId, dbUser.id));
     const profile = userProfiles.length > 0 ? userProfiles[0] : null;
 
-    const rawTenders = await fetchProzorroRecentTenders(8);
+    // Build search query from profile
+    const vault = (profile?.vaultData as any) || {};
+    const radarQuery = {
+      intent: 'TENDER_SEARCH',
+      keywords: vault.preferredKeywords || [],
+      location: { city: null, region: vault.preferredRegion || null },
+      cpvCandidates: vault.cpvCodes || [],
+      minBudget: vault.minTenderBudget || null,
+      maxBudget: vault.maxTenderBudget || null,
+      procedureTypes: [],
+      status: 'active'
+    };
+
+    const { tenders: rawTenders } = await searchProzorroTenders(radarQuery, { limit: 12, maxPages: 2 });
 
     const radarFeed = rawTenders.map((tender) => {
       const matchResult = calculatePersonalRadarMatch(tender, profile);

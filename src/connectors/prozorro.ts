@@ -6,24 +6,30 @@
 
 export interface ProzorroTenderItem {
   id: string;
-  tenderNumber: string;
+  tenderId: string; // The official UA-XXXX ID
   title: string;
-  customer: string;
-  customerEdrpou: string;
-  customerCity: string;
-  budgetUah: number;
-  deadline: string;
-  status: 'ACTIVE' | 'EVALUATION' | 'COMPLETE' | 'CANCELLED' | 'NOT_ANALYZED';
-  category: string;
-  foulScore: number | null; // null until FoulTender AI audit is explicitly requested
+  customer: string | 'NOT_AVAILABLE';
+  customerEdrpou: string | 'NOT_AVAILABLE';
+  customerCity: string | 'NOT_AVAILABLE';
+  budgetUah: number | null;
+  currency: string;
+  deadline: string | 'NOT_AVAILABLE';
+  status: string;
+  category: string | 'NOT_AVAILABLE';
+  cpvCode: string | 'NOT_AVAILABLE';
+  region: string | 'NOT_AVAILABLE';
+  source: {
+    name: 'Prozorro';
+    url: string;
+    retrievedAt: string;
+  };
+  foulScore: number | null;
   riskLevel: 'NOT_ANALYZED' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
   summary: string;
-  cpvCode?: string;
-  region?: string;
   boqItems: any[];
   violations: any[];
   requirements: any[];
-  fitScore?: number; // Calculated dynamically by Personal Tender Radar
+  fitScore?: number;
   fitFactors?: {
     companyFit: number;
     legalReadiness: number;
@@ -32,82 +38,164 @@ export interface ProzorroTenderItem {
   };
 }
 
+export interface SearchTelemetry {
+  searchId: string;
+  durationMs: number;
+  pagesFetched: number;
+  recordsFetched: number;
+  recordsReturned: number;
+  sourceStatus: 'SUCCESS' | 'ERROR' | 'PARTIAL';
+  nextOffset?: string;
+}
+
 const PROZORRO_BASE_URL = "https://public.api.openprocurement.org/api/2.5/tenders";
 
 /**
- * Fetch list of recent tenders directly from Prozorro API
+ * Robust Multi-page search for Prozorro tenders
+ */
+export async function searchProzorroTenders(
+  query: any, // StructuredTenderQuery
+  options: { maxPages?: number; limit?: number; offset?: string } = {}
+): Promise<{ tenders: ProzorroTenderItem[]; telemetry: SearchTelemetry }> {
+  const startTime = Date.now();
+  const tenders: ProzorroTenderItem[] = [];
+  const maxPages = options.maxPages || 3;
+  const targetLimit = options.limit || 20;
+  
+  let pagesFetched = 0;
+  let recordsFetched = 0;
+  let currentOffset = options.offset || ""; 
+
+  try {
+    // 1. Initial page fetch (most recent)
+    while (pagesFetched < maxPages && tenders.length < targetLimit) {
+      const url = `${PROZORRO_BASE_URL}?descending=1&limit=50${currentOffset ? `&offset=${currentOffset}` : ''}`;
+      const response = await fetch(url);
+      if (!response.ok) break;
+
+      const json = await response.json();
+      pagesFetched++;
+      
+      if (!json.data || !Array.isArray(json.data) || json.data.length === 0) break;
+      
+      recordsFetched += json.data.length;
+      currentOffset = json.next_page?.offset || "";
+
+      // 2. Fetch details and filter semantically
+      // Parallelize detail fetching for performance
+      const detailPromises = json.data.map(async (item: any) => {
+        try {
+          const dRes = await fetch(`${PROZORRO_BASE_URL}/${item.id}`);
+          if (!dRes.ok) return null;
+          const dJson = await dRes.json();
+          return dJson.data;
+        } catch {
+          return null;
+        }
+      });
+
+      const details = await Promise.all(detailPromises);
+
+      for (const data of details) {
+        if (!data) continue;
+        if (tenders.length >= targetLimit) break;
+
+        // Semantic Filtering
+        const qKeywords = (query.keywords || []).map((k: string) => k.toLowerCase());
+        const title = (data.title || "").toLowerCase();
+        const description = (data.description || "").toLowerCase();
+        const customer = (data.procuringEntity?.name || "").toLowerCase();
+        const region = (data.procuringEntity?.address?.region || "").toLowerCase();
+        
+        // At least one keyword must match title, description, or customer
+        const keywordMatch = qKeywords.length === 0 || qKeywords.some((k: string) => 
+          title.includes(k) || description.includes(k) || customer.includes(k)
+        );
+
+        // Location match
+        const locationMatch = !query.location?.region || 
+          region.includes(query.location.region.toLowerCase()) ||
+          (data.procuringEntity?.address?.locality || "").toLowerCase().includes(query.location.region.toLowerCase());
+
+        // Budget match
+        const amount = data.value?.amount || 0;
+        const budgetMatch = (!query.minBudget || amount >= query.minBudget) &&
+                            (!query.maxBudget || amount <= query.maxBudget);
+
+        if (keywordMatch && locationMatch && budgetMatch) {
+          tenders.push({
+            id: data.id,
+            tenderId: data.tenderID || `NOT_AVAILABLE`,
+            title: data.title || "Без назви",
+            customer: data.procuringEntity?.name || "NOT_AVAILABLE",
+            customerEdrpou: data.procuringEntity?.identifier?.id || "NOT_AVAILABLE",
+            customerCity: data.procuringEntity?.address?.locality || "NOT_AVAILABLE",
+            budgetUah: data.value?.amount || null,
+            currency: data.value?.currency || "UAH",
+            deadline: data.tenderPeriod?.endDate || "NOT_AVAILABLE",
+            status: data.status || "active",
+            category: data.mainProcurementCategory || "NOT_AVAILABLE",
+            cpvCode: data.items?.[0]?.classification?.id || "NOT_AVAILABLE",
+            region: data.procuringEntity?.address?.region || "NOT_AVAILABLE",
+            source: {
+              name: 'Prozorro',
+              url: `https://prozorro.gov.ua/tender/${data.tenderID || data.id}`,
+              retrievedAt: new Date().toISOString()
+            },
+            foulScore: null,
+            riskLevel: "NOT_ANALYZED",
+            summary: "LIVE_DATA: Отримано з Prozorro REST API. Очікує на AI-аудит.",
+            boqItems: [],
+            violations: [],
+            requirements: []
+          });
+        }
+      }
+
+      if (!currentOffset) break;
+    }
+
+    return {
+      tenders,
+      telemetry: {
+        searchId: Math.random().toString(36).substring(7),
+        durationMs: Date.now() - startTime,
+        pagesFetched,
+        recordsFetched,
+        recordsReturned: tenders.length,
+        sourceStatus: 'SUCCESS',
+        nextOffset: currentOffset
+      }
+    };
+  } catch (error) {
+    console.error("Prozorro Search Error:", error);
+    return {
+      tenders: [],
+      telemetry: {
+        searchId: Math.random().toString(36).substring(7),
+        durationMs: Date.now() - startTime,
+        pagesFetched,
+        recordsFetched,
+        recordsReturned: 0,
+        sourceStatus: 'ERROR'
+      }
+    };
+  }
+}
+
+/**
+ * Fetch list of recent tenders (Legacy, updated for production safety)
  */
 export async function fetchProzorroRecentTenders(
   limit: number = 10,
   query?: string
 ): Promise<ProzorroTenderItem[]> {
-  try {
-    const response = await fetch(`${PROZORRO_BASE_URL}?descending=1&limit=${Math.min(limit * 3, 30)}`);
-    if (!response.ok) {
-      throw new Error(`Prozorro API returned status ${response.status}`);
-    }
-
-    const json = await response.json();
-    if (!json.data || !Array.isArray(json.data)) {
-      return [];
-    }
-
-    const tenders: ProzorroTenderItem[] = [];
-    // Fetch details for up to limit items
-    for (const item of json.data.slice(0, limit)) {
-      try {
-        const detailRes = await fetch(`${PROZORRO_BASE_URL}/${item.id}`);
-        if (!detailRes.ok) continue;
-
-        const detailJson = await detailRes.json();
-        const data = detailJson.data;
-        if (!data) continue;
-
-        // Query filtering if provided
-        if (query && typeof query === 'string' && query.trim().length > 0) {
-          const q = query.toLowerCase().trim();
-          const titleMatches = (data.title || "").toLowerCase().includes(q);
-          const customerMatches = (data.procuringEntity?.name || "").toLowerCase().includes(q);
-          const cpvMatches = (data.items?.[0]?.classification?.id || "").toLowerCase().includes(q);
-          if (!titleMatches && !customerMatches && !cpvMatches) {
-            continue;
-          }
-        }
-
-        tenders.push({
-          id: data.id,
-          tenderNumber: data.tenderID || `UA-${data.id.substring(0, 8)}`,
-          title: data.title || "Без назви",
-          customer: data.procuringEntity?.name || "Невідомий замовник",
-          customerEdrpou: data.procuringEntity?.identifier?.id || "00000000",
-          customerCity: data.procuringEntity?.address?.locality || "Україна",
-          budgetUah: data.value?.amount || 0,
-          deadline: data.tenderPeriod?.endDate || new Date(Date.now() + 14 * 86400000).toISOString(),
-          status: 'ACTIVE',
-          category: data.mainProcurementCategory || data.items?.[0]?.classification?.description || "Загальні закупівлі",
-          cpvCode: data.items?.[0]?.classification?.id || "45000000-7",
-          region: data.procuringEntity?.address?.region || "Загальнонаціональний",
-          foulScore: null, // Strictly null on import until FoulTender audit is run!
-          riskLevel: "NOT_ANALYZED",
-          summary: "Отримано безпосередньо з Prozorro REST API. Статус: НЕ АНАЛІЗОВАНО. Запустіть FoulTender або AI Аналіз для перевірки ризиків.",
-          boqItems: [],
-          violations: [],
-          requirements: []
-        });
-      } catch (err) {
-        console.error(`Failed to fetch Prozorro detail for ${item.id}:`, err);
-      }
-    }
-
-    return tenders;
-  } catch (error) {
-    console.error("Prozorro API Fetch Error:", error);
-    throw error;
-  }
+  const { tenders } = await searchProzorroTenders({ keywords: query ? [query] : [] }, { limit, maxPages: 2 });
+  return tenders;
 }
 
 /**
- * Calculate Personal Tender Radar Match Score dynamically based on Company Profile & Vault Data
+ * Calculate Personal Tender Radar Match Score based on evidence
  */
 export function calculatePersonalRadarMatch(
   tender: ProzorroTenderItem,
@@ -122,131 +210,106 @@ export function calculatePersonalRadarMatch(
   };
   reasons: string[];
 } {
-  const reasons: string[] = ["Джерело даних: Офіційний REST API Prozorro"];
-
   if (!companyProfile) {
     return {
       fitScore: 0,
-      factors: {
-        companyFit: 0,
-        legalReadiness: 0,
-        capacityFit: 0,
-        budgetFeasibility: 0
-      },
-      reasons: ["Профіль компанії не налаштовано (Необхідно заповнити Company Vault)"]
+      factors: { companyFit: 0, legalReadiness: 0, capacityFit: 0, budgetFeasibility: 0 },
+      reasons: ["Профіль компанії не знайдено"]
     };
   }
 
-  const vault = companyProfile.vaultData || {};
-
-  // 1. Company Activity & Region Fit (CPV / KVED / Region)
+  const reasons: string[] = [];
+  const vault = (companyProfile.vaultData as any) || {};
+  
+  // 1. CPV / Industry Match (Scientific approach)
   let companyFit = 0;
-  if (companyProfile.edrpou) {
-    companyFit += 25;
-    reasons.push(`Підприємство верифіковано в ЄДРПОУ (${companyProfile.edrpou})`);
-  }
-  if (companyProfile.companyName) {
-    companyFit += 15;
-  }
-  // Region matching
-  const tenderRegion = tender.region || tender.customerCity || "Україна";
-  if (!companyProfile.preferredRegion || companyProfile.preferredRegion === "Всі регіони" || companyProfile.preferredRegion === tenderRegion) {
-    companyFit += 30;
-    reasons.push(`Регіональна відповідність: ${tenderRegion}`);
+  const companyKveds = companyProfile.kvedCodes || vault.kveds || [];
+  if (tender.cpvCode !== 'NOT_AVAILABLE' && companyKveds.length > 0) {
+    const tenderPrefix = tender.cpvCode.substring(0, 2);
+    const matchesKved = companyKveds.some((k: string) => k.toString().startsWith(tenderPrefix));
+    if (matchesKved) {
+      companyFit = 100;
+      reasons.push(`Індустріальна відповідність: Код CPV ${tender.cpvCode} відповідає вашим КВЕД`);
+    } else {
+      companyFit = 30;
+      reasons.push(`Низька відповідність спеціалізації (CPV: ${tender.cpvCode})`);
+    }
   } else {
-    companyFit += 10;
-    reasons.push(`Міжрегіональний тендер (${tenderRegion})`);
-  }
-  // CPV / Category matching
-  if (vault.kveds && vault.kveds.length > 0) {
-    companyFit += 30;
-    reasons.push(`Заявлено ${vault.kveds.length} КВЕД(ів) у цифровому сейфі`);
-  } else {
-    companyFit += 15;
+    companyFit = 50;
+    reasons.push("Спеціалізацію не верифіковано (Заповніть Vault)");
   }
 
-  // 2. Legal Readiness (Licenses, Certificates, Clean Record)
-  let legalReadiness = 0;
-  if (companyProfile.edrpou && companyProfile.edrpou.length === 8) {
-    legalReadiness += 30;
-  }
-  if (vault.licensesCount && vault.licensesCount > 0) {
-    legalReadiness += 35;
-    reasons.push(`Наявно ${vault.licensesCount} діючих ліцензій/сертифікатів`);
-  } else {
-    legalReadiness += 15;
-    reasons.push(`⚠ Не завантажено специфічні ліцензії в Company Vault`);
-  }
-  if (vault.taxCleanStatus !== false) {
-    legalReadiness += 35;
-    reasons.push(`Відсутня податкова заборгованість (ст. 17 ЗУ)`);
-  }
-
-  // 3. Capacity & Experience Fit (Staff, Machinery, Similar Contracts)
-  let capacityFit = 0;
-  const staffCount = vault.staffCount || vault.employees?.length || 0;
-  if (staffCount >= 10) {
-    capacityFit += 40;
-    reasons.push(`Повний штат фахівців: ${staffCount} осіб`);
-  } else if (staffCount > 0) {
-    capacityFit += 25;
-    reasons.push(`Штат працівників: ${staffCount} осіб`);
-  } else {
-    capacityFit += 10;
-    reasons.push(`⚠ Не вказано кількість штатного персоналу`);
-  }
-
-  const equipmentCount = vault.equipmentCount || vault.machinery?.length || 0;
-  if (equipmentCount >= 5) {
-    capacityFit += 30;
-    reasons.push(`Технічно-матеріальна база: ${equipmentCount} одиниць`);
-  } else if (equipmentCount > 0) {
-    capacityFit += 15;
-  }
-
-  const experienceContracts = vault.similarContractsCount || vault.pastContracts?.length || 0;
-  if (experienceContracts >= 3) {
-    capacityFit += 30;
-    reasons.push(`Підтверджено ${experienceContracts} аналогичних договорів`);
-  } else if (experienceContracts > 0) {
-    capacityFit += 15;
-  }
-
-  // 4. Budget Feasibility
+  // 2. Budget Feasibility
   let budgetFeasibility = 0;
-  const budget = tender.budgetUah || 0;
-  const maxBudget = companyProfile.maxTenderBudget || 100000000;
-  const minBudget = companyProfile.minTenderBudget || 0;
-
-  if (budget >= minBudget && budget <= maxBudget) {
-    budgetFeasibility = 100;
-    reasons.push(`Бюджет тендера (${(budget / 1000000).toFixed(2)} млн грн) в межах фінансового профілю`);
-  } else if (budget > maxBudget) {
-    budgetFeasibility = 40;
-    reasons.push(`⚠ Бюджет (${(budget / 1000000).toFixed(2)} млн грн) перевищує встановлений максимум (${(maxBudget / 1000000).toFixed(2)} млн грн)`);
+  const userMax = companyProfile.maxTenderBudget || vault.maxTenderBudget || 100000000;
+  if (tender.budgetUah) {
+    if (tender.budgetUah <= userMax) {
+      budgetFeasibility = 100;
+    } else {
+      budgetFeasibility = Math.max(20, Math.round(100 - (tender.budgetUah / userMax) * 10));
+      reasons.push(`Бюджет перевищує ваш звичний ліміт (${(userMax / 1000000).toFixed(1)} млн)`);
+    }
   } else {
-    budgetFeasibility = 60;
+    budgetFeasibility = 100;
   }
 
-  // Calculate weighted overall score
-  const overallScore = Math.round(
-    companyFit * 0.30 +
-    legalReadiness * 0.25 +
-    capacityFit * 0.25 +
-    budgetFeasibility * 0.20
+  // 3. Region Match
+  let regionScore = 50;
+  const preferredRegion = companyProfile.preferredRegion || vault.preferredRegion || "Всі регіони";
+  if (tender.region !== 'NOT_AVAILABLE') {
+    if (preferredRegion === "Всі регіони" || tender.region.includes(preferredRegion)) {
+      regionScore = 100;
+      reasons.push(`Локація: ${tender.region} (В межах інтересів)`);
+    } else {
+      regionScore = 40;
+      reasons.push(`Локація: ${tender.region} (Поза основним регіоном)`);
+    }
+  }
+
+  // 4. Deadline Feasibility
+  let deadlineScore = 100;
+  if (tender.deadline !== 'NOT_AVAILABLE') {
+    const deadlineDate = new Date(tender.deadline);
+    const now = new Date();
+    const daysLeft = Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysLeft < 3) {
+      deadlineScore = 30;
+      reasons.push(`⚠ Дедлайн критично близько: залишилось ${daysLeft} дн.`);
+    } else if (daysLeft < 7) {
+      deadlineScore = 70;
+      reasons.push(`Стислий термін: залишилось ${daysLeft} дн.`);
+    } else {
+      reasons.push(`Комфортний дедлайн: ${daysLeft} дн. до подачі`);
+    }
+  }
+
+  // 5. Capacity Match (Simulated based on staffCount)
+  const staffCount = vault.staffCount || 0;
+  let capacityFit = staffCount > 0 ? 80 : 50;
+  if (staffCount > 0) reasons.push(`Кадрова спроможність: ${staffCount} працівників`);
+
+  const finalScore = Math.round(
+    (companyFit * 0.35) + 
+    (budgetFeasibility * 0.25) + 
+    (regionScore * 0.20) + 
+    (deadlineScore * 0.10) +
+    (capacityFit * 0.10)
   );
 
   return {
-    fitScore: Math.min(100, Math.max(0, overallScore)),
+    fitScore: finalScore,
     factors: {
-      companyFit: Math.min(100, companyFit),
-      legalReadiness: Math.min(100, legalReadiness),
-      capacityFit: Math.min(100, capacityFit),
-      budgetFeasibility: Math.min(100, budgetFeasibility)
+      companyFit,
+      legalReadiness: vault.taxCleanStatus ? 100 : 80,
+      capacityFit,
+      budgetFeasibility,
+      deadlineScore
     },
     reasons
   };
 }
+
 
 /**
  * Fetch complete live tender details directly from Prozorro REST API including documents, timeline & items
