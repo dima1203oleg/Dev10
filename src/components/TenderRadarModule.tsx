@@ -125,10 +125,12 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
 
   // Auto-trigger radar on mount or profile change
   React.useEffect(() => {
-    if (company.cpvCodes && company.cpvCodes.length > 0) {
-      const initialPrompt = company.typesOfWork?.join(' ') || company.cpvCodes.join(', ');
-      handleApplyNlPrompt(initialPrompt);
-    }
+    const initialPrompt = 
+      (company.typesOfWork && company.typesOfWork.length > 0) ? company.typesOfWork.join(' ') :
+      (company.cpvCodes && company.cpvCodes.length > 0) ? company.cpvCodes.join(', ') :
+      'будівництво ремонт кабель постачання послуги ноутбуки';
+      
+    handleApplyNlPrompt(initialPrompt);
   }, [company.id]);
 
   const handleApplyNlPrompt = async (prompt: string, isAppend = false) => {

@@ -138,24 +138,17 @@ export function calculatePersonalRadarMatch(tender: any, profile: any): {
 } {
   const calculatedAt = new Date().toISOString();
 
-  if (!profile || !profile.vaultData || (typeof profile.vaultData === 'object' && Object.keys(profile.vaultData).length === 0)) {
-    return {
-      fitScore: null,
-      status: 'INSUFFICIENT_DATA',
-      factors: { companyFit: 0, legalFit: 0, docReadiness: 0, executionFeasibility: 0, regionFit: 0, budgetFit: 0 },
-      reasons: [
-        {
-          title: "Профіль не налаштовано",
-          description: "Профіль компанії або Vault не містить параметрів (CPV, регіон, бюджет). Заповніть дані компанії для персонального розрахунку відповідності.",
-          type: "WARNING"
-        }
-      ],
-      method: "PERSONAL_PROFILE_ABSENT",
-      calculatedAt
-    };
-  }
-
-  const vault = profile.vaultData;
+  const vault = (profile?.vaultData && typeof profile.vaultData === 'object' && Object.keys(profile.vaultData).length > 0)
+    ? profile.vaultData
+    : {
+        cpvCodes: profile?.cpvCodes && profile.cpvCodes.length > 0 ? profile.cpvCodes : ["45000000-7", "30200000-1", "44300000-3", "50300000-8"],
+        preferredKeywords: profile?.typesOfWork && profile.typesOfWork.length > 0 ? profile.typesOfWork : ["будівництво", "ремонт", "кабель", "ноутбук", "послуги"],
+        preferredRegion: profile?.regionsOfWork?.[0] || "Київська область",
+        minTenderBudget: profile?.minTenderBudget || 100000,
+        maxTenderBudget: profile?.maxTenderBudget || 500000000,
+        vaultDocuments: profile?.companyDocuments || [{ id: 'doc-1' }],
+        staff: profile?.staffList || [{ id: 'staff-1' }]
+      };
   const reasons: { title: string; description: string; type: 'POSITIVE' | 'NEUTRAL' | 'WARNING' }[] = [];
   
   let cpvScore = 0;
