@@ -16,7 +16,8 @@ import {
   Mail,
   Loader2,
   CheckCircle,
-  ArrowRight
+  ArrowRight,
+  Sparkles
 } from 'lucide-react';
 import { Tender, AppSection } from '../types';
 
@@ -37,7 +38,28 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailData, setDetailData] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'ITEMS' | 'DOCS' | 'CUSTOMER' | 'TIMELINE'>('ITEMS');
+  const [activeTab, setActiveTab] = useState<'ITEMS' | 'DOCS' | 'CUSTOMER' | 'TIMELINE' | 'AI_AUDIT'>('ITEMS');
+  const [isAuditing, setIsAuditing] = useState(false);
+  const [auditResult, setAuditResult] = useState<any>(null);
+
+  const runDeepAudit = async () => {
+    if (!token) return;
+    setIsAuditing(true);
+    try {
+      const res = await fetch(`/api/prozorro/tender/${tenderId}/audit`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to run audit");
+      const data = await res.json();
+      setAuditResult(data);
+      setActiveTab('AI_AUDIT');
+    } catch (err) {
+      console.error(err);
+      alert("Не вдалося провести AI-аудит документації.");
+    } finally {
+      setIsAuditing(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -153,12 +175,29 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
             </h2>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {!loading && !error && (
+              <button 
+                onClick={runDeepAudit}
+                disabled={isAuditing}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg font-bold text-xs transition-all shadow-lg shadow-emerald-900/20"
+              >
+                {isAuditing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5" />
+                )}
+                {isAuditing ? 'Аналіз...' : 'AI Аудит документації'}
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body */}
@@ -259,6 +298,20 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
                 >
                   Часовий графік
                 </button>
+
+                {auditResult && (
+                  <button
+                    onClick={() => setActiveTab('AI_AUDIT')}
+                    className={`pb-2 text-xs font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 ${
+                      activeTab === 'AI_AUDIT'
+                        ? 'border-emerald-400 text-emerald-400'
+                        : 'border-transparent text-emerald-400/60 hover:text-emerald-400'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    AI Результати Аудиту
+                  </button>
+                )}
               </div>
 
               {/* Tab Content */}
@@ -394,6 +447,65 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
                         </span>
                       </div>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'AI_AUDIT' && auditResult && (
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="bg-emerald-950/20 border border-emerald-800/40 rounded-xl p-5 space-y-5">
+                    <div className="flex items-center justify-between border-b border-emerald-900/40 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-emerald-400" />
+                        <h3 className="font-bold text-emerald-100">Глибокий AI-Аудит Тендерної Документації</h3>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1 bg-emerald-900/40 rounded-full border border-emerald-800/60">
+                        <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Складність:</span>
+                        <span className="text-xs font-black text-emerald-100">{auditResult.complexityScore}/10</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-tight flex items-center gap-1.5">
+                          <Layers className="w-3.5 h-3.5" />
+                          Технічні Вимоги
+                        </h4>
+                        <ul className="space-y-2">
+                          {auditResult.technicalAnalysis.map((item: string, i: number) => (
+                            <li key={i} className="text-sm text-slate-300 flex items-start gap-2 bg-slate-900/40 p-2 rounded border border-slate-800/60">
+                              <span className="text-emerald-400 font-mono mt-0.5">•</span>
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div className="space-y-3">
+                        <h4 className="text-xs font-bold text-rose-400 uppercase tracking-tight flex items-center gap-1.5">
+                          <ShieldAlert className="w-3.5 h-3.5" />
+                          Виявлені Ризики
+                        </h4>
+                        <ul className="space-y-2">
+                          {auditResult.risks.map((item: string, i: number) => (
+                            <li key={i} className="text-sm text-slate-300 flex items-start gap-2 bg-rose-950/10 p-2 rounded border border-rose-900/30">
+                              <span className="text-rose-400 font-mono mt-0.5">!</span>
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-900/60 border border-slate-700/80 rounded-xl p-4 mt-2">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle className="w-4 h-4 text-teal-400" />
+                        <h4 className="text-xs font-bold text-slate-200">Порада Експерта</h4>
+                      </div>
+                      <p className="text-sm italic text-slate-300 leading-relaxed">
+                        "{auditResult.expertAdvice}"
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}

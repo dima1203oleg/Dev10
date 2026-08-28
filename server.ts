@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
 import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
@@ -147,7 +147,12 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
     const structuredQuery = offsetString ? { keywords: qString ? [qString] : [] } : await parseTenderQuery(qString, apiKey);
 
     // 2. Real Prozorro Search
+    console.log(`[VERIFICATION] Prozorro Request: query="${qString}", offset="${offsetString || 'initial'}"`);
+    console.log(`[VERIFICATION] Parsed Query:`, JSON.stringify(structuredQuery));
+    
     const searchResult = await searchProzorroTenders(structuredQuery, { limit: 10, offset: offsetString });
+    
+    console.log(`[VERIFICATION] Prozorro Result: fetched=${searchResult.telemetry.recordsFetched}, returned=${searchResult.tenders.length}, duration=${searchResult.telemetry.durationMs}ms`);
     
     if (searchResult.telemetry.sourceStatus === 'ERROR') {
       return res.status(502).json({ 
@@ -164,6 +169,61 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error("Prozorro API error:", error);
     res.status(500).json({ error: "Failed to fetch from Prozorro API" });
+  }
+});
+
+// API: Deep AI Audit for a specific tender
+app.get("/api/prozorro/tender/:id/audit", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params;
+    const apiKey = process.env.GEMINI_API_KEY || "";
+
+    // 1. Fetch full detail from Prozorro
+    const response = await fetch(`https://public.api.openprocurement.org/api/2.5/tenders/${id}`);
+    if (!response.ok) throw new Error("Failed to fetch tender details from Prozorro");
+    const tenderData = await response.json();
+    const data = tenderData.data;
+
+    // 2. Perform AI Audit using Gemini
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const auditPrompt = `
+      Ти — провідний експерт із державних закупівель Prozorro та аудитор ризиків. 
+      Проаналізуй дані тендера та надай структурований висновок для потенційного учасника.
+      
+      ДАНІ ТЕНДЕРА:
+      Назва: ${data.title}
+      Опис: ${data.description || "Немає опису"}
+      Сума: ${data.value?.amount} ${data.value?.currency}
+      Предмет: ${data.items?.map((it: any) => it.description).join(", ") || "Не вказано"}
+      
+      ЗАВДАННЯ:
+      1. Визнач 3 основні технічні вимоги.
+      2. Знайди потенційні ризики (стислі терміни, специфічні сертифікати, складні умови оплати).
+      3. Оціни "складність" підготовки документів за шкалою 1-10.
+      4. Сформулюй пораду: на що звернути увагу в тендерній документації.
+
+      ВІДПОВІДЬ НАДАЙ ВИКЛЮЧНО В ФОРМАТІ JSON (валидний JSON, без markdown блоків):
+      {
+        "technicalAnalysis": ["вимога 1", "вимога 2", "вимога 3"],
+        "risks": ["ризик 1", "ризик 2"],
+        "complexityScore": 7,
+        "expertAdvice": "твоя порада тут"
+      }
+    `;
+
+    const result = await model.generateContent(auditPrompt);
+    const text = result.response.text();
+    
+    // Simple JSON cleanup if Gemini adds markdown
+    const cleanJson = text.replace(/```json|```/g, "").trim();
+    const auditResult = JSON.parse(cleanJson);
+
+    res.json(auditResult);
+  } catch (error) {
+    console.error("Audit Error:", error);
+    res.status(500).json({ error: "Не вдалося провести AI аудит" });
   }
 });
 
