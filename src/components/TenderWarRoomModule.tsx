@@ -48,6 +48,7 @@ interface TenderWarRoomModuleProps {
   onNavigateToAudit: () => void;
   onNavigateToCollusion: () => void;
   onNavigateToDocuments: () => void;
+  onNavigate?: (section: string) => void;
 }
 
 type WarRoomTab = 'OVERVIEW' | 'DE_JURE_DE_FACTO' | 'PRICE_STRATEGY' | 'GANTT_FEASIBILITY' | 'ACTION_PLAN' | 'QA_CHECKLIST';
@@ -61,7 +62,8 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
   onNavigateToAmcu,
   onNavigateToAudit,
   onNavigateToCollusion,
-  onNavigateToDocuments
+  onNavigateToDocuments,
+  onNavigate
 }) => {
   const [activeTab, setActiveTab] = useState<WarRoomTab>('OVERVIEW');
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('COMPETITIVE');
@@ -150,30 +152,33 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
       <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4 overflow-x-auto no-scrollbar">
         <div className="flex items-center justify-between min-w-[800px] px-4">
           {[
-            { step: 1, label: 'Радар', status: 'COMPLETED', icon: Target },
-            { step: 2, label: 'Аналіз', status: 'COMPLETED', icon: Search },
-            { step: 3, label: 'Аудит', status: 'COMPLETED', icon: ShieldAlert },
-            { step: 4, label: 'Кошторис', status: 'IN_PROGRESS', icon: DollarSign },
-            { step: 5, label: 'Документи', status: 'PENDING', icon: FileText },
-            { step: 6, label: 'Передподання', status: 'PENDING', icon: FileCheck2 },
+            { step: 1, label: 'Радар', status: 'COMPLETED', icon: Target, section: 'radar' },
+            { step: 2, label: 'Аналіз', status: 'COMPLETED', icon: Search, section: 'construction' },
+            { step: 3, label: 'Аудит', status: 'COMPLETED', icon: ShieldAlert, section: 'audit' },
+            { step: 4, label: 'Кошторис', status: 'IN_PROGRESS', icon: DollarSign, section: 'cost-analysis' },
+            { step: 5, label: 'Документи', status: 'PENDING', icon: FileText, section: 'documents' },
+            { step: 6, label: 'Передподання', status: 'PENDING', icon: FileCheck2, section: 'bid-packages' },
           ].map((item, idx, arr) => (
             <React.Fragment key={item.step}>
-              <div className="flex flex-col items-center gap-2 group">
+              <button 
+                onClick={() => onNavigate && onNavigate(item.section)}
+                className="flex flex-col items-center gap-2 group cursor-pointer hover:scale-105 active:scale-95 transition-all focus:outline-none"
+              >
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                  item.status === 'COMPLETED' ? 'bg-emerald-500 text-slate-950' : 
-                  item.status === 'IN_PROGRESS' ? 'bg-indigo-600 text-white animate-pulse' : 
-                  'bg-slate-800 text-slate-500'
+                  item.status === 'COMPLETED' ? 'bg-emerald-500 text-slate-950 group-hover:bg-emerald-400 shadow-md shadow-emerald-500/10' : 
+                  item.status === 'IN_PROGRESS' ? 'bg-indigo-600 text-white animate-pulse group-hover:bg-indigo-500 shadow-md shadow-indigo-600/10' : 
+                  'bg-slate-800 text-slate-500 group-hover:bg-slate-700 group-hover:text-slate-300'
                 }`}>
                   <item.icon size={18} />
                 </div>
-                <span className={`text-[9px] font-black uppercase tracking-widest ${
-                  item.status === 'COMPLETED' ? 'text-emerald-400' : 
-                  item.status === 'IN_PROGRESS' ? 'text-indigo-400' : 
-                  'text-slate-600'
+                <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${
+                  item.status === 'COMPLETED' ? 'text-emerald-400 group-hover:text-emerald-300' : 
+                  item.status === 'IN_PROGRESS' ? 'text-indigo-400 group-hover:text-indigo-300' : 
+                  'text-slate-600 group-hover:text-slate-400'
                 }`}>{item.label}</span>
-              </div>
+              </button>
               {idx < arr.length - 1 && (
-                <div className={`flex-1 h-px max-w-[60px] mx-2 ${
+                <div className={`flex-1 h-px max-w-[60px] mx-2 self-center ${
                   item.status === 'COMPLETED' ? 'bg-emerald-500/40' : 'bg-slate-800'
                 }`} />
               )}
@@ -322,13 +327,13 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
                   AI Резюме та Стратегічне Рішення
                 </h2>
                 <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">
-                  Multi-Agent Decision Framework
+                  Мультиагентна система прийняття рішень (ШІ)
                 </p>
               </div>
               
               <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>BID WITH CONDITIONS</span>
+                <span>УЧАСТЬ З УМОВАМИ</span>
               </div>
             </div>
 
@@ -505,7 +510,7 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
                       <span className={`text-[10px] font-black px-2 py-1 rounded uppercase tracking-tighter ${
                         task.priority === 'IMMEDIATE' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'
                       }`}>
-                        {task.deadlineHoursRemaining}H LEFT
+                        {task.deadlineHoursRemaining} ГОД.
                       </span>
                     </div>
                   </div>

@@ -250,6 +250,23 @@ export default function App() {
     setCurrentTender(newTender);
   };
 
+  const handleSelectTender = (tender: Tender) => {
+    setCurrentTender(tender);
+    setTenders(prev => {
+      const exists = prev.some(t => t.id === tender.id || t.tenderNumber === tender.tenderNumber);
+      if (!exists) {
+        return [tender, ...prev];
+      }
+      return prev.map(t => (t.id === tender.id || t.tenderNumber === tender.tenderNumber) ? { ...t, ...tender } : t);
+    });
+  };
+
+  const handleNavigateSection = (sec: string) => {
+    let target = sec;
+    if (target === 'warroom') target = 'war-room';
+    setCurrentSection(target as AppSection);
+  };
+
   const handleUploadDocuments = async (files: File[]) => {
     if (!currentTender || !token) return;
     
@@ -376,13 +393,13 @@ export default function App() {
     <>
       <ResponsiveAppShell
         activeTab={currentSection}
-        onNavigate={(sec) => setCurrentSection(sec as AppSection)}
+        onNavigate={(sec) => handleNavigateSection(sec as string)}
         hasActiveTender={!!currentTender}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         systemMode={systemMode}
         onToggleSystemMode={(mode) => {
           setSystemMode(mode);
-          if (mode === 'TEAM') setCurrentSection('team');
+          if (mode === 'TEAM') handleNavigateSection('team');
         }}
         sidebarContent={
           <div className="mt-auto p-4 border-t border-slate-900 hidden lg:block">
@@ -432,7 +449,7 @@ export default function App() {
                   <p className="text-sm text-slate-400">Для роботи з цим модулем необхідно спочатку обрати тендер у каталозі або на радарі.</p>
                 </div>
                 <button 
-                  onClick={() => setCurrentSection('catalog')}
+                  onClick={() => handleNavigateSection('catalog')}
                   className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold rounded-xl transition-all"
                 >
                   Перейти до каталогу
@@ -440,47 +457,49 @@ export default function App() {
             </div>
         ) : (
             <>
-              {currentSection === 'dashboard' && <DashboardView tenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => setCurrentSection(sec as AppSection)} />}
+              {currentSection === 'dashboard' && <DashboardView tenders={tenders} onSelectTender={handleSelectTender} onNavigate={handleNavigateSection} />}
               {currentSection === 'team' && (
                 <TeamWorkspaceModule 
                   tenders={tenders} 
                   currentTender={currentTender} 
-                  onSelectTender={(t) => setCurrentTender(t)} 
-                  onNavigateToWarRoom={() => setCurrentSection('war-room')}
+                  onSelectTender={handleSelectTender} 
+                  onNavigateToWarRoom={() => handleNavigateSection('war-room')}
                 />
               )}
               {currentSection === 'analytics' && <AnalyticsDashboard tenders={tenders} />}
-              {currentSection === 'radar' && <TenderRadarModule tenders={tenders} company={activeCompany} onSelectTender={(t) => setCurrentTender(t)} onNavigateToWarRoom={(t) => { setCurrentTender(t); setCurrentSection('war-room'); }} />}
+              {currentSection === 'radar' && <TenderRadarModule tenders={tenders} company={activeCompany} onSelectTender={handleSelectTender} onNavigateToWarRoom={(t) => { handleSelectTender(t); handleNavigateSection('war-room'); }} />}
               {currentSection === 'war-room' && currentTender && (
                 <TenderWarRoomModule 
                   currentTender={currentTender} 
                   company={activeCompany} 
                   systemMode={systemMode} 
-                  onNavigateToMatrix={() => setCurrentSection('matrix')} 
-                  onNavigateToBoQ={() => setCurrentSection('construction')} 
-                  onNavigateToAmcu={() => setCurrentSection('complaints')} 
-                  onNavigateToAudit={() => setCurrentSection('audit')} 
-                  onNavigateToCollusion={() => setCurrentSection('competitors')} 
-                  onNavigateToDocuments={() => setCurrentSection('documents')}
+                  onNavigate={handleNavigateSection}
+                  onNavigateToMatrix={() => handleNavigateSection('matrix')} 
+                  onNavigateToBoQ={() => handleNavigateSection('construction')} 
+                  onNavigateToAmcu={() => handleNavigateSection('complaints')} 
+                  onNavigateToAudit={() => handleNavigateSection('audit')} 
+                  onNavigateToCollusion={() => handleNavigateSection('competitors')} 
+                  onNavigateToDocuments={() => handleNavigateSection('documents')}
                 />
               )}
-              {currentSection === 'post-tender' && <PostTenderModule tenders={tenders} company={activeCompany} onNavigateToAmcu={(t) => { setCurrentTender(t); setCurrentSection('complaints'); }} />}
+              {currentSection === 'post-tender' && <PostTenderModule tenders={tenders} company={activeCompany} onNavigateToAmcu={(t) => { handleSelectTender(t); handleNavigateSection('complaints'); }} />}
               {currentSection === 'services' && <ServicesModelModule />}
-              {currentSection === 'matrix' && currentTender && <RequirementMatrixModule currentTender={currentTender} company={activeCompany} onUpdateTenderRequirements={handleUpdateTenderRequirements} onNavigateToAmcu={() => setCurrentSection('complaints')} onNavigateToVault={() => setCurrentSection('vault')} />}
+              {currentSection === 'matrix' && currentTender && <RequirementMatrixModule currentTender={currentTender} company={activeCompany} onUpdateTenderRequirements={handleUpdateTenderRequirements} onNavigateToAmcu={() => handleNavigateSection('complaints')} onNavigateToVault={() => handleNavigateSection('vault')} />}
               {currentSection === 'vault' && <CompanyProfileModule company={activeCompany} onUpdateCompany={handleUpdateCompany} />}
-              {currentSection === 'foultender' && currentTender && <FoulTenderModule currentTender={currentTender} allTenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => setCurrentSection(sec as AppSection)} onPrepareComplaintForTender={(t) => setCurrentTender(t)} />}
-              {currentSection === 'construction' && currentTender && <TenderAIConstructionModule currentTender={currentTender} allTenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => setCurrentSection(sec as AppSection)} onUpdateTenderBoq={handleUpdateTenderBoq} onUpdateTenderAnalysis={handleUpdateTenderAnalysis} />}
-              {currentSection === 'cost-analysis' && currentTender && <CostEstimateAnalysisModule currentTender={currentTender} onUpdateTenderBoq={handleUpdateTenderBoq} />}
-              {currentSection === 'gantt-chart' && currentTender && <GanttChartModule currentTender={currentTender} />}
-              {currentSection === 'competitors' && currentTender && <CompetitorCollusionModule currentTender={currentTender} competitors={[]} onNavigateToAmcu={() => setCurrentSection('complaints')} onUpdateTenderCollusion={handleUpdateTenderCollusion} />}
-              {currentSection === 'diff' && currentTender && <VersionDiffModule currentTender={currentTender} onNavigateToAmcu={() => setCurrentSection('complaints')} />}
-              {currentSection === 'audit' && currentTender && <PreSubmissionAuditModule currentTender={currentTender} company={activeCompany} bidPackages={bidPackages} onNavigateToAmcu={() => setCurrentSection('complaints')} onNavigateToVault={() => setCurrentSection('vault')} onNavigateToBidPackages={() => setCurrentSection('bid-packages')} />}
-              {currentSection === 'complaints' && currentTender && <AmcuComplaintGenerator currentTender={currentTender} company={activeCompany} complaints={complaints} onAddComplaint={handleAddComplaint} />}
-              {currentSection === 'bid-packages' && currentTender && <BidPackageGenerator currentTender={currentTender} company={activeCompany} bidPackages={bidPackages} onAddBidPackage={handleAddBidPackage} />}
-              {currentSection === 'multiagent-chat' && currentTender && <MultiAgentChat currentTender={currentTender} />}
-              {currentSection === 'catalog' && <TenderCatalog tenders={tenders} onSelectTender={(t) => setCurrentTender(t)} onNavigate={(sec) => setCurrentSection(sec as AppSection)} onAddNewTender={handleAddNewTender} />}
+              {currentSection === 'foultender' && currentTender && <FoulTenderModule key={currentTender.id} currentTender={currentTender} allTenders={tenders} onSelectTender={handleSelectTender} onNavigate={handleNavigateSection} onPrepareComplaintForTender={handleSelectTender} />}
+              {currentSection === 'construction' && currentTender && <TenderAIConstructionModule key={currentTender.id} currentTender={currentTender} allTenders={tenders} onSelectTender={handleSelectTender} onNavigate={handleNavigateSection} onUpdateTenderBoq={handleUpdateTenderBoq} onUpdateTenderAnalysis={handleUpdateTenderAnalysis} />}
+              {currentSection === 'cost-analysis' && currentTender && <CostEstimateAnalysisModule key={currentTender.id} currentTender={currentTender} onUpdateTenderBoq={handleUpdateTenderBoq} />}
+              {currentSection === 'gantt-chart' && currentTender && <GanttChartModule key={currentTender.id} currentTender={currentTender} />}
+              {currentSection === 'competitors' && currentTender && <CompetitorCollusionModule key={currentTender.id} currentTender={currentTender} competitors={[]} onNavigateToAmcu={() => handleNavigateSection('complaints')} onUpdateTenderCollusion={handleUpdateTenderCollusion} />}
+              {currentSection === 'diff' && currentTender && <VersionDiffModule key={currentTender.id} currentTender={currentTender} onNavigateToAmcu={() => handleNavigateSection('complaints')} />}
+              {currentSection === 'audit' && currentTender && <PreSubmissionAuditModule key={currentTender.id} currentTender={currentTender} company={activeCompany} bidPackages={bidPackages} onNavigateToAmcu={() => handleNavigateSection('complaints')} onNavigateToVault={() => handleNavigateSection('vault')} onNavigateToBidPackages={() => handleNavigateSection('bid-packages')} />}
+              {currentSection === 'complaints' && currentTender && <AmcuComplaintGenerator key={currentTender.id} currentTender={currentTender} company={activeCompany} complaints={complaints} onAddComplaint={handleAddComplaint} />}
+              {currentSection === 'bid-packages' && currentTender && <BidPackageGenerator key={currentTender.id} currentTender={currentTender} company={activeCompany} bidPackages={bidPackages} onAddBidPackage={handleAddBidPackage} />}
+              {currentSection === 'multiagent-chat' && currentTender && <MultiAgentChat key={currentTender.id} currentTender={currentTender} />}
+              {currentSection === 'catalog' && <TenderCatalog tenders={tenders} onSelectTender={handleSelectTender} onNavigate={handleNavigateSection} onAddNewTender={handleAddNewTender} />}
               {currentSection === 'documents' && currentTender && (
                 <DocumentWorkspace 
+                  key={currentTender.id}
                   tender={currentTender} 
                   documents={tenderDocuments}
                   onUpload={handleUploadDocuments}
@@ -497,8 +516,8 @@ export default function App() {
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
         tenders={tenders}
-        onSelectTender={(t) => setCurrentTender(t)}
-        onNavigate={(sec) => setCurrentSection(sec)}
+        onSelectTender={handleSelectTender}
+        onNavigate={(sec) => handleNavigateSection(sec as string)}
       />
     </>
   );

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, ShieldAlert, Activity, CheckCircle2, XCircle, RefreshCcw, Lock, Database, Globe, Cpu, UserCheck } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Activity, CheckCircle2, XCircle, RefreshCcw, Lock, Database, Globe, Cpu, UserCheck, Calculator } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -36,6 +36,7 @@ export const ProductionGateUI: React.FC = () => {
       case 'tenant_isolation': return <Lock size={16} />;
       case 'no_fake_data': return <ShieldCheck size={16} />;
       case 'multiplatform_aggregator': return <Globe size={16} />;
+      case 'auto_estimate_engine': return <Calculator size={16} />;
       default: return <Activity size={16} />;
     }
   };

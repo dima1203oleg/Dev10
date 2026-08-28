@@ -1,0 +1,158 @@
+# TENDERAI OS — OPEN-SOURCE REGISTRY
+## COMPLIANT AND VERIFIED SOFTWARE DEPENDENCY REGISTRY
+---
+components:
+  - name: docling
+    repository: docling-project/docling
+    url: https://github.com/DS4SD/docling
+    version: 1.4.0
+    license: MIT
+    license_status: APPROVED
+    security_status: SECURE
+    activity_status: HIGH
+    production_readiness: EXCELLENT
+    tenderai_module: Document Ingestion AI
+    strategy: USE
+    integration_status: INTEGRATED
+    tests:
+      - docling_coordinate_accuracy_test
+      - docling_table_extraction_test
+    real_data_verified: true
+    decision: APPROVED
+
+  - name: docling-serve
+    repository: docling-project/docling-serve
+    url: https://github.com/DS4SD/docling-serve
+    version: 1.0.2
+    license: MIT
+    license_status: APPROVED
+    security_status: SECURE
+    activity_status: ACTIVE
+    production_readiness: HIGH
+    tenderai_module: Document Extraction Microservice
+    strategy: USE
+    integration_status: INTEGRATED
+    tests:
+      - docling_rest_api_concurrency_test
+    real_data_verified: true
+    decision: APPROVED
+
+  - name: docling-core
+    repository: docling-project/docling-core
+    url: https://github.com/DS4SD/docling-core
+    version: 1.4.0
+    license: MIT
+    license_status: APPROVED
+    security_status: SECURE
+    activity_status: ACTIVE
+    production_readiness: EXCELLENT
+    tenderai_module: Unified Model Data Typing
+    strategy: USE
+    integration_status: INTEGRATED
+    tests:
+      - docling_model_serialization_test
+    real_data_verified: true
+    decision: APPROVED
+
+  - name: PaddleOCR
+    repository: PaddlePaddle/PaddleOCR
+    url: https://github.com/PaddlePaddle/PaddleOCR
+    version: 2.7.1
+    license: Apache-2.0
+    license_status: APPROVED
+    security_status: SECURE
+    activity_status: HIGH
+    production_readiness: PRODUCTION-READY
+    tenderai_module: Scan & Cyrillic OCR
+    strategy: WRAP
+    integration_status: COMPLETED
+    tests:
+      - paddle_cyrillic_character_accuracy_test
+      - paddle_cell_grid_matching_test
+    real_data_verified: true
+    decision: APPROVED
+
+  - name: pgvector
+    repository: pgvector/pgvector
+    url: https://github.com/pgvector/pgvector
+    version: 0.7.2
+    license: PostgreSQL
+    license_status: APPROVED
+    security_status: SECURE
+    activity_status: HIGH
+    production_readiness: ENTERPRISE-GRADE
+    tenderai_module: Relational RAG Storage
+    strategy: USE
+    integration_status: COMPLETED
+    tests:
+      - pgvector_hnsw_recall_test
+    real_data_verified: true
+    decision: APPROVED
+
+  - name: qdrant
+    repository: qdrant/qdrant
+    url: https://github.com/qdrant/qdrant
+    version: 1.10.1
+    license: Apache-2.0
+    license_status: APPROVED
+    security_status: SECURE
+    activity_status: VERY-HIGH
+    production_readiness: EXCELLENT
+    tenderai_module: Scalable Autonomous Search
+    strategy: USE
+    integration_status: INTEGRATED
+    tests:
+      - qdrant_payload_filtering_test
+    real_data_verified: true
+    decision: APPROVED
+
+  - name: splink
+    repository: splink-project/splink
+    url: https://github.com/moj-analytical-services/splink
+    version: 3.9.14
+    license: MIT
+    license_status: APPROVED
+    security_status: SECURE
+    activity_status: HIGH
+    production_readiness: HIGH
+    tenderai_module: Probabilistic Company Linkage
+    strategy: USE
+    integration_status: COMPLETED
+    tests:
+      - splink_cyrillic_deduplication_test
+    real_data_verified: true
+    decision: APPROVED
+
+  - name: langgraph
+    repository: langchain-ai/langgraph
+    url: https://github.com/langchain-ai/langgraph
+    version: 0.1.12
+    license: MIT
+    license_status: APPROVED
+    security_status: SECURE
+    activity_status: HIGH
+    production_readiness: EXCELLENT
+    tenderai_module: Stateful Compliance Agent Execution
+    strategy: USE
+    integration_status: INTEGRATED
+    tests:
+      - langgraph_checkpoint_retention_test
+    real_data_verified: true
+    decision: APPROVED
+
+  - name: temporal
+    repository: temporalio/temporal
+    url: https://github.com/temporalio/temporal
+    version: 1.24.2
+    license: MIT
+    license_status: APPROVED
+    security_status: SECURE
+    activity_status: EXTREMELY-HIGH
+    production_readiness: MISSION-CRITICAL
+    tenderai_module: Durable Async Pipelines
+    strategy: USE
+    integration_status: COMPLETED
+    tests:
+      - temporal_heartbeat_timeout_retry_test
+    real_data_verified: true
+    decision: APPROVED

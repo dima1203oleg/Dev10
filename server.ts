@@ -13,6 +13,7 @@ import { searchMultiPlatformTenders, PLATFORM_SOURCES_DIRECTORY, PlatformSourceI
 import { parseTenderQuery } from "./src/connectors/queryParser.ts";
 import { runProzorroConnectorTestSuite } from "./src/connectors/prozorroTestRunner.ts";
 import { runMultiPlatformTestSuite } from "./src/connectors/multiPlatformTestRunner.ts";
+import { runEstimateCompilationTestSuite } from "./src/connectors/estimateTestRunner.ts";
 import { detectCollusionRisk } from "./src/utils/collusionEngine.ts";
 
 dotenv.config();
@@ -1568,6 +1569,54 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
       results.multiplatform_aggregator = { status: "FAIL", details: e.message };
     }
 
+    // 10. Automated Estimate/Budget Compilation (Кошторис) Test Suite
+    try {
+      const estReport = await runEstimateCompilationTestSuite();
+      if (estReport.overallStatus === "PASS") {
+        results.auto_estimate_engine = { status: "PASS", details: `Passed ${estReport.passCount}/${estReport.totalTests} automatic estimate compilation checks` };
+      } else {
+        results.auto_estimate_engine = { status: "FAIL", details: `Failed ${estReport.failCount} estimate compilation checks` };
+      }
+
+      // Generate persistent artifact REPORT: /docs/audit/ESTIMATE_AUTOGEN_TEST_REPORT.md
+      try {
+        const fs = await import("fs");
+        const reportContent = `
+# TenderAI Construction Estimate Compilation (Кошторис) Automated Test Report
+
+**Timestamp**: ${estReport.timestamp}
+**Overall Status**: ${estReport.overallStatus}
+**Duration**: ${estReport.durationMs}ms
+**Total Tests Run**: ${estReport.totalTests}
+**Passed Checks**: ${estReport.passCount}
+**Failed Checks**: ${estReport.failCount}
+
+## Test Suite Execution Results
+
+${estReport.results.map(r => `
+### ${r.status === 'PASS' ? '✅' : '❌'} ${r.title} (${r.testId})
+* **Category**: \`${r.category}\`
+* **Status**: **${r.status}**
+* **Details**: ${r.details}
+${r.metrics ? `* **Metrics**: ${JSON.stringify(r.metrics, null, 2)}` : ''}
+`).join('\n')}
+
+---
+*Report automatically compiled and persisted by TenderAI QA/Automation Agent.*
+        `.trim();
+        const dirPath = path.join(process.cwd(), "docs", "audit");
+        if (!fs.existsSync(dirPath)) {
+          fs.mkdirSync(dirPath, { recursive: true });
+        }
+        fs.writeFileSync(path.join(dirPath, "ESTIMATE_AUTOGEN_TEST_REPORT.md"), reportContent, "utf-8");
+      } catch (fsErr) {
+        console.error("Failed to write estimate test report to disk:", fsErr);
+      }
+
+    } catch (e: any) {
+      results.auto_estimate_engine = { status: "FAIL", details: e.message };
+    }
+
     const overallPass = Object.values(results).every((r: any) => r.status === "PASS" || r.status === "WARNING");
 
     res.json({
@@ -2134,6 +2183,76 @@ ${tenderText || "Капітальний ремонт будівлі школи. 
   } catch (error: any) {
     console.error("Prozorro Ingest Error:", error);
     return handleAiError(res, error, "Помилка імпорту тендеру");
+  }
+});
+
+
+// API: Parse & Analyze Market Prices for Materials & Equipment using Gemini Search Grounding
+app.post("/api/tenderai/parse-market-prices", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { rawText, items } = req.body;
+    const ai = getGeminiClient();
+
+    if (!ai) {
+      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
+    }
+
+    const prompt = `Ти є висококласним експертом-аналітиком ринкових цін на будівельні матеріали та обладнання в Україні.
+Твоє завдання — проаналізувати наданий список або неструктурований текст матеріалів та обладнання, визначити їхні поточні середньоринкові ціни в Україні за допомогою пошуку в реальному часі (Google Search), розрахувати відхилення від вказаної ціни замовника та знайти реальні посилання на джерела (наприклад, Епіцентр, Prom.ua, розетка, прайс-листи виробників тощо).
+
+ВХІДНІ ДАНІ:
+${items && items.length > 0 ? `Задані структуровані позиції для аналізу:\n${JSON.stringify(items, null, 2)}` : ""}
+${rawText ? `Неструктурований текст для парсингу та аналізу:\n"""\n${rawText}\n"""` : ""}
+
+Для кожного виявленого будівельного матеріалу або обладнання (проаналізуй щонайменше 5-8 основних позицій для детального порівняння):
+1. Зроби точний пошуковий запит в Google Search для пошуку поточної ціни цього конкретного товару/марки в гривнях в Україні станом на 2026 рік.
+2. Визнач середньоринкову ціну (UAH), очікуваний діапазон цін (мінімальна-максимальна), та реальні URL-посилання (із зрозумілими назвами джерел), які підтверджують цю ціну.
+3. Якщо для позиції вказано очікувану ціну (estimatePriceUah або estimatePrice), порівняй її з ринковою середньою та розрахуй відсоток відхилення (variancePercent = ((estimatePriceUah - marketAvgPrice) / marketAvgPrice) * 100).
+4. Класифікуй рівень ризику: OVERPRICED (завищено на >15%), UNDERESTIMATED (занижено на >15%), NORMAL (у межах норми).
+5. Запропонуй дешевші аналоги або замінники та додай детальні аналітичні нотатки.
+
+Поверни результат строго у форматі JSON (без жодного вступного чи підсумкового тексту, лише чистий JSON-об'єкт):
+{
+  "summary": "Загальний аналітичний висновок щодо ринкових цін на матеріали та обладнання в даному переліку, зафіксовані аномалії, загальна потенційна економія тощо.",
+  "items": [
+    {
+      "code": "Шифр або код позиції (наприклад, С111-123 або згенеруй)",
+      "name": "Назва матеріалу чи обладнання українською мовою з маркуванням",
+      "unit": "Одиниця виміру (шт, м, м², т, кг тощо)",
+      "quantity": число,
+      "estimatePriceUah": число (вказана ціна замовника, або 0 якщо не вказано),
+      "marketAvgPriceUah": число (знайдена середня ринкова ціна в гривнях),
+      "priceRange": "Діапазон цін (наприклад, '1200 - 1400 UAH')",
+      "variancePercent": число (відсоток відхилення, позитивний якщо завищено, негативний якщо занижено),
+      "anomalyRisk": "OVERPRICED" | "UNDERESTIMATED" | "NORMAL",
+      "category": "MATERIALS" | "EQUIPMENT",
+      "sources": [
+        {
+          "title": "Назва сайту/джерела (наприклад, EpicentrK, Prom.ua, Одескабель)",
+          "url": "Посилання на товар або прайс-лист"
+        }
+      ],
+      "alternatives": "Опис аналогів або брендів-замінників українського виробництва",
+      "notes": "Аналітичний коментар щодо ціни"
+    }
+  ]
+}`;
+
+    const response = await generateContentWithFallback(ai, {
+      contents: prompt,
+      primaryModel: "gemini-3.7-flash",
+      config: {
+        responseMimeType: "application/json",
+        tools: [{ googleSearch: {} }],
+        toolConfig: { includeServerSideToolInvocations: true }
+      }
+    });
+
+    const parsed = JSON.parse(response.text || "{}");
+    return res.json(parsed);
+  } catch (error: any) {
+    console.error("Market Price Parser Error:", error);
+    return handleAiError(res, error, "Помилка парсингу ринкових цін");
   }
 });
 

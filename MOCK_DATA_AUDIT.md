@@ -1,0 +1,92 @@
+# TENDERAI OS — MOCK DATA AUDIT
+## ZERO MOCK DATA COMPLIANCE & VERIFICATION SYSTEM STATEMENT
+**Document ID:** TA-MDA-001  
+**Compliance Standard:** Strict Real-Data Enforcement Rule
+
+---
+
+## 1. Zero Mock Data Policy
+
+Operating as a production-ready enterprise SaaS, TenderAI OS implements a strict policy against any placeholder stats, simulated lists, or mock data structures.
+
+```
+                              ┌──────────────────────────┐
+                              │     MOCK-CHECK LINTER    │
+                              ├──────────────────────────┤
+                              │ Detect: 'fakeData'       │
+                              │ Detect: 'mockData'       │
+                              │ Detect: 'dummyData'      │
+                              └────────────┬─────────────┘
+                                           │ Scan Results
+                                           ▼
+                              ┌──────────────────────────┐
+                              │   PRODUCTION DEPLOYMENT  │
+                              │   Approved: 100% Real    │
+                              └──────────────────────────┘
+```
+
+---
+
+## 2. Audited Banned Code Patterns
+
+The following patterns are strictly banned in our codebase. Any occurrence will instantly fail CI/CD build pipelines:
+
+```tsx
+// ❌ BANNED CRITICAL FAILURE: Banned placeholder statistics
+const dummyTenders = [
+  { id: 1, title: "Mock Reconstruction Tender 1", price_uah: 15000000.00 },
+  { id: 2, title: "Mock Reconstruction Tender 2", price_uah: 42000000.00 }
+];
+
+// ❌ BANNED CRITICAL FAILURE: Simulate network loading using mock delays
+const handleLoading = () => {
+  setLoading(true);
+  setTimeout(() => {
+    setLoading(false); // Simulated callback placeholder
+  }, 2000);
+};
+```
+
+---
+
+## 3. Approved Real-Data Code Architecture
+
+All UI components must bind directly to active API routes connected to verified databases:
+
+```tsx
+// ✅ APPROVED: Dynamically fetch real datasets from API endpoints
+import React, { useEffect, useState } from "react";
+import { Tender } from "../types";
+
+export const TenderList: React.FC = () => {
+  const [tenders, setTenders] = useState<Tender[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/tenders/active")
+      .then((res) => res.json())
+      .then((data) => {
+        setTenders(data.dataset);
+        setIsLoading(false);
+      })
+      .catch((err) => console.error("Database connection lost:", err));
+  }, []);
+
+  return (
+    <div className="p-4 bg-neutral-50 rounded border border-neutral-200">
+      <h3 className="font-semibold text-neutral-900 mb-3">Live Audited Tenders</h3>
+      {isLoading ? (
+        <span className="text-sm text-neutral-500">Connecting to database...</span>
+      ) : (
+        <ul className="space-y-2">
+          {tenders.map((item) => (
+            <li key={item.id} className="text-sm bg-white p-2 rounded border border-neutral-100">
+              {item.title} — <strong className="text-neutral-900">{item.price_uah.toLocaleString()} UAH</strong>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+```

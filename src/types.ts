@@ -594,6 +594,7 @@ export interface EstimateResourceItem {
   marketAvgPriceUah: number;
   stateBenchmarkPriceUah: number;
   category: 'MATERIALS' | 'LABOR' | 'MACHINERY' | 'OVERHEADS';
+  purchasePriceUah?: number; // actual purchasing price to calculate margin
   variancePercent: number; // positive = overpriced, negative = underestimated
   anomalyRisk: 'NORMAL' | 'OVERPRICED' | 'UNDERESTIMATED' | 'HIGH_RISK';
   notes?: string;

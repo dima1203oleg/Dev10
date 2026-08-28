@@ -1143,7 +1143,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
           }}
           onOpenWarRoom={(tender) => {
             onSelectTender(tender);
-            onNavigate('warroom');
+            onNavigate('war-room');
           }}
         />
       )}

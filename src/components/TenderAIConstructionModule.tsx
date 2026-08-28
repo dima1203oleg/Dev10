@@ -17,8 +17,11 @@ import {
   Briefcase,
   ChevronRight,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  FileSpreadsheet,
+  Download
 } from 'lucide-react';
+import { exportToExcel, exportToAvk5 } from '../utils/estimateExporter';
 
 interface TenderAIConstructionModuleProps {
   currentTender: Tender;
@@ -38,6 +41,11 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
   onUpdateTenderAnalysis,
 }) => {
   const [boqItems, setBoqItems] = useState<BoQItem[]>(currentTender.boqItems || []);
+  
+  React.useEffect(() => {
+    setBoqItems(currentTender.boqItems || []);
+  }, [currentTender]);
+
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'boq-table' | 'agent-consilium' | 'pricing-strategy'>('agent-consilium');
@@ -120,7 +128,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
         <div className="space-y-1">
           <div className="flex items-center space-x-2 text-xs font-bold text-emerald-400 uppercase tracking-wider">
             <Building2 className="w-4 h-4" />
-            <span>TenderAI Construction SaaS • Multi-Agent Estimator & Planner</span>
+            <span>TenderAI Будівництво • Мультиагентний Кошторисник & Планувальник</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
             Мультиагентна підготовка будівельного тендеру
@@ -500,7 +508,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
               <p className="text-xs text-slate-400">Редагуйте розцінки, обсяги або додавайте нові позиції для перерахунку</p>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="text-xs text-slate-300">
                 Загальна кошторисна вартість: <strong className="text-emerald-400 font-mono text-sm">{totalBoqCost.toLocaleString()} ₴</strong>
               </div>
@@ -512,6 +520,26 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
               >
                 <Plus className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Додати позицію</span>
+              </button>
+
+              <button
+                id="export-excel-btn"
+                onClick={() => exportToExcel(currentTender, boqItems)}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md transition-all cursor-pointer"
+                title="Завантажити повний кошторис в Excel"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Експорт в Excel (.xls)</span>
+              </button>
+
+              <button
+                id="export-avk5-btn"
+                onClick={() => exportToAvk5(currentTender, boqItems)}
+                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center space-x-1.5 shadow-md transition-all cursor-pointer"
+                title="Завантажити транспортний файл для АВК-5"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Експорт в АВК-5 (.imd)</span>
               </button>
             </div>
           </div>
