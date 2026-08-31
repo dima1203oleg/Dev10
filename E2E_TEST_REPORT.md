@@ -4,6 +4,8 @@
 
 > **Поточний статус — 2026-08-31:** `NOT EXECUTED TO COMPLETION`. TypeScript, unit tests, PostgreSQL cross-tenant RLS integration, production build and dependency audit pass. Попередні `PASSED` у таблицях нижче не є доказом для поточної ревізії; реальний Firebase login та повний browser E2E заблоковані.
 
+> **Browser retest:** оболонка й кнопка входу відображаються без console errors, але Google sign-in завершується точним кодом `auth/internal-error`. Production-захист не вимикався. Для `auth/popup-blocked` і `auth/cancelled-popup-request` додано офіційний Firebase redirect fallback.
+
 ---
 
 ## 1. Загальні положення та мета тестування

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, signInWithPopup, signOut as firebaseSignOut, onIdTokenChanged } from 'firebase/auth';
+import { User, signInWithPopup, signInWithRedirect, signOut as firebaseSignOut, onIdTokenChanged } from 'firebase/auth';
+import { FirebaseError } from 'firebase/app';
 import { auth, googleProvider } from '../lib/firebase';
 
 interface AuthContextType {
@@ -61,7 +62,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error('Error signing in:', error);
-      setAuthError('Не вдалося увійти через Firebase. Перевірте authorized domains, Google provider і конфігурацію тестового tenant.');
+      const code = error instanceof FirebaseError ? error.code : 'auth/unknown';
+      if (code === 'auth/popup-blocked' || code === 'auth/cancelled-popup-request') {
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      }
+      setAuthError(`Не вдалося увійти через Firebase (${code}). Перевірте authorized domains, Google provider і конфігурацію tenant.`);
     }
   };
 
