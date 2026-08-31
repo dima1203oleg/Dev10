@@ -19,6 +19,8 @@
 
 **2026-09-01 production self-test:** PostgreSQL, direct Prozorro connectivity, Gemini configuration and multiplatform source-integrity checks passed. Live authenticated search timed out at the 15-second safety boundary; pagination is explicitly marked `BLOCKED` rather than left pending.
 
+**Estimate gate correction:** the production self-test no longer executes or persists synthetic estimate fixtures; `auto_estimate_engine` is explicitly `BLOCKED` until a source-bound document/BoQ dataset is supplied.
+
 ---
 
 ## 1. API Verification Principles

@@ -18,6 +18,8 @@
 
 > **2026-09-01 production self-test:** `/api/production/verify` completed in 15.5 seconds with PostgreSQL, direct Prozorro connectivity, Gemini configuration and multiplatform checks `PASS`; authenticated Prozorro search timed out and pagination was marked `BLOCKED`. Release remains blocked.
 
+> **2026-09-01 estimate gate:** production diagnostics mark automatic estimate compilation `BLOCKED` when no source-bound dataset exists; synthetic fallback fixtures are not executed.
+
 ---
 
 ## 1. Загальні положення та мета тестування

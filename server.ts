@@ -17,7 +17,6 @@ import { searchMultiPlatformTenders, PLATFORM_SOURCES_DIRECTORY, PlatformSourceI
 import { parseTenderQuery } from "./src/connectors/queryParser.ts";
 import { runProzorroConnectorTestSuite } from "./src/connectors/prozorroTestRunner.ts";
 import { runMultiPlatformTestSuite } from "./src/connectors/multiPlatformTestRunner.ts";
-import { runEstimateCompilationTestSuite } from "./src/connectors/estimateTestRunner.ts";
 import { detectCollusionRisk } from "./src/utils/collusionEngine.ts";
 import { runMigrations } from "./src/db/migrations.ts";
 import rateLimit from "express-rate-limit";
@@ -2011,52 +2010,9 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
     }
 
     // 10. Automated Estimate/Budget Compilation (Кошторис) Test Suite
-    try {
-      const estReport = await runEstimateCompilationTestSuite();
-      if (estReport.overallStatus === "PASS") {
-        results.auto_estimate_engine = { status: "PASS", details: `Passed ${estReport.passCount}/${estReport.totalTests} automatic estimate compilation checks` };
-      } else {
-        results.auto_estimate_engine = { status: "FAIL", details: `Failed ${estReport.failCount} estimate compilation checks` };
-      }
-
-      // Generate persistent artifact REPORT: /docs/audit/ESTIMATE_AUTOGEN_TEST_REPORT.md
-      try {
-        const fs = await import("fs");
-        const reportContent = `
-# TenderAI Construction Estimate Compilation (Кошторис) Automated Test Report
-
-**Timestamp**: ${estReport.timestamp}
-**Overall Status**: ${estReport.overallStatus}
-**Duration**: ${estReport.durationMs}ms
-**Total Tests Run**: ${estReport.totalTests}
-**Passed Checks**: ${estReport.passCount}
-**Failed Checks**: ${estReport.failCount}
-
-## Test Suite Execution Results
-
-${estReport.results.map(r => `
-### ${r.status === 'PASS' ? '✅' : '❌'} ${r.title} (${r.testId})
-* **Category**: \`${r.category}\`
-* **Status**: **${r.status}**
-* **Details**: ${r.details}
-${r.metrics ? `* **Metrics**: ${JSON.stringify(r.metrics, null, 2)}` : ''}
-`).join('\n')}
-
----
-*Report automatically compiled and persisted by TenderAI QA/Automation Agent.*
-        `.trim();
-        const dirPath = path.join(process.cwd(), "docs", "audit");
-        if (!fs.existsSync(dirPath)) {
-          fs.mkdirSync(dirPath, { recursive: true });
-        }
-        fs.writeFileSync(path.join(dirPath, "ESTIMATE_AUTOGEN_TEST_REPORT.md"), reportContent, "utf-8");
-      } catch (fsErr) {
-        console.error("Failed to write estimate test report to disk:", fsErr);
-      }
-
-    } catch (e: any) {
-      results.auto_estimate_engine = { status: "FAIL", details: e.message };
-    }
+    // Synthetic fixtures are intentionally not executed in a production diagnostic.
+    // A source-bound estimate job must be supplied by the persisted document pipeline.
+    results.auto_estimate_engine = { status: "BLOCKED", details: "No source-bound estimate dataset is available; synthetic fallback fixtures are disabled." };
 
     const overallPass = Object.values(results).every((r: any) => r.status === "PASS" || r.status === "WARNING");
 

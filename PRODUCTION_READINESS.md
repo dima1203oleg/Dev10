@@ -18,6 +18,8 @@ Clean-install reproducibility gate: `npm ci --ignore-scripts && npm run verify` 
 
 Production self-test: completed with database/direct Prozorro/Gemini/multiplatform checks passing, but live authenticated search timing out at the safety boundary. The endpoint correctly returned `BLOCKED`, not `READY`.
 
+Estimate integrity: synthetic estimate fixtures were removed from production diagnostics; source-bound BoQ/OCR evidence is required before automatic price compilation can be accepted.
+
 ## Verified blockers
 
 1. Git provenance is now available on `Dev10/main`; the current verified implementation commit is recorded in Git, but no release tag or rollback rehearsal exists.
