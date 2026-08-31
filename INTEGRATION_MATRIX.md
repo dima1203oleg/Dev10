@@ -2,6 +2,8 @@
 ## OPEN-SOURCE SUBSYSTEMS COMPONENT GRAPH & INTEGRATION MATRIX
 **Document ID:** TA-IM-001  
 **Version:** 1.0.0  
+
+> **Current verification override — 2026-08-31:** PostgreSQL/RLS is `USE/PASS`; official Prozorro connector code is `ADAPT/PARTIAL`; Docling, PaddleOCR, Temporal, ClamAV, DuckDB, pgvector and SeaweedFS are not accepted until their local contract gates pass. MinIO is `REJECT` for a new deployment.
 ---
 
 ## 1. Subsystem Integration Layout

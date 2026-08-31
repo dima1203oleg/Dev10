@@ -1,7 +1,9 @@
 # TENDERAI OS — API REALITY AUDIT
 ## PRODUCTION API CONTRACTS & VERIFIED ENDPOINTS REALITY REPORT
 **Document ID:** TA-ARA-001  
-**Status:** IMPLEMENTED & VERIFIED  
+**Status:** PARTIAL / NOT PRODUCTION VERIFIED
+
+> **Current verification override — 2026-08-31:** Typed safe errors, request IDs, rate limiting, persisted document jobs, BoQ and Gantt CRUD exist. The complete 46-route contract inventory and authenticated browser verification remain `UNKNOWN/BLOCKED`; endpoint claims below are not proof of production readiness.
 
 ---
 

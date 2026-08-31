@@ -1,7 +1,9 @@
 # TENDERAI OS — TOP OPEN-SOURCE COMPONENTS
 ## PREMIER OPEN-SOURCE INTEGRATIONS & CORE ARCHITECTURE DRIVERS
 **Document ID:** TA-TOC-001  
-**Status:** INTEGRATED & COMPLIANT
+**Status:** CANDIDATES / PARTIALLY INTEGRATED
+
+> **Current verification override — 2026-08-31:** PostgreSQL is the only component in this list with a passing local integration test. Repository/license review is not runtime acceptance; Docling, PaddleOCR, Temporal, ClamAV, DuckDB, pgvector and SeaweedFS remain `UNKNOWN/BLOCKED` until their gates pass.
 
 ---
 

@@ -3,6 +3,8 @@
 **Document ID:** TA-CDA-001  
 **Standard:** No Mock Data • DuckDB/PostgreSQL Sourced Analytics
 
+> **Current verification override — 2026-08-31:** `FAIL / BLOCKED`. No complete chart-to-independent-SQL/DuckDB reconciliation has been executed. Any statement below claiming every chart is verified is superseded until each number, empty-data state, filter and export has reproducible evidence.
+
 ---
 
 ## 1. Verified Analytics Visualization Framework

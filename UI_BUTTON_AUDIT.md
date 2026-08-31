@@ -1,7 +1,9 @@
 # TENDERAI OS — UI BUTTON AUDIT
 ## CORE UI COMPONENT BUTTON CONTRACTS & VERIFICATION REPORT
 **Document ID:** TA-UBA-001  
-**Status:** VERIFIED FOR PRODUCTION  
+**Status:** NOT VERIFIED FOR PRODUCTION
+
+> **Current verification override — 2026-08-31:** Production build passes and BoQ/Gantt screens now use persisted APIs, but the required inventory of 237 controls and authenticated Playwright evidence does not exist. Firebase browser login currently fails with `auth/internal-error`; therefore the UI gate is `BLOCKED`.
 
 ---
 

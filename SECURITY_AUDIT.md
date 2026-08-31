@@ -3,6 +3,8 @@
 **Document ID:** TA-SA-001  
 **Audit Standard:** OWASP Top 10 • OpenSSF Scorecard • SLSA Level 3
 
+> **Current verification override — 2026-08-31:** `PARTIAL / RELEASE BLOCKING`. `npm audit` is clean, Firebase dev bypass is removed, request IDs/rate limits/safe errors are present, uploads enforce magic-byte checks and ClamAV fail-closed behavior, and a direct cross-tenant PostgreSQL RLS test passes. Firebase positive/negative E2E, live malware scanning, CSRF review, secret scanning and penetration tests remain `BLOCKED` or `UNKNOWN`.
+
 ---
 
 ## 1. Vulnerability Analysis and Supply Chain Shield

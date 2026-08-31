@@ -3,6 +3,8 @@
 **Document ID:** TA-LA-001  
 **Lead Auditor:** Principal Systems Integration & Compliance Attorney-Engineer  
 
+> **Current verification override — 2026-08-31:** `PARTIAL`. npm production dependencies report zero known vulnerabilities, but notices and transitive-license inventory still require a reproducible generated artifact. MinIO is `REJECT` for this new integration because the upstream repository is archived and AGPL-3.0 raises boundary obligations; SeaweedFS remains a `WRAP` candidate.
+
 ---
 
 ## 1. Compliance Matrix and Risk Classifications

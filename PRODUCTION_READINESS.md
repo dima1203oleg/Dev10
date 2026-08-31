@@ -8,8 +8,8 @@ The repository cannot truthfully be submitted as a tested production release yet
 
 ## Verified blockers
 
-1. No Git metadata is present, so source revision, release tag, provenance and rollback target are unidentifiable.
-2. Required production secrets/infrastructure are absent: PostgreSQL credentials, Firebase Admin credentials and Gemini key.
+1. Git provenance is now available on `Dev10/main`; the current verified implementation commit is recorded in Git, but no release tag or rollback rehearsal exists.
+2. Local PostgreSQL and enforced RLS are available. Acceptance infrastructure/credentials remain incomplete: Firebase browser login fails, Gemini is not configured, and Temporal, ClamAV, Docling/PaddleOCR, pgvector, DuckDB and S3-compatible storage have not passed live gates.
 3. The UI cost-estimate module contains synthetic reports, suppliers, prices, random calculations and simulated uploads.
 4. The multi-platform connector contained generated corporate/social tenders presented as results. Its runtime use was disabled on 2026-08-31; only the verified Prozorro connector may now return records.
 5. `/api/data` fabricated statuses/categories/regions while seeding live Prozorro records. Automatic seeding was removed on 2026-08-31.
@@ -32,9 +32,11 @@ The repository cannot truthfully be submitted as a tested production release yet
 ## Verification results (2026-08-31)
 
 - TypeScript `tsc --noEmit`: **PASS**
-- Vitest: **PASS**, 1 file / 2 tests
-- Vite production build: **PASS**, 2,960 modules
-- Express server bundle: **PASS**, `server.cjs` 320.6 kB
+- Vitest: **PASS**, 3 files passed / 1 skipped; 6 tests passed / 1 skipped
+- PostgreSQL cross-tenant RLS integration: **PASS**, 1 file / 1 test
+- Vite production build: **PASS**, 2,965 modules; route-level chunks, largest emitted JS chunk about 404 kB
+- Express server bundle: **PASS**, `server.cjs` about 330 kB
+- npm dependency audit: **PASS**, 0 known vulnerabilities
 - Browser Node-core externalization: **FIXED** (`randomUUID` now uses Web Crypto)
 - Dependency audit: **FAIL**, one moderate transitive advisory in optional `uuid@9.0.1` through `firebase-admin`
 - Bundle performance: **WARN**, main JS 1,525.01 kB (388.68 kB gzip)

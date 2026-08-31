@@ -3,6 +3,8 @@
 **Document ID:** TA-RCR-001  
 **Standard:** Strict Licensing • Security • Abandoned Code Vetting
 
+> **Current verification update — 2026-08-31:** MinIO is added to the `REJECT` decision for a new TenderAI integration: the upstream repository is archived and AGPL-3.0 requires a deliberate network-use compliance strategy. SeaweedFS is evaluated separately as an Apache-2.0 `WRAP` candidate; it is not yet accepted.
+
 ---
 
 ## 1. Component Vetting and Rejection Pipeline

@@ -3,6 +3,8 @@
 **Document ID:** TA-MDA-001  
 **Compliance Standard:** Strict Real-Data Enforcement Rule
 
+> **Current verification override — 2026-08-31:** `PARTIAL`. Generated corporate/social feeds, dev-mock authentication, synthetic BoQ/Gantt data, random calculations and artificial parsing delays were removed from the modified runtime paths. A repository-wide control-by-control scan and authenticated E2E are still required before `PASS`.
+
 ---
 
 ## 1. Zero Mock Data Policy

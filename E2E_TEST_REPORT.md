@@ -2,6 +2,8 @@
 **Код документу:** TA-TEST-SPEC-2026-V4  
 **Стандарт:** ISO/IEC 29119 • Верифікація повного життєвого циклу публічних закупівель (Prozorro / TenderAI)
 
+> **Поточний статус — 2026-08-31:** `NOT EXECUTED TO COMPLETION`. TypeScript, unit tests, PostgreSQL cross-tenant RLS integration, production build and dependency audit pass. Попередні `PASSED` у таблицях нижче не є доказом для поточної ревізії; реальний Firebase login та повний browser E2E заблоковані.
+
 ---
 
 ## 1. Загальні положення та мета тестування

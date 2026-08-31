@@ -1,7 +1,9 @@
 # TENDERAI OS — DATA PROVENANCE AUDIT
 ## DATA TRUTH ENGINE & CITATION COORDINATE MAPPING AUDIT
 **Document ID:** TA-DPA-001  
-**Status:** FULLY COMPLIANT
+**Status:** PARTIAL / NOT FULLY COMPLIANT
+
+> **Current verification override — 2026-08-31:** Schema and document-job contracts now require SHA-256, page citations and `bbox`, and the processor refuses synthesized OCR output. A live public Prozorro PDF has not yet passed ClamAV → object storage → OCR → citation/bbox validation, so the provenance gate is `BLOCKED`.
 
 ---
 

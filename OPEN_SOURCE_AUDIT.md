@@ -5,6 +5,8 @@
 **Timestamp:** 2026-08-28T09:40:00Z  
 **Classification:** Proprietary Technical Specification
 
+> **Current verification override — 2026-08-31:** `PARTIAL / NOT READY`. Repository metadata for Docling, PaddleOCR, Temporal, ClamAV, DuckDB, pgvector, SeaweedFS and MinIO was reviewed. Runtime contract tests are still missing for every component except PostgreSQL; unverified claims below are historical target-state descriptions.
+
 ---
 
 ## 1. Audit Workflow Overview

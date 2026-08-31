@@ -3,6 +3,8 @@
 **Document ID:** TA-AR-001  
 **Target Architecture:** Full-Stack Enterprise SaaS (Multi-Tenant)
 
+> **Current implementation status — 2026-08-31:** `PARTIAL`. Transaction-scoped tenant context, forced PostgreSQL RLS, persisted jobs, BoQ and Gantt APIs are implemented and tested locally. Temporal, production object storage, live OCR, pgvector and DuckDB remain target architecture, not deployed capability.
+
 ---
 
 ## 1. Enterprise System Blueprint
