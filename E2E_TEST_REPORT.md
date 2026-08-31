@@ -6,6 +6,8 @@
 
 > **Browser retest:** оболонка й кнопка входу відображаються без console errors, але Google sign-in завершується точним кодом `auth/internal-error`. Production-захист не вимикався. Для `auth/popup-blocked` і `auth/cancelled-popup-request` додано офіційний Firebase redirect fallback.
 
+> **Firebase configuration recheck:** Google provider is enabled and `localhost` plus `127.0.0.1` are authorized. The in-app browser still cannot persist the redirect session because its embedded browser storage flow returns unauthenticated; `auth/internal-error` now also triggers redirect. Authenticated UI E2E remains `BLOCKED`, not `PASS`.
+
 ---
 
 ## 1. Загальні положення та мета тестування

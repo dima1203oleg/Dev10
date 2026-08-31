@@ -63,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error('Error signing in:', error);
       const code = error instanceof FirebaseError ? error.code : 'auth/unknown';
-      if (code === 'auth/popup-blocked' || code === 'auth/cancelled-popup-request') {
+      if (code === 'auth/popup-blocked' || code === 'auth/cancelled-popup-request' || code === 'auth/internal-error') {
         await signInWithRedirect(auth, googleProvider);
         return;
       }
