@@ -2088,10 +2088,11 @@ app.post("/api/tenderai/multi-agent-analyze", requireAuth, async (req: AuthReque
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Tender title, numeric budget, persisted BoQ, project scope and specifications are required.' }, requestId: req.requestId });
     }
 
-    const ai = getGeminiClient();
-    if (!ai) {
-      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
-    }
+    return res.status(503).json({
+      error: { code: 'DETERMINISTIC_ANALYSIS_REQUIRED', message: 'Multi-agent numeric analysis is unavailable until persisted, source-cited BoQ prices and schedules are present.' },
+      requestId: req.requestId,
+    });
+    const ai = undefined as any;
 
     const prompt = `Ти виступаєш як оркестратор мультиагентної системи "TenderAI Construction SaaS" у синергії з антикорупційним модулем "FoulTender".
 Проведи мультиагентний аналіз будівельного тендеру за участю 5 спеціалізованих агентів:
@@ -2327,11 +2328,11 @@ app.post("/api/tenderai/prozorro-ingest", requireAuth, async (req: AuthRequest, 
     if (typeof urlOrId !== 'string' || !urlOrId.trim() || typeof tenderText !== 'string' || !tenderText.trim() || typeof category !== 'string' || !category.trim()) {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Official Prozorro URL/ID, fetched source text and category are required.' }, requestId: req.requestId });
     }
-    const ai = getGeminiClient();
-
-    if (!ai) {
-      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
-    }
+    return res.status(503).json({
+      error: { code: 'OFFICIAL_PROZORRO_FETCH_REQUIRED', message: 'AI-generated tender records are disabled. Import must use the official Prozorro API with persisted source provenance.' },
+      requestId: req.requestId,
+    });
+    const ai = undefined as any;
 
     const prompt = `Ти – Prozorro Ingestion & AI Decomposer Engine платформи TenderAI.
 Твоє завдання – розібрати вхідний текст закупівлі (або посилання/ідентифікатор ${urlOrId}) та сформувати повну структуровану модель тендеру з BoQ позиціями, антикорупційними маркерами та вимогами.

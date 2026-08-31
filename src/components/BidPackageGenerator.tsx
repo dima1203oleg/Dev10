@@ -33,16 +33,16 @@ export const BidPackageGenerator: React.FC<BidPackageGeneratorProps> = ({
 
   // Generate new package
   const handleCreatePackage = () => {
-    const calculatedPrice = currentTender.multiAgentAnalysis?.agents.bidManager.recommendedBidPrice || (currentTender.budgetUah * 0.88);
+    const calculatedPrice = currentTender.multiAgentAnalysis?.agents.bidManager.recommendedBidPrice;
     const newPkg: BidPackage = {
       id: `bid-${Date.now()}`,
       tenderId: currentTender.id,
       tenderNumber: currentTender.tenderNumber,
       tenderTitle: currentTender.title,
       companyName: companyName,
-      calculatedPrice: calculatedPrice,
-      marginPercent: 18.5,
-      timelineDays: 45,
+      calculatedPrice: calculatedPrice ?? null,
+      marginPercent: null,
+      timelineDays: null,
       status: 'READY_TO_SUBMIT',
       updatedAt: new Date().toISOString().split('T')[0],
       documents: [
@@ -56,7 +56,7 @@ export const BidPackageGenerator: React.FC<BidPackageGeneratorProps> = ({
 Учасник: ${companyName}
 
 1. Ми, ${companyName}, вивчивши тендерну документацію, пропонуємо виконати зазначені роботи за ціною:
-${calculatedPrice.toLocaleString()} грн (з ПДВ).
+${calculatedPrice != null ? `${calculatedPrice.toLocaleString()} грн (з ПДВ)` : 'UNKNOWN: підтверджена ціна відсутня'}.
 2. Термін виконання робіт: 45 календарних днів з моменту підписання договору.
 3. Умови оплати: згідно з проєктом договору замовника (протягом 20 банківських днів після підписання актів КБ-2в).
 4. Пропозиція діє протягом 90 календарних днів.`
@@ -205,7 +205,7 @@ ${calculatedPrice.toLocaleString()} грн (з ПДВ).
               <div className="flex justify-between text-slate-300">
                 <span>Ціна пропозиції:</span>
                 <strong className="text-emerald-400 font-mono text-sm font-bold">
-                  {(selectedPkg?.calculatedPrice || currentTender.budgetUah * 0.88).toLocaleString()} ₴
+                  {selectedPkg?.calculatedPrice != null ? `${selectedPkg.calculatedPrice.toLocaleString()} ₴` : 'UNKNOWN'}
                 </strong>
               </div>
 
@@ -233,7 +233,7 @@ ${calculatedPrice.toLocaleString()} грн (з ПДВ).
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-indigo-400 font-mono">{(pkg.calculatedPrice).toLocaleString()} ₴</span>
+                    <span className="font-bold text-indigo-400 font-mono">{pkg.calculatedPrice != null ? `${pkg.calculatedPrice.toLocaleString()} ₴` : 'UNKNOWN'}</span>
                     <span className="text-[10px] text-slate-400">{pkg.updatedAt}</span>
                   </div>
                   <div className="line-clamp-1 font-medium mt-1">{pkg.companyName}</div>

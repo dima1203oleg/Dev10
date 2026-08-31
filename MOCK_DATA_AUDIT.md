@@ -9,6 +9,8 @@
 
 **Zero-mock gate update:** known fabricated tender records, UI notifications, fallback CPV/keywords, default Fit Score and random business values are now rejected by `src/tests/zeroMock.test.ts`. The audited runtime routes return `UNKNOWN`, empty collections or validation errors when evidence is missing.
 
+**2026-08-31 runtime recheck:** multi-agent numeric analysis and AI tender ingestion now fail closed until persisted, source-cited data exists; bid/round/package views render `UNKNOWN` instead of synthetic price, margin, or timeline fallbacks. Offline tests/build pass; authenticated E2E remains pending.
+
 ---
 
 ## 1. Zero Mock Data Policy

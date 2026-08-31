@@ -397,9 +397,9 @@ export interface BidPackage {
   tenderNumber: string;
   tenderTitle: string;
   companyName: string;
-  calculatedPrice: number;
-  marginPercent: number;
-  timelineDays: number;
+  calculatedPrice?: number;
+  marginPercent?: number;
+  timelineDays?: number;
   documents: {
     name: string;
     type: string;
@@ -643,5 +643,4 @@ export interface InteractiveGanttTask {
   status: 'COMPLETED' | 'IN_PROGRESS' | 'PLANNED' | 'DELAYED';
   riskNote?: string;
 }
-
 

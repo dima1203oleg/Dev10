@@ -455,14 +455,14 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                     <div className="bg-slate-800/90 p-3 rounded-xl border border-slate-700">
                       <div className="text-[11px] text-slate-400">Рекомендована ставка на аукціоні</div>
                       <div className="text-lg font-bold text-emerald-400 font-mono">
-                        {(analysis.agents.bidManager.recommendedBidPrice || analysis.totalCalculatedCost * 1.15).toLocaleString()} ₴
+                        {analysis.agents.bidManager.recommendedBidPrice != null ? `${analysis.agents.bidManager.recommendedBidPrice.toLocaleString()} ₴` : 'UNKNOWN'}
                       </div>
                     </div>
 
                     <div className="bg-slate-800/90 p-3 rounded-xl border border-slate-700">
                       <div className="text-[11px] text-slate-400">Очікуваний чистий прибуток</div>
                       <div className="text-lg font-bold text-indigo-300 font-mono">
-                        {((analysis.agents.bidManager.recommendedBidPrice || analysis.totalCalculatedCost * 1.15) - analysis.totalCalculatedCost).toLocaleString()} ₴
+                        {analysis.agents.bidManager.recommendedBidPrice != null ? `${(analysis.agents.bidManager.recommendedBidPrice - analysis.totalCalculatedCost).toLocaleString()} ₴` : 'UNKNOWN'}
                       </div>
                     </div>
                   </div>
@@ -669,7 +669,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
             <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4 space-y-2">
               <div className="text-[11px] font-bold text-slate-400 uppercase">Раунд 2 • Контроль демпінгу</div>
               <div className="text-xl font-bold text-white font-mono">
-                {((currentTender.budgetUah * 0.89)).toLocaleString()} ₴
+                UNKNOWN
               </div>
               <p className="text-xs text-slate-300">
                 Знижка 11%. Відсікання конкурентів без прямого доступу до виробників матеріалів.
@@ -680,7 +680,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
             <div className="bg-emerald-950/50 border border-emerald-800 rounded-xl p-4 space-y-2">
               <div className="text-[11px] font-bold text-emerald-400 uppercase">Раунд 3 • Фінальна перемога</div>
               <div className="text-xl font-bold text-emerald-300 font-mono">
-                {(analysis?.agents.bidManager.recommendedBidPrice || (currentTender.budgetUah * 0.85)).toLocaleString()} ₴
+                {analysis?.agents.bidManager.recommendedBidPrice != null ? `${analysis.agents.bidManager.recommendedBidPrice.toLocaleString()} ₴` : 'UNKNOWN'}
               </div>
               <p className="text-xs text-slate-200">
                 Оптимальна ціна перемоги. Гарантована маржа 18.5% після покриття всіх прямих та непрямих витрат.

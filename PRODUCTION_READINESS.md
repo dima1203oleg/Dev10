@@ -6,6 +6,8 @@ Date: 2026-08-31
 
 The repository cannot truthfully be submitted as a tested production release yet. This decision supersedes earlier PASS/READY claims in repository reports.
 
+Latest offline gate: TypeScript lint, 14 tests (1 skipped), production build, and moderate dependency audit pass. Release remains `NOT READY` because live service and authenticated browser evidence are unavailable.
+
 ## Verified blockers
 
 1. Git provenance is now available on `Dev10/main`; the current verified implementation commit is recorded in Git, but no release tag or rollback rehearsal exists.

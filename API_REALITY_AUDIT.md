@@ -11,6 +11,8 @@
 
 **Analytical API update:** collusion detection always uses the tested deterministic engine; document version comparison uses exact line additions/removals with SHA-256 hashes and `UNKNOWN` risk until separately reviewed. Neither route asks Gemini to create scores or evidence.
 
+**2026-08-31 fail-closed update:** routes that previously emitted unverified numeric tender/BoQ records return typed `503` errors (`DETERMINISTIC_ANALYSIS_REQUIRED`, `OFFICIAL_PROZORRO_FETCH_REQUIRED`) until official, persisted provenance is available.
+
 ---
 
 ## 1. API Verification Principles
