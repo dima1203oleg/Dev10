@@ -59,3 +59,6 @@ router.post("/api/documents/upload", upload.single("file"), async (req, res) => 
 
 export default router;
 ```
+# Independent re-audit (2026-08-31)
+
+**Status: FAIL.** Generated corporate/social procurement records and fabricated live-record attributes were discovered and disabled. Required external services were unavailable for complete integration verification.

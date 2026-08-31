@@ -586,8 +586,11 @@ export async function searchMultiPlatformTenders(
     platformUrl: `https://prozorro.gov.ua/tender/${t.tenderId}`
   }));
 
-  // Generate and merge corporate + social tenders
-  const nonStateTenders = generateCorporateAndSocialTenders(query, options, taggedStateTenders.length);
+  // Only sources backed by a verified live connector may return records. The
+  // previous implementation synthesized corporate/social tenders and exposed
+  // them as real procurement data, which is forbidden by the production data
+  // contract. Keep these sources empty until their official connectors exist.
+  const nonStateTenders: MultiPlatformTenderItem[] = [];
 
   // Combine and sort
   const allTenders = [...taggedStateTenders, ...nonStateTenders];

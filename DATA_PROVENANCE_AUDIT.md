@@ -91,3 +91,6 @@ export const ProvenanceViewer: React.FC<ProvenanceViewerProps> = ({ provenance }
   );
 };
 ```
+# Independent re-audit (2026-08-31)
+
+**Status: FAIL.** End-to-end cryptographic document hash → page/section → bbox → extracted requirement → UI highlight verification was not demonstrated against real documents.

@@ -3,7 +3,6 @@
  * Multi-Factor Relevance Scoring, Morphological Stemming, CPV Hierarchy Matching & Resilient API Connector.
  */
 
-import crypto from 'crypto';
 import { extractAndExpandKeywords, matchUkrainianText, stemUkrainianWord } from './ukrainianStemmer';
 import { evaluateCpvHierarchy, normalizeCpvCode } from './cpvMatcher';
 import { ProzorroTenderItem, SearchTelemetry, SearchOptions, RejectionDetails } from './prozorro';
@@ -175,11 +174,11 @@ export async function executeAdvancedProzorroSearch(
     rejected_negative: 0
   };
 
-  const searchId = crypto.randomUUID();
+  const searchId = globalThis.crypto.randomUUID();
   let sourceStatus: 'SUCCESS' | 'ERROR' | 'PARTIAL' = 'SUCCESS';
 
   try {
-    let nextPageUri = `${PROZORRO_API_BASE}?descending=1&limit=30`;
+    let nextPageUri = `${PROZORRO_API_BASE}?descending=1&opt_fields=title,description,value,procuringEntity,items,status,datePublished,dateModified,tenderPeriod,tenderID&limit=50`;
     if (currentOffset) {
       nextPageUri += `&offset=${currentOffset}`;
     }
@@ -206,23 +205,9 @@ export async function executeAdvancedProzorroSearch(
         nextPageUri = json.next_page?.uri || "";
         currentOffset = json.next_page?.offset || "";
 
-        // Fetch detail batch with parallel concurrency
-        const batchIds = json.data.map((item: any) => item.id).filter(Boolean);
-        const detailPromises = batchIds.map((id: string) =>
-          fetch(`${PROZORRO_API_BASE}/${id}`, { signal: controller.signal })
-            .then(r => r.ok ? r.json() : null)
-            .then(res => res?.data || null)
-            .catch(() => null)
-        );
-
-        const detailsResults = await Promise.allSettled(detailPromises);
-        const validTenderDetails = detailsResults
-          .filter((res): res is PromiseFulfilledResult<any> => res.status === 'fulfilled' && !!res.value)
-          .map(res => res.value);
-
-        for (const data of validTenderDetails) {
+        for (const data of json.data) {
           const tenderId = data.tenderID || data.id;
-          if (tendersMap.has(tenderId) || tendersMap.has(data.id)) continue;
+          if (!tenderId || tendersMap.has(tenderId) || tendersMap.has(data.id)) continue;
 
           const cpv = data.items?.[0]?.classification?.id || "";
           const budget = data.value?.amount !== undefined ? Number(data.value.amount) : null;

@@ -75,3 +75,6 @@ export const SyncButton: React.FC = () => {
   );
 };
 ```
+# Independent re-audit (2026-08-31)
+
+**Status: FAIL.** The estimate UI includes sample-loading controls, simulated upload/parsing and delayed local state changes. Not every control maps to a real API/database mutation.

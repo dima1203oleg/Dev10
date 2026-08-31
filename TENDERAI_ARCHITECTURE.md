@@ -56,3 +56,6 @@ PydanticAI Extraction Validation ◄── Embeddings Map ◄── pgvector Ind
 3.  **Validation:** `PydanticAI` validates the parsed JSON payload against our canonical database schema.
 4.  **Vectorization:** Text chunks are vectorized using `FastEmbed` and stored in `pgvector` or `Qdrant` databases with strict tenant filters.
 5.  **Audit:** Every AI-extracted requirement is indexed alongside its exact document hash and page coordinates to guarantee complete auditable provenance.
+# As-built qualification (2026-08-31)
+
+This is target architecture unless backed by code and passing tests. Mandatory RLS, Temporal, malware scanning, OCR bbox provenance and production object storage are not verified as deployed capabilities.

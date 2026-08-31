@@ -1,16 +1,17 @@
 {
-  "name": "react-example",
+  "name": "tenderai-foultender-suite",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0-rc.1",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=server.cjs",
     "start": "node server.cjs",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "node -e \"const fs=require('node:fs');for(const p of ['dist','server.cjs','server.cjs.map'])fs.rmSync(p,{recursive:true,force:true})\"",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify": "npm run lint && npm test && npm run build"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

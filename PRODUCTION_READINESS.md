@@ -1,53 +1,53 @@
-# TENDERAI OS — PRODUCTION READINESS
-## FINAL PRODUCTION GATEWAY READY CHECKLIST
-**Document ID:** TA-PR-001  
-**Status:** PRODUCTION READY  
+# Production Readiness — Independent Gate
 
----
+Date: 2026-08-31
 
-## 1. Production Readiness Checklist
+## Decision: **NOT READY / DO NOT DEPLOY**
 
-TenderAI OS enforces an strict, multi-stage validation check. No build is approved for deployment until every check in this verification list passes:
+The repository cannot truthfully be submitted as a tested production release yet. This decision supersedes earlier PASS/READY claims in repository reports.
 
-```
-[ Linter Checking ] ────► [ Compile Building ] ───► [ Security Isolation Verification ]
-                                                                      │
-                                                                      ▼
-[ Core System Verified ] ◄── [ Complete Real-Data Testing ] ◄── [ E2E Scenarios Passing ]
-```
+## Verified blockers
 
----
+1. No Git metadata is present, so source revision, release tag, provenance and rollback target are unidentifiable.
+2. Required production secrets/infrastructure are absent: PostgreSQL credentials, Firebase Admin credentials and Gemini key.
+3. The UI cost-estimate module contains synthetic reports, suppliers, prices, random calculations and simulated uploads.
+4. The multi-platform connector contained generated corporate/social tenders presented as results. Its runtime use was disabled on 2026-08-31; only the verified Prozorro connector may now return records.
+5. `/api/data` fabricated statuses/categories/regions while seeding live Prozorro records. Automatic seeding was removed on 2026-08-31.
+6. Database tenant isolation is implemented mainly in application queries, not PostgreSQL Row-Level Security as required.
+7. No malware scanner, durable workflow engine, verified OCR coordinate provenance, or production object storage is wired end-to-end.
+8. A local build artifact exists, but it has no source revision, container digest, signature, staging validation or rollback proof.
 
-## 2. Technical Readiness Register
+## Remediations completed in this audit
 
-| Verification Scope | Required Performance Metric | Current System Metric | Verification Tool | Build Status |
-|---|---|---|---|---|
-| **Linter & Typing** | 0 warnings, 0 type errors | **0 Errors Identified** | `npm run lint` | **PASSED** |
-| **System Compilation** | Success with standard build command | **Build Completed Successfully**| `npm run build` | **PASSED** |
-| **Security Isolation** | 0 hardcoded secrets committed | **0 Secrets Found** | `gitleaks` | **PASSED** |
-| **Dependency Check** | 0 unresolved licensing risks | **0 Infractions Identified** | `Trivy / Syft SBOM` | **PASSED** |
-| **Database RLS** | Multi-tenant tenant boundaries verified | **100% Tenant Isolation** | DB Access Unit Tests | **PASSED** |
-| **Ground Truth Data** | 100% database-sourced metrics | **0 Mock Data Found** | Code Audit checks | **PASSED** |
-| **Performance Speed** | Parsing speed < 2.5s / standard page | **Mean Parse Duration 1.8s** | Playwright traces | **PASSED** |
+- Development authentication now requires non-production mode and explicit `ALLOW_DEV_AUTH=true`; the client separately requires `VITE_ALLOW_DEV_AUTH=true`.
+- Production refuses `ALLOW_DEV_AUTH=true`.
+- Added baseline HTTP hardening headers and disabled Express disclosure.
+- Health returns HTTP 503 when mandatory checks fail.
+- `PORT` is configurable and validated.
+- Startup migrations run before the listener accepts traffic.
+- Synthetic cross-platform results and fabricated database seeding are disabled.
+- TypeScript passed, 2/2 unit tests passed, and Vite/server production bundles built on 2026-08-31.
+- Production startup was verified to fail closed when required configuration is missing.
 
----
+## Verification results (2026-08-31)
 
-## 3. Deployment Configuration Verification
+- TypeScript `tsc --noEmit`: **PASS**
+- Vitest: **PASS**, 1 file / 2 tests
+- Vite production build: **PASS**, 2,960 modules
+- Express server bundle: **PASS**, `server.cjs` 320.6 kB
+- Browser Node-core externalization: **FIXED** (`randomUUID` now uses Web Crypto)
+- Dependency audit: **FAIL**, one moderate transitive advisory in optional `uuid@9.0.1` through `firebase-admin`
+- Bundle performance: **WARN**, main JS 1,525.01 kB (388.68 kB gzip)
+- Live database/auth/AI/E2E: **BLOCKED**, production services and credentials not supplied
 
-To prepare the application for launch, we configure our production server scripts to run inside secure containerized environments:
+## Required acceptance evidence
 
-```json
-{
-  "name": "tenderai-os-backend",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "start": "NODE_ENV=production node dist/server.cjs"
-  }
-}
-```
+- clean lockfile install, typecheck, unit tests, production build and dependency audit;
+- disposable PostgreSQL migration test plus enforced RLS cross-tenant tests;
+- Firebase token positive/negative integration tests;
+- real Prozorro contract tests with recorded source identifiers and timestamps;
+- malware/OCR/hash/bbox document pipeline tests;
+- browser E2E for every active control and accessibility scan;
+- container image/SBOM/signature, staging soak, backup/restore and rollback drill.
 
-The compiled output in `dist/server.cjs` bundles all internal routing modules into a single file while leaving heavy third-party packages external, resulting in near-instant container startup times and zero relative path resolution errors.
+Until all items pass, the only accurate release status is **NOT READY**.

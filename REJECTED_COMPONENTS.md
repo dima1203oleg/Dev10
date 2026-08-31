@@ -59,3 +59,6 @@ Below is the list of vetted packages that have been rejected from direct inclusi
 *   **License Type:** Redis Source Available License v2 (RSALv2)
 *   **Technical Reason:** The license transition away from BSD-3 restrictions limits usage inside multi-tenant SaaS environments.
 *   **Alternative:** **Valkey** (BSD-3 licensed), the official community-driven fork.
+# Runtime rejection added 2026-08-31
+
+Generated corporate/social tender templates are **REJECTED** as a production data source and disabled. Synthetic estimate/supplier generators must be removed or isolated into a separately labelled demo build.

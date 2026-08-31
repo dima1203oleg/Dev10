@@ -13,8 +13,10 @@ export const requireAuth = async (
 ) => {
   const authHeader = req.headers.authorization;
   
-  // Dev bypass is allowed in all non-production environments during development to prevent API key prompt interference
-  const isDevBypassAllowed = process.env.NODE_ENV !== 'production';
+  // Development authentication is an explicit opt-in. Merely forgetting
+  // NODE_ENV must never turn authentication off.
+  const isDevBypassAllowed =
+    process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_AUTH === 'true';
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     if (isDevBypassAllowed) {
@@ -45,4 +47,3 @@ export const requireAuth = async (
     return res.status(401).json({ error: 'Unauthorized: Invalid or Expired Token' });
   }
 };
-

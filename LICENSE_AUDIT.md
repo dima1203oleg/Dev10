@@ -82,3 +82,6 @@ The table below lists the legal status of the audited dependencies:
 1.  **Never statically import AGPL or GPL modules** in the core TypeScript/Node backend.
 2.  Use the **WRAP** strategy with independent container configurations.
 3.  Include complete SBOM metadata in every automated build process.
+# Independent re-audit (2026-08-31)
+
+**Status: INCOMPLETE.** A release SBOM, exact resolved graph, bundled notices and legal review were not produced from a successful clean install.

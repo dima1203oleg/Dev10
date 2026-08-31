@@ -136,3 +136,6 @@ def verify_component(component_name, repo_url):
 ```
 
 Every database entry and UI state matches actual values retrieved dynamically. We strictly enforce the **No Mock Data** rule.
+# Independent re-audit (2026-08-31)
+
+Repository names or documentation references are not integration evidence. Versions, upstream URLs, licenses, CVEs, activity and local acceptance tests must be reverified before release.

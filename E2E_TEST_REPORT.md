@@ -69,4 +69,8 @@ test.describe("TenderAI OS Comprehensive E2E Verification", () => {
 1. **Стабільність архітектури:** Впроваджена система асинхронних міграцій на старті запобігає будь-яким затримкам та зупинкам контейнера під час розгортання в Cloud Run.
 2. **Безпека та ізоляція даних:** Завдяки жорсткій прив’язці `user_id` та багатотабличним зв'язкам (`company_profiles` ↔ `tender_documents`), дані компанії та її сховище ізольовані на рівні сервера.
 3. **Готовність до продакшену:** Усі ключові показники якості (Linter: 0 помилок, TypeScript: `tsc --noEmit` пройдено успішно, Скомпонований збір: `npm run build` зеленого кольору) підтверджують повну готовність платформи до експлуатації.
+# Independent re-audit (2026-08-31)
 
+**Status: NOT EXECUTED TO COMPLETION.** No reproducible browser E2E evidence tied to the current source revision exists, and the supplied directory has no Git revision. Prior PASS statements do not certify the current code.
+
+Static verification completed: TypeScript PASS, Vitest 2/2 PASS, Vite build PASS, server bundle PASS. Production negative-startup test PASS (missing mandatory configuration terminates the process). These checks are not a substitute for browser/database E2E.

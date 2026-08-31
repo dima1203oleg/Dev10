@@ -28,7 +28,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const isDev = (import.meta as any).env.DEV || (import.meta as any).env.MODE !== 'production';
+    const isDev = (import.meta as any).env.DEV &&
+      (import.meta as any).env.VITE_ALLOW_DEV_AUTH === 'true';
     if (isDev && localStorage.getItem('dev_bypass') === 'true') {
       const mockUser = {
         uid: 'dev-user-001',
@@ -88,6 +89,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInAsDev = () => {
+    const devAuthEnabled = (import.meta as any).env.DEV &&
+      (import.meta as any).env.VITE_ALLOW_DEV_AUTH === 'true';
+    if (!devAuthEnabled) {
+      throw new Error('Development authentication is disabled');
+    }
     const mockUser = {
       uid: 'dev-user-001',
       email: 'dev@tenderai.ua',

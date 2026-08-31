@@ -47,3 +47,6 @@ To prevent chaotic cross-dependencies, TenderAI OS uses a structured pipeline wh
 2.  **State Machines to AI Models:** Calls Google GenAI SDK (Gemini) over HTTPS using server-only `GEMINI_API_KEY`.
 3.  **TenderAI Core to Qdrant:** Communicates via gRPC over port `6334` using native payload filtering.
 4.  **BIM Parsing Container:** Interacts via REST API using standard JSON-serialized geometric matrices.
+# Independent re-audit (2026-08-31)
+
+Treat every integration without a completed live contract test as `UNKNOWN`. Generated corporate/social feeds are disabled pending official connectors.

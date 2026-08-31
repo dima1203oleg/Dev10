@@ -74,3 +74,8 @@ TenderAI enforces the following mandatory runtime security protections:
 
 ### C. Zero Hardcoded Secrets Policy
 *   All API keys, cryptographic tokens, and database passwords must reside in protected environment variables and are regularly audited via `gitleaks`. No secrets are committed to version control.
+# Independent re-audit (2026-08-31)
+
+**Status: FAIL / release blocking.** Explicit dev-auth gating and baseline response headers were added. PostgreSQL RLS, malware scanning, rate limiting, CSRF strategy, production credentials, dependency audit evidence and penetration testing remain unverified.
+
+Dependency audit on 2026-08-31 reported one moderate transitive advisory: `uuid@9.0.1` (GHSA-w5hq-g745-h8pq) through optional `firebase-admin` storage/auth dependencies; zero high or critical advisories. Production startup now fails closed on missing database/Gemini configuration and on schema verification failure.

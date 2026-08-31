@@ -52,3 +52,6 @@ Below is the verified registry of our core open-source integrations:
 *   **Target Module:** Stateful Multi-Agent Compliance Auditor
 *   **Performance:** Fully deterministic agent execution paths with integrated human-in-the-loop validation controls.
 *   **Integration Status:** Core state engine powering our legal requirements analysis and compliance reports.
+# Verification note (2026-08-31)
+
+This is a candidate list, not an acceptance list. No candidate is approved without exact version/license/security/local-test evidence.

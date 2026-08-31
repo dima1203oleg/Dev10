@@ -26,10 +26,31 @@ if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEV_AUTH === "tru
   process.exit(1);
 }
 
+if (process.env.NODE_ENV === "production") {
+  const required = ["SQL_HOST", "SQL_USER", "SQL_PASSWORD", "SQL_DB_NAME", "GEMINI_API_KEY"];
+  const missing = required.filter((name) => !process.env[name]?.trim());
+  if (missing.length > 0) {
+    throw new Error(`Missing required production configuration: ${missing.join(", ")}`);
+  }
+}
+
 const app = express();
-const PORT = 3000;
+const PORT = Number.parseInt(process.env.PORT || "3000", 10);
+
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  throw new Error("PORT must be an integer between 1 and 65535");
+}
 
 app.use(express.json({ limit: "10mb" }));
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+  next();
+});
 
 // Initialize Storage Provider
 const storage = new LocalStorageProvider('uploads');
@@ -90,72 +111,6 @@ app.get("/api/data", requireAuth, async (req: AuthRequest, res) => {
     // Fetch all user's tenders
     let userTenders = await db.select().from(tendersTable).where(eq(tendersTable.userId, dbUser.id));
     
-    // Auto-seed real live Prozorro tenders if the user's database is empty
-    if (userTenders.length === 0) {
-      try {
-        const liveProzorro = await searchProzorroTenders({}, { limit: 8 });
-        if (liveProzorro.tenders && liveProzorro.tenders.length > 0) {
-          let idx = 0;
-          for (const item of liveProzorro.tenders) {
-            let assignedStatus = 'ACTIVE';
-            let assignedCategory = item.category || 'Будівельні роботи та поточний ремонт';
-            let assignedRegion = item.region || 'Київська область';
-            
-            if (idx % 5 === 1) {
-              assignedStatus = 'WON';
-              assignedCategory = 'Проектування та інжиніринг';
-              assignedRegion = 'Львівська область';
-            } else if (idx % 5 === 2) {
-              assignedStatus = 'COMPLETED';
-              assignedCategory = 'Будівельні роботи та поточний ремонт';
-              assignedRegion = 'Київська область';
-            } else if (idx % 5 === 3) {
-              assignedStatus = 'CANCELLED';
-              assignedCategory = 'Паливо та енергетика';
-              assignedRegion = 'Одеська область';
-            } else if (idx % 5 === 4) {
-              assignedStatus = 'WON';
-              assignedCategory = 'Проектування та інжиніринг';
-              assignedRegion = 'Івано-Франківська область';
-            } else {
-              assignedStatus = 'ACTIVE';
-              assignedCategory = 'Будівельні роботи та поточний ремонт';
-              assignedRegion = 'Київ (м. Київ)';
-            }
-            idx++;
-
-            await db.insert(tendersTable).values({
-              userId: dbUser.id,
-              tenderNumber: item.tenderId || item.id,
-              title: item.title,
-              customer: item.customer,
-              budgetUah: item.budgetUah ? item.budgetUah.toString() : null,
-              status: assignedStatus,
-              foulScore: null,
-              riskLevel: 'NOT_ANALYZED',
-              summary: item.summary || item.title,
-              detailedData: {
-                id: item.id,
-                tenderNumber: item.tenderId,
-                title: item.title,
-                customer: item.customer,
-                customerEdrpou: item.customerEdrpou,
-                customerCity: item.customerCity,
-                budgetUah: item.budgetUah,
-                region: assignedRegion,
-                deadline: item.deadline,
-                category: assignedCategory,
-                datePublished: item.datePublished
-              }
-            }).catch(console.error);
-          }
-          userTenders = await db.select().from(tendersTable).where(eq(tendersTable.userId, dbUser.id));
-        }
-      } catch (seedErr) {
-        console.error("Live seeding error:", seedErr);
-      }
-    }
-
     // Fetch company profile (STRICT: Return null if user has not configured profile)
     const userProfiles = await db.select().from(companyProfiles).where(eq(companyProfiles.userId, dbUser.id));
     let profile = userProfiles.length > 0 ? userProfiles[0] : null;
@@ -1932,7 +1887,7 @@ app.get("/api/health", async (_req, res) => {
 
   const isHealthy = dbCheck === "ok" && hasGeminiKey;
 
-  res.status(200).json({
+  res.status(isHealthy ? 200 : 503).json({
     status: isHealthy ? "ok" : "degraded",
     app: "TenderAI & FoulTender Suite v3.1",
     timestamp: new Date().toISOString(),
@@ -2796,7 +2751,9 @@ async function runStartupMigrations() {
     try {
       await db.execute(sql.raw(stmt));
     } catch (err: any) {
-      console.error(`Migration statement warning (${stmt.substring(0, 40)}...):`, err?.message || err);
+      throw new Error(
+        `Startup schema verification failed for ${stmt.substring(0, 48)}: ${err?.message || String(err)}`
+      );
     }
   }
 
@@ -2808,8 +2765,6 @@ async function runStartupMigrations() {
 // Vite middleware for development vs static build in production
 async function startServer() {
   console.log("Starting server initialization...");
-  await runStartupMigrations();
-  console.log("Migrations finished.");
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -2825,6 +2780,7 @@ async function startServer() {
     });
   }
 
+  await runStartupMigrations();
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`TenderAI & FoulTender Server running on http://0.0.0.0:${PORT}`);
   });

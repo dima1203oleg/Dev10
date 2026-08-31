@@ -156,3 +156,6 @@ components:
       - temporal_heartbeat_timeout_retry_test
     real_data_verified: true
     decision: APPROVED
+# Independent audit note (2026-08-31): entries lacking exact resolved version,
+# upstream verification, license evidence, CVE scan and local acceptance test
+# remain UNKNOWN and are not approved for production deployment.
