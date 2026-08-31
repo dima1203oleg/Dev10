@@ -9,6 +9,8 @@
 
 **DuckDB evidence update:** market-price averages, medians, ranges and variance are now calculated by DuckDB formula `market-price-v1` only from validated HTTPS observations with retrieval timestamps. Fewer than two valid observations produce `UNKNOWN`; Gemini no longer creates prices or source links.
 
+**Risk engine update:** collusion numbers are produced only by the deterministic evidence engine covered by unit tests; the former Gemini-generated score path was removed.
+
 ---
 
 ## 1. Verified Analytics Visualization Framework

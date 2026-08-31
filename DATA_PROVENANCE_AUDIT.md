@@ -7,6 +7,8 @@
 
 **Latest implementation evidence:** the Docling adapter now requests JSON OCR output through the documented multipart endpoint and rejects results without pages and at least one provenance `bbox`. This is code-level evidence only; the live PDF gate remains blocked.
 
+**Version provenance update:** `line-diff-v1` returns SHA-256 for both source versions and only exact added/removed lines. It deliberately records risk as `UNKNOWN` rather than inferring legal intent from text changes.
+
 ---
 
 ## 1. Ground Truth Provenance Engine

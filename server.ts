@@ -25,6 +25,7 @@ import { verifyUpload } from "./src/lib/uploadSecurity.ts";
 import { dispatchDocumentJob } from "./src/services/temporal.ts";
 import { calculatePreSubmissionReadiness } from "./src/utils/readiness.ts";
 import { aggregateMarketPrices } from "./src/analytics/marketPrices.ts";
+import { createEvidenceDiff } from "./src/utils/versionDiff.ts";
 
 dotenv.config();
 
@@ -2280,57 +2281,13 @@ ${JSON.stringify(tenderRequirements || tenderText)}
 app.post("/api/tenderai/collusion-detect", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { tenderId, tenderTitle, competitors, history } = req.body;
-    const ai = getGeminiClient();
-
-    if (!ai) {
-      const deterministicResult = detectCollusionRisk({ tenderId, tenderTitle, competitors, history });
-      return res.json(deterministicResult);
+    if (typeof tenderId !== 'string' || !tenderId.trim() || typeof tenderTitle !== 'string' || !tenderTitle.trim() || !Array.isArray(competitors) || !history || typeof history !== 'object') {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Tender identity, competitors and observed bidding history are required.' }, requestId: req.requestId });
     }
-
-    const prompt = `Ти – AI експерт антимонопольного аналізу та виявлення картельних змов у публічних закупівлях України (FoulTender Collusion Detector).
-Проаналізуй конкурентів та патерни їхньої поведінки для тендеру: "${tenderTitle}" (ID: ${tenderId}).
-
-Конкуренти:
-${JSON.stringify(competitors || [])}
-Історія та додаткові маркери:
-${JSON.stringify(history || {})}
-
-Поверни валідний JSON:
-{
-  "collusionRiskScore": number (0-100),
-  "riskLevel": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
-  "primarySuspects": ["Назва 1", "Назва 2"],
-  "anomaliesDetected": [
-    {
-      "title": "Назва аномалії",
-      "description": "Детальний опис змови чи узгоджених дій",
-      "evidence": "Фактичні докази / маркери"
-    }
-  ],
-  "coBiddingGraph": [
-    {
-      "source": "Компанія А",
-      "target": "Компанія Б",
-      "sharedTenders": number,
-      "winDistribution": "Розподіл перемог"
-    }
-  ]
-}`;
-
-    const response = await generateContentWithFallback(ai, {
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      }
-    });
-
-    const parsed = JSON.parse(response.text || "{}");
-    return res.json(parsed);
+    return res.json(detectCollusionRisk({ tenderId, tenderTitle, competitors, history }));
   } catch (error: any) {
-    console.error("Collusion Detect AI Error (falling back to deterministic engine):", error);
-    const { tenderId, tenderTitle, competitors, history } = req.body;
-    const fallbackResult = detectCollusionRisk({ tenderId, tenderTitle, competitors, history });
-    return res.json(fallbackResult);
+    console.error("Collusion detection failed:", error);
+    return res.status(400).json({ error: { code: 'COLLUSION_INPUT_INVALID', message: 'Collusion evidence could not be evaluated.' }, requestId: req.requestId });
   }
 });
 
@@ -2341,58 +2298,10 @@ app.post("/api/tenderai/version-diff", requireAuth, async (req: AuthRequest, res
     if (![tenderId, version1Text, version2Text].every((value) => typeof value === 'string' && value.trim())) {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Tender ID and both source document versions are required.' }, requestId: req.requestId });
     }
-    const ai = getGeminiClient();
-
-    if (!ai) {
-      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
-    }
-
-    const prompt = `Здійсни інтелектуальний AI Diff (порівняння змін) між двома редакціями тендерної документації.
-Визнач додані, видалені та змінені вимоги, оціни рівень ризику кожної зміни (чи це прихована пастка для фаворита).
-
-Редакція 1 (попередня):
-"""
-${version1Text}
-"""
-
-Редакція 2 (нова):
-"""
-${version2Text}
-"""
-
-Поверни JSON:
-{
-  "tenderId": "${tenderId}",
-  "previousVersion": "Редакція 1.0",
-  "currentVersion": "Редакція 2.0",
-  "changesCount": number,
-  "summary": "Загальний висновок щодо ризику внесених змін",
-  "changes": [
-    {
-      "id": "diff-1",
-      "type": "ADDED" | "REMOVED" | "MODIFIED",
-      "category": "Категорія",
-      "clause": "Пункт ТД",
-      "oldValue": "Старе значення",
-      "newValue": "Нове значення",
-      "riskImpact": "INCREASED_RISK" | "DECREASED_RISK" | "NEUTRAL" | "CRITICAL_TRAP",
-      "aiCommentary": "AI аналіз наміру замовника"
-    }
-  ]
-}`;
-
-    const response = await generateContentWithFallback(ai, {
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      }
-    });
-
-    const parsed = JSON.parse(response.text || "{}");
-    return res.json(parsed);
+    return res.json(createEvidenceDiff(tenderId, version1Text, version2Text));
   } catch (error: any) {
     console.error("Version Diff Error:", error);
-    return handleAiError(res, error, "Помилка порівняння версій");
+    return res.status(400).json({ error: { code: 'VERSION_DIFF_FAILED', message: 'Document versions could not be compared.' }, requestId: req.requestId });
   }
 });
 

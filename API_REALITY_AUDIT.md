@@ -9,6 +9,8 @@
 
 **Market-price contract:** `/api/tenderai/parse-market-prices` now accepts structured price observations with HTTPS source URL/title/timestamp and returns deterministic DuckDB aggregates. Missing provenance returns `UNKNOWN` or validation failure instead of generated prices.
 
+**Analytical API update:** collusion detection always uses the tested deterministic engine; document version comparison uses exact line additions/removals with SHA-256 hashes and `UNKNOWN` risk until separately reviewed. Neither route asks Gemini to create scores or evidence.
+
 ---
 
 ## 1. API Verification Principles
