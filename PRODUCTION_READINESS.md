@@ -12,6 +12,8 @@ Latest UI smoke gate: local developer session passed Radar live-data rendering, 
 
 Latest BoQ truthfulness gate: construction BoQ reloads persisted rows and refuses to display a zero total or “В ринку” when source prices are absent. Release remains `NOT READY`.
 
+Latest hidden-workflow gate: War Room navigation and Multi-Agent Chat entry render successfully with unknown-source data. This is local smoke evidence only; external service and Firebase gates remain blocked.
+
 ## Verified blockers
 
 1. Git provenance is now available on `Dev10/main`; the current verified implementation commit is recorded in Git, but no release tag or rollback rehearsal exists.

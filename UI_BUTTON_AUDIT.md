@@ -9,6 +9,8 @@
 
 > **2026-09-01 follow-up:** Construction BoQ tab was opened after reload; persisted rows and source-missing UNKNOWN states rendered without runtime errors.
 
+> **2026-09-01 hidden-control update:** War Room workflow controls and direct Multi-Agent Chat entry from the no-analysis state are reachable and rendered successfully; destructive controls were not invoked.
+
 ---
 
 ## 1. Interactive Button Verification Register

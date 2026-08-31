@@ -515,6 +515,14 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                 <p className="text-xs text-slate-400">
                   Натисніть кнопку «Запустити консиліум ШІ» зверху, щоб отримати повний розрахунок від 5 спеціалізованих агентів.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('multiagent-chat')}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg border border-blue-500/40 px-3 py-2 text-xs font-bold text-blue-300 hover:bg-blue-500/10"
+                >
+                  <span>Відкрити чат агентів</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
           )}
