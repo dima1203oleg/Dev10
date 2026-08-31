@@ -13,7 +13,6 @@ import {
   TrendingUp, 
   Clock, 
   FileText, 
-  CheckCircle2, 
   SlidersHorizontal, 
   ChevronDown, 
   Download, 
@@ -565,22 +564,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {/* Detailed Factor Progress Bars */}
             <div className="space-y-3">
-              {[
-                { label: 'CPV відповідність', value: tenders.length > 0 ? 85 : 0, color: 'bg-emerald-500' },
-                { label: 'Регіональна відповідність', value: tenders.length > 0 ? 70 : 0, color: 'bg-emerald-500' },
-                { label: 'Бюджетна відповідність', value: tenders.length > 0 ? 65 : 0, color: 'bg-emerald-500' },
-                { label: 'Досвід (кількість/якість)', value: tenders.length > 0 ? 40 : 0, color: 'bg-indigo-500' },
-              ].map((factor, idx) => (
+              {['CPV відповідність', 'Регіональна відповідність', 'Бюджетна відповідність', 'Досвід (кількість/якість)'].map((label, idx) => (
                 <div key={idx} className="space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-400 font-medium">{factor.label}</span>
-                    <span className="font-mono font-bold text-slate-200">{factor.value}%</span>
+                    <span className="text-slate-400 font-medium">{label}</span>
+                    <span className="font-mono font-bold text-slate-500">UNKNOWN</span>
                   </div>
                   <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                    <div
-                      className={`h-full ${factor.color} rounded-full transition-all duration-500`}
-                      style={{ width: `${factor.value}%` }}
-                    />
+                    <div className="h-full w-0 rounded-full" />
                   </div>
                 </div>
               ))}
@@ -602,13 +593,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   onClick={() => setSearchQuery('укриття')}
                   className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[10px] text-slate-300 transition-colors"
                 >
-                  Укриття для шкіл у Києві
+                  Пошук за назвою або CPV
                 </button>
                 <button
                   onClick={() => setSearchQuery('ремонт')}
                   className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-lg text-[10px] text-slate-300 transition-colors"
                 >
-                  Капітальні ремонти лікарень
+                  Пошук за регіоном
                 </button>
               </div>
             </div>
@@ -649,32 +640,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {/* Collusion Risk Indicators */}
-            <div className="bg-red-950/20 border border-red-900/30 rounded-2xl p-4 space-y-3">
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-red-400 uppercase tracking-wider">Індикатори змови (Collusion)</span>
-                <span className="text-xs font-mono font-bold text-red-400 bg-red-500/20 px-2 py-0.5 rounded">82%</span>
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Індикатори змови (Collusion)</span>
+                <span className="text-xs font-mono font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded">UNKNOWN</span>
               </div>
-              <ul className="space-y-1.5 text-[11px] text-slate-300">
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0"></span>
-                  <span>Спільна участь у 7 тендерах (високий ризик)</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0"></span>
-                  <span>Синхронне зниження цін у 4 тендерах</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0"></span>
-                  <span>Повторювані зв&apos;язки через субпідрядників</span>
-                </li>
-              </ul>
+              <p className="text-[11px] text-slate-500">Підтверджені індикатори відсутні. Оцінка зʼявиться лише після аналізу реальної історії участі.</p>
               <div className="text-[10px] text-slate-500 pt-2 border-t border-red-900/30 flex items-center justify-between">
-                <span>Джерело: Антимонопольний комплаєнс модуль</span>
+                <span>Джерело: немає даних</span>
                 <button
                   onClick={() => onNavigate('competitors')}
                   className="text-red-400 hover:text-red-300 font-bold flex items-center gap-1"
                 >
-                  Переглянути докази (5) →
+                  Відкрити аналіз →
                 </button>
               </div>
             </div>
@@ -781,18 +759,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
               <h3 className="text-sm font-black text-white tracking-tight">Bid Package + Audit</h3>
             </div>
-            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-              READY
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">
+              NOT VERIFIED
             </span>
           </div>
 
           <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800 space-y-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
-              <CheckCircle2 size={16} />
-              <span>Blockers (0) — Перевірка пройдена</span>
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
+              <AlertTriangle size={16} />
+              <span>Статус пакета невідомий</span>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              Пакет сформовано, підписано КЕП та валідовано передподачним аудитом.
+              Сформуйте пакет і запустіть передподачний аудит, щоб отримати підтверджений статус.
             </p>
           </div>
 
@@ -801,7 +779,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onClick={() => onNavigate('bid-packages')}
               className="py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-[10px] rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950"
             >
-              <Download size={12} /> Сформувати ZIP
+              <Download size={12} /> Відкрити пакет
             </button>
             <button
               onClick={() => onNavigate('audit')}

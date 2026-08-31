@@ -3,7 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
-import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
+import { requireAuth, AuthRequest, issueLocalDevelopmentToken } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
 import { db } from "./src/db/index.ts";
 import { users, tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments, organizations, teamMembers, teamTasks, teamComments, auditLogs, favorites, jobs, boqItems, ganttTasks } from "./src/db/schema.ts";
@@ -86,6 +86,12 @@ const upload = multer({
 });
 
 // Auth sync endpoint
+app.get("/api/auth/local-session", (req, res) => {
+  const session = issueLocalDevelopmentToken(req);
+  if (!session) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Not found.' } });
+  return res.json(session);
+});
+
 app.post("/api/auth/sync", requireAuth, async (req: AuthRequest, res) => {
   try {
     const user = req.user;

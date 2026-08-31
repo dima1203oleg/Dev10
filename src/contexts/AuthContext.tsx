@@ -48,6 +48,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error("Failed to sync user with DB", error);
         }
       } else {
+        if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
+          try {
+            const response = await fetch('/api/auth/local-session');
+            if (response.ok) {
+              const local = await response.json() as { token: string; user: { uid: string; email: string; displayName: string } };
+              setUser(local.user as User);
+              setToken(local.token);
+              setLoading(false);
+              return;
+            }
+          } catch {
+            // Local development sessions are optional and unavailable in production.
+          }
+        }
         setToken(null);
       }
       setLoading(false);
