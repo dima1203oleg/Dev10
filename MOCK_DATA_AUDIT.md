@@ -5,6 +5,8 @@
 
 > **Current verification override — 2026-08-31:** `PARTIAL`. Generated corporate/social feeds, dev-mock authentication, synthetic BoQ/Gantt data, random calculations and artificial parsing delays were removed from the modified runtime paths. A repository-wide control-by-control scan and authenticated E2E are still required before `PASS`.
 
+**Latest implementation evidence:** the fabricated Prozorro tender-detail fallback and sample legal/AI request defaults were removed; incomplete official records now retain `null/UNKNOWN`, and missing source inputs return validation errors. Further runtime paths still require review, so status remains `PARTIAL`.
+
 ---
 
 ## 1. Zero Mock Data Policy

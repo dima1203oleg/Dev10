@@ -1,0 +1,118 @@
+name: tenderai
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
+    environment:
+      POSTGRES_DB: tenderai
+      POSTGRES_USER: tenderai_admin
+      POSTGRES_PASSWORD: ${TENDERAI_DB_ADMIN_PASSWORD:-tenderai-admin-local}
+      TENDERAI_APP_PASSWORD: ${TENDERAI_DB_APP_PASSWORD:-tenderai-app-local}
+    ports:
+      - "55432:5432"
+    volumes:
+      - tenderai-postgres:/var/lib/postgresql/data
+      - ./postgres-init.sh:/docker-entrypoint-initdb.d/10-tenderai.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tenderai_admin -d tenderai"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  temporal-postgres:
+    image: postgres:16.10-bookworm
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:-temporal-local}
+    volumes:
+      - temporal-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  temporal:
+    image: temporalio/auto-setup:1.29.1
+    depends_on:
+      temporal-postgres:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD:-temporal-local}
+      POSTGRES_SEEDS: temporal-postgres
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    ports:
+      - "7233:7233"
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "127.0.0.1:7233", "cluster", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+  temporal-ui:
+    image: temporalio/ui:2.42.1
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8233:8080"
+
+  clamav:
+    image: clamav/clamav:1.5.1
+    # Upstream 1.5.1 publishes amd64 only; Docker Desktop emulates this service on Apple Silicon.
+    platform: linux/amd64
+    ports:
+      - "3310:3310"
+    volumes:
+      - clamav-signatures:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/clamdcheck.sh"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 60s
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.44
+    command: mini -ip=seaweedfs -ip.bind=0.0.0.0 -s3 -s3.port=8333
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-tenderai-local-access}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-tenderai-local-secret}
+      S3_BUCKET: tenderai-documents
+    ports:
+      - "8333:8333"
+      - "9333:9333"
+    volumes:
+      - seaweedfs-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:9333/cluster/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  docling:
+    image: ghcr.io/docling-project/docling-serve-cpu:v1.21.0
+    environment:
+      DOCLING_SERVE_ENABLE_UI: "false"
+      DOCLING_SERVE_ENABLE_REMOTE_SERVICES: "false"
+      DOCLING_SERVE_API_KEY: ${DOCLING_API_KEY:-tenderai-docling-local}
+    ports:
+      - "5001:5001"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5001/health')"]
+      interval: 15s
+      timeout: 10s
+      retries: 40
+      start_period: 90s
+
+volumes:
+  tenderai-postgres:
+  temporal-postgres:
+  clamav-signatures:
+  seaweedfs-data:

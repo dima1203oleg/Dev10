@@ -5,6 +5,8 @@
 
 > **Current verification override — 2026-08-31:** Schema and document-job contracts now require SHA-256, page citations and `bbox`, and the processor refuses synthesized OCR output. A live public Prozorro PDF has not yet passed ClamAV → object storage → OCR → citation/bbox validation, so the provenance gate is `BLOCKED`.
 
+**Latest implementation evidence:** the Docling adapter now requests JSON OCR output through the documented multipart endpoint and rejects results without pages and at least one provenance `bbox`. This is code-level evidence only; the live PDF gate remains blocked.
+
 ---
 
 ## 1. Ground Truth Provenance Engine

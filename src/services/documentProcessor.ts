@@ -3,9 +3,9 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { and, eq } from 'drizzle-orm';
 import { createPool } from '../db/index.ts';
 import * as schema from '../db/schema.ts';
-import { LocalStorageProvider } from '../lib/storage.ts';
+import { createStorageProvider } from '../lib/storage.ts';
 
-const storage = new LocalStorageProvider('uploads');
+const storage = createStorageProvider();
 
 async function streamToBuffer(stream: Readable) {
   const chunks: Buffer[] = [];
@@ -21,15 +21,7 @@ export interface DocumentJobContext {
   documentId: string;
 }
 
-export function dispatchDocumentJob(context: DocumentJobContext) {
-  setImmediate(() => {
-    void processDocumentJob(context).catch((error) => {
-      console.error('Document job crashed', { jobId: context.jobId, error });
-    });
-  });
-}
-
-async function processDocumentJob(context: DocumentJobContext) {
+export async function processDocumentJob(context: DocumentJobContext) {
   const client = await createPool().connect();
   const scopedDb = drizzle(client, { schema });
   let document: typeof schema.tenderDocuments.$inferSelect | undefined;
@@ -52,12 +44,31 @@ async function processDocumentJob(context: DocumentJobContext) {
     if (!doclingUrl) throw new Error('DOCLING_UNAVAILABLE');
     const buffer = await streamToBuffer(await storage.download(document.storageKey));
     const form = new FormData();
-    form.append('file', new Blob([buffer], { type: document.mimeType || 'application/octet-stream' }), document.name);
-    form.append('include_bbox', 'true');
-    const response = await fetch(`${doclingUrl}/v1/parse`, { method: 'POST', body: form });
+    form.append('files', new Blob([buffer], { type: document.mimeType || 'application/octet-stream' }), document.name);
+    form.append('to_formats', 'json');
+    form.append('do_ocr', 'true');
+    form.append('table_mode', 'accurate');
+    const headers: Record<string, string> = {};
+    if (process.env.DOCLING_API_KEY) headers['X-Api-Key'] = process.env.DOCLING_API_KEY;
+    const response = await fetch(`${doclingUrl}/v1/convert/file`, { method: 'POST', headers, body: form });
     if (!response.ok) throw new Error(`DOCLING_HTTP_${response.status}`);
-    const parsed = await response.json() as { pages?: unknown[]; markdown?: string; blocks?: unknown[] };
-    if (!Array.isArray(parsed.pages) || parsed.pages.length === 0) throw new Error('DOCLING_PROVENANCE_MISSING');
+    const conversion = await response.json() as {
+      status?: string;
+      document?: { json_content?: string | Record<string, unknown> };
+      errors?: unknown[];
+    };
+    if (!['success', 'partial_success'].includes(conversion.status || '')) throw new Error('DOCLING_CONVERSION_FAILED');
+    const rawContent = conversion.document?.json_content;
+    const parsed = typeof rawContent === 'string' ? JSON.parse(rawContent) : rawContent;
+    if (!parsed || typeof parsed !== 'object') throw new Error('DOCLING_DOCUMENT_MISSING');
+    const pages = (parsed as { pages?: unknown[] | Record<string, unknown> }).pages;
+    const pageCount = Array.isArray(pages) ? pages.length : pages && typeof pages === 'object' ? Object.keys(pages).length : 0;
+    const provenanceItems = ['texts', 'tables', 'pictures'].flatMap((key) => {
+      const value = (parsed as Record<string, unknown>)[key];
+      return Array.isArray(value) ? value : [];
+    });
+    const hasBbox = provenanceItems.some((item: any) => Array.isArray(item?.prov) && item.prov.some((p: any) => p?.bbox));
+    if (pageCount === 0 || !hasBbox) throw new Error('DOCLING_PROVENANCE_MISSING');
 
     await client.query('BEGIN');
     await client.query("SELECT set_config('app.current_user_id', $1, true)", [String(context.userId)]);
@@ -66,8 +77,8 @@ async function processDocumentJob(context: DocumentJobContext) {
       .where(and(eq(schema.tenderDocuments.id, context.documentId), eq(schema.tenderDocuments.orgId, context.orgId)));
     await scopedDb.update(schema.jobs).set({
       status: 'SUCCEEDED', progress: 100, finishedAt: new Date(),
-      result: { documentId: context.documentId, pages: parsed.pages.length },
-      provenance: { documentHash: document.contentHash, parser: 'docling-wrapper-v1' },
+      result: { documentId: context.documentId, pages: pageCount },
+      provenance: { documentHash: document.contentHash, parser: 'docling-serve-v1.21.0', bboxVerified: true },
     }).where(and(eq(schema.jobs.id, context.jobId), eq(schema.jobs.orgId, context.orgId)));
     await client.query('COMMIT');
   } catch (error) {

@@ -8,3 +8,5 @@ coverage/
 !.env.example
 server.cjs
 server.cjs.map
+worker.mjs
+worker.mjs.map

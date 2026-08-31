@@ -366,7 +366,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
         }
         
         setUploadProgress(100);
-        setTimeout(() => setIsUploading(false), 1000);
+        setIsUploading(false);
       };
       
       reader.onerror = (error) => {

@@ -9,7 +9,7 @@ import { db } from "./src/db/index.ts";
 import { users, tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments, organizations, teamMembers, teamTasks, teamComments, auditLogs, favorites, jobs, boqItems, ganttTasks } from "./src/db/schema.ts";
 import { eq, and } from "drizzle-orm";
 import multer from 'multer';
-import { LocalStorageProvider } from './src/lib/storage.ts';
+import { createStorageProvider } from './src/lib/storage.ts';
 import fs from 'fs';
 import { searchProzorroTenders, calculatePersonalRadarMatch, fetchProzorroTenderFullDetail } from "./src/connectors/prozorro.ts";
 import { searchMultiPlatformTenders, PLATFORM_SOURCES_DIRECTORY, PlatformSourceId } from "./src/connectors/multiPlatformAggregator.ts";
@@ -22,7 +22,7 @@ import { runMigrations } from "./src/db/migrations.ts";
 import rateLimit from "express-rate-limit";
 import { requestContext, apiErrorHandler } from "./src/middleware/api.ts";
 import { verifyUpload } from "./src/lib/uploadSecurity.ts";
-import { dispatchDocumentJob } from "./src/services/documentProcessor.ts";
+import { dispatchDocumentJob } from "./src/services/temporal.ts";
 
 dotenv.config();
 
@@ -32,7 +32,7 @@ if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEV_AUTH === "tru
 }
 
 if (process.env.NODE_ENV === "production") {
-  const required = ["SQL_HOST", "SQL_USER", "SQL_PASSWORD", "SQL_DB_NAME", "GEMINI_API_KEY"];
+  const required = ["SQL_HOST", "SQL_USER", "SQL_PASSWORD", "SQL_DB_NAME", "GEMINI_API_KEY", "FIREBASE_PROJECT_ID", "CLAMAV_HOST", "DOCLING_URL", "TEMPORAL_ADDRESS", "S3_BUCKET", "S3_ENDPOINT", "S3_REGION", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"];
   const missing = required.filter((name) => !process.env[name]?.trim());
   if (missing.length > 0) {
     throw new Error(`Missing required production configuration: ${missing.join(", ")}`);
@@ -74,7 +74,7 @@ app.use((_req, res, next) => {
 });
 
 // Initialize Storage Provider
-const storage = new LocalStorageProvider('uploads');
+const storage = createStorageProvider();
 
 // Configure Multer for file uploads
 const upload = multer({ 
@@ -1455,48 +1455,48 @@ app.get("/api/prozorro/tender/:id", requireAuth, async (req: AuthRequest, res) =
     if (rawData) {
       const structured = {
         id: rawData.id || id,
-        tenderNumber: rawData.tenderID || (id.startsWith('UA-') ? id : `UA-${id.substring(0, 8)}`),
-        title: rawData.title || "Закупівля Prozorro",
-        description: rawData.description || rawData.title || "Офіційна закупівля з бази Prozorro.",
-        status: rawData.status || "active",
+        tenderNumber: rawData.tenderID || null,
+        title: rawData.title || null,
+        description: rawData.description || null,
+        status: rawData.status || 'UNKNOWN',
         value: {
-          amount: rawData.value?.amount || 0,
-          currency: rawData.value?.currency || "UAH",
-          taxIncluded: rawData.value?.valueAddedTaxIncluded ?? true
+          amount: rawData.value?.amount ?? null,
+          currency: rawData.value?.currency || null,
+          taxIncluded: rawData.value?.valueAddedTaxIncluded ?? null
         },
         customer: {
-          name: rawData.procuringEntity?.name || rawData.procuringEntity?.identifier?.legalName || "Державний замовник",
-          edrpou: rawData.procuringEntity?.identifier?.id || "не вказано",
-          region: rawData.procuringEntity?.address?.region || "Україна",
-          locality: rawData.procuringEntity?.address?.locality || "Україна",
-          address: rawData.procuringEntity?.address?.streetAddress || "",
+          name: rawData.procuringEntity?.name || rawData.procuringEntity?.identifier?.legalName || null,
+          edrpou: rawData.procuringEntity?.identifier?.id || null,
+          region: rawData.procuringEntity?.address?.region || null,
+          locality: rawData.procuringEntity?.address?.locality || null,
+          address: rawData.procuringEntity?.address?.streetAddress || null,
           contact: {
-            name: rawData.procuringEntity?.contactPoint?.name || "Відділ закупівель",
-            phone: rawData.procuringEntity?.contactPoint?.telephone || "не вказано",
-            email: rawData.procuringEntity?.contactPoint?.email || "не вказано"
+            name: rawData.procuringEntity?.contactPoint?.name || null,
+            phone: rawData.procuringEntity?.contactPoint?.telephone || null,
+            email: rawData.procuringEntity?.contactPoint?.email || null
           }
         },
         items: (rawData.items || []).map((it: any, idx: number) => ({
-          id: it.id || `item-${idx}`,
-          description: it.description || rawData.title,
-          cpvCode: it.classification?.id || "ДК 021:2015",
-          cpvName: it.classification?.description || "Товари / Послуги",
-          quantity: it.quantity || 1,
-          unit: it.unit?.name || "шт"
+          id: it.id || null,
+          description: it.description || null,
+          cpvCode: it.classification?.id || null,
+          cpvName: it.classification?.description || null,
+          quantity: it.quantity ?? null,
+          unit: it.unit?.name || null
         })),
         documents: (rawData.documents || []).map((doc: any, idx: number) => ({
-          id: doc.id || `doc-${idx}`,
-          title: doc.title || `Документ_${idx + 1}.pdf`,
-          format: doc.format || "application/pdf",
-          url: doc.url || "#",
-          datePublished: doc.datePublished || new Date().toISOString(),
-          size: doc.documentOf ? 1024 * 500 : 1024 * 250
+          id: doc.id || null,
+          title: doc.title || null,
+          format: doc.format || null,
+          url: doc.url || null,
+          datePublished: doc.datePublished || null,
+          size: doc.size ?? null
         })),
         timeline: {
-          datePublished: rawData.date || rawData.dateModified || new Date().toISOString(),
+          datePublished: rawData.date || rawData.dateModified || null,
           tenderPeriod: {
-            startDate: rawData.tenderPeriod?.startDate || new Date().toISOString(),
-            endDate: rawData.tenderPeriod?.endDate || new Date(Date.now() + 14 * 86400000).toISOString()
+            startDate: rawData.tenderPeriod?.startDate || null,
+            endDate: rawData.tenderPeriod?.endDate || null
           }
         },
         raw: rawData
@@ -1505,95 +1505,10 @@ app.get("/api/prozorro/tender/:id", requireAuth, async (req: AuthRequest, res) =
       return res.json({ structured, raw: rawData });
     }
 
-    // 3. Fallback: Lookup in multiplatform aggregator or database tenders
-    const multiRes = await searchMultiPlatformTenders({
-      intent: 'TENDER_SEARCH',
-      keywords: [id],
-      location: { city: null, region: null },
-      cpvCandidates: [],
-      minBudget: null,
-      maxBudget: null,
-      procedureTypes: [],
-      status: 'active'
-    }, { limit: 10 });
-
-    const matchedTender: any = multiRes.tenders?.find((t: any) => t.id === id || t.tenderNumber === id) || multiRes.tenders?.[0];
-
-    const fallbackTitle = matchedTender?.title || `Закупівля ${id}`;
-    const fallbackCustomer = matchedTender?.customer || "Замовник закупівель";
-    const fallbackBudget = matchedTender?.budgetUah || 1250000;
-    const fallbackNumber = matchedTender?.tenderNumber || (id.includes('-') ? id : `UA-2026-${id.substring(0, 6)}`);
-
-    const structured = {
-      id: id,
-      tenderNumber: fallbackNumber,
-      title: fallbackTitle,
-      description: matchedTender?.summary || `Картка закупівлі ${fallbackNumber}. Сформована на основі даних майданчиків.`,
-      status: matchedTender?.status || "ACTIVE",
-      value: {
-        amount: fallbackBudget,
-        currency: "UAH",
-        taxIncluded: true
-      },
-      customer: {
-        name: fallbackCustomer,
-        edrpou: matchedTender?.customerEdrpou || "38291044",
-        region: matchedTender?.region || "м. Київ",
-        locality: matchedTender?.customerCity || "м. Київ",
-        address: "вул. Хрещатик, 22",
-        contact: {
-          name: "Департамент тендерних торгів",
-          phone: "+380 44 200 00 00",
-          email: "tender@procurement.gov.ua"
-        }
-      },
-      items: [
-        {
-          id: "item-1",
-          description: matchedTender?.title || fallbackTitle,
-          cpvCode: matchedTender?.dk021Code || "45000000-7",
-          cpvName: matchedTender?.category || "Будівельні та ремонтні роботи",
-          quantity: 1,
-          unit: "компл."
-        }
-      ],
-      documents: [
-        {
-          id: "doc-1",
-          title: "Тендерна_документація_кваліфікаційні_вимоги.pdf",
-          format: "application/pdf",
-          url: "#",
-          datePublished: new Date().toISOString(),
-          size: 1024 * 450
-        },
-        {
-          id: "doc-2",
-          title: "Технічна_специфікація_та_обсяги.pdf",
-          format: "application/pdf",
-          url: "#",
-          datePublished: new Date().toISOString(),
-          size: 1024 * 820
-        },
-        {
-          id: "doc-3",
-          title: "Проект_договору_закупівлі.docx",
-          format: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          url: "#",
-          datePublished: new Date().toISOString(),
-          size: 1024 * 180
-        }
-      ],
-      timeline: {
-        datePublished: matchedTender?.createdDate || new Date().toISOString(),
-        tenderPeriod: {
-          startDate: matchedTender?.createdDate || new Date().toISOString(),
-          endDate: matchedTender?.deadline || new Date(Date.now() + 10 * 86400000).toISOString()
-        }
-      },
-      raw: matchedTender || {}
-    };
-
-    return res.json({ structured, raw: matchedTender || {} });
+    return res.status(404).json({
+      error: { code: 'PROZORRO_TENDER_NOT_FOUND', message: 'The tender was not returned by the official Prozorro API.' },
+      requestId: req.requestId,
+    });
 
   } catch (error: any) {
     console.error("Prozorro Tender Full Detail error:", error);
@@ -1712,9 +1627,11 @@ app.post("/api/tenders/:tenderId/documents/:docId/analyze", requireAuth, async (
       input: { tenderId: parsedTenderId, documentId: docId },
       provenance: { documentHash: document.contentHash, source: 'USER_UPLOAD' },
     });
-    req.afterCommit?.push(() => dispatchDocumentJob({
-      jobId, orgId: req.orgId!, userId: req.dbUserId!, tenderId: parsedTenderId, documentId: docId,
-    }));
+    req.afterCommit?.push(() => {
+      void dispatchDocumentJob({
+        jobId, orgId: req.orgId!, userId: req.dbUserId!, tenderId: parsedTenderId, documentId: docId,
+      }).catch((error) => console.error('Failed to dispatch Temporal workflow', { jobId, error }));
+    });
     return res.status(202).json({ jobId, status: 'QUEUED', requestId: req.requestId });
   } catch (error) {
     console.error("Analyze document error:", error);
@@ -2157,6 +2074,9 @@ ${r.metrics ? `* **Metrics**: ${JSON.stringify(r.metrics, null, 2)}` : ''}
 app.post("/api/foultender/audit", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { tenderTitle, tenderId, customer, budget, tenderText, category } = req.body;
+    if (![tenderTitle, tenderId, customer, tenderText, category].every((value) => typeof value === 'string' && value.trim()) || !Number.isFinite(Number(budget))) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Verified tender title, ID, customer, category, budget and source text are required.' }, requestId: req.requestId });
+    }
 
     const ai = getGeminiClient();
     if (!ai) {
@@ -2176,14 +2096,14 @@ app.post("/api/foultender/audit", requireAuth, async (req: AuthRequest, res) => 
 3. Оцінюй впевненість ("confidence") за шкалою 0-1.
 
 Дані тендеру:
-- Назва: ${tenderTitle || "Будівельно-монтажні роботи"}
-- ID закупівлі: ${tenderId || "UA-2024-..."}
-- Замовник: ${customer || "Орган місцевого самоврядування"}
-- Очікувана вартість: ${budget || "50 000 000"} грн
-- Категорія: ${category || "Будівництво / Реконструкція"}
+- Назва: ${tenderTitle}
+- ID закупівлі: ${tenderId}
+- Замовник: ${customer}
+- Очікувана вартість: ${budget} грн
+- Категорія: ${category}
 - Текст ТД / Технічного завдання / Специфікації:
 """
-${tenderText || "Вимоги до учасників: наявність власної акредитованої лабораторії не далі 15 км від об'єкта, наявність власного асфальтобетонного заводу, досвід аналогічних робіт за останні 6 місяців на суму не менше 100% очікуваної вартості, термін виконання робіт 10 робочих днів."}
+${tenderText}
 """
 
 Поверни ТІЛЬКИ валідний JSON у наступному форматі:
@@ -2232,6 +2152,9 @@ ${tenderText || "Вимоги до учасників: наявність вла
 app.post("/api/foultender/generate-complaint", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { tenderId, tenderTitle, customer, complainantName, edrpou, violations, specificDemand } = req.body;
+    if (![tenderId, tenderTitle, customer, complainantName, specificDemand].every((value) => typeof value === 'string' && value.trim()) || !/^\d{8}$/.test(String(edrpou)) || !Array.isArray(violations) || violations.length === 0) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Verified tender, complainant, EDRPOU, violations and requested remedy are required.' }, requestId: req.requestId });
+    }
 
     const ai = getGeminiClient();
     if (!ai) {
@@ -2241,20 +2164,19 @@ app.post("/api/foultender/generate-complaint", requireAuth, async (req: AuthRequ
     const prompt = `Склади професійну юридичну Скаргу до Постійно діючої адміністративної колегії Антимонопольного комітету України (АМКУ) з розгляду скарг про порушення законодавства у сфері публічних закупівель.
 
 Дані:
-- Скаржник: ${complainantName || "ТОВ «БудТехніка-Сервіс»"} (ЄДРПОУ: ${edrpou || "40192831"})
-- Замовник: ${customer || "КП Міськбуд"}
+- Скаржник: ${complainantName} (ЄДРПОУ: ${edrpou})
+- Замовник: ${customer}
 - ID закупівлі: ${tenderId}
 - Назва: ${tenderTitle}
 - Виявлені порушення: ${JSON.stringify(violations)}
-- Специфічні вимоги/прохання: ${specificDemand || "Зобов'язати Замовника внести зміни до ТД та виключити дискримінаційні положення"}
+- Специфічні вимоги/прохання: ${specificDemand}
 
 Склади повний, бездоганно структурований текст скарги за офіційною формою АМКУ України, включаючи вступну частину, реквізити сторін, виклад фактичних обставин, посилання на норми ЗУ "Про публічні закупівлі" та прецеденти Колегії АМКУ, а також резолютивну (прохальну) частину.
 
 Поверни JSON:
 {
   "complaintText": "Повний текст скарги з усіма реквізитами та структурою",
-  "legalReferences": ["список статей законів та нормативних актів"],
-  "estimatedFee": number (розмір плати за подання скарги в грн)
+  "legalReferences": ["лише посилання, що вже присутні у вхідних доказах"]
 }`;
 
     const response = await generateContentWithFallback(ai, {
@@ -2276,6 +2198,9 @@ app.post("/api/foultender/generate-complaint", requireAuth, async (req: AuthRequ
 app.post("/api/tenderai/multi-agent-analyze", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { tenderTitle, budget, boqItems, projectScope, specifications } = req.body;
+    if (typeof tenderTitle !== 'string' || !tenderTitle.trim() || !Number.isFinite(Number(budget)) || !Array.isArray(boqItems) || typeof projectScope !== 'string' || !projectScope.trim() || typeof specifications !== 'string' || !specifications.trim()) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Tender title, numeric budget, persisted BoQ, project scope and specifications are required.' }, requestId: req.requestId });
+    }
 
     const ai = getGeminiClient();
     if (!ai) {
@@ -2292,11 +2217,11 @@ app.post("/api/tenderai/multi-agent-analyze", requireAuth, async (req: AuthReque
 5. **Тендерний Директор / Стратег (Bid Manager)**: підсумовує маржинальність, пропонує оптимальну ціну пропозиції та Go/No-Go рішення.
 
 Дані проєкту:
-- Назва тендеру: ${tenderTitle || "Капітальне будівництво / реконструкція"}
-- Очікувана вартість: ${budget || "45000000"} грн
-- Обсяг робіт / BoQ позиції: ${JSON.stringify(boqItems || [])}
-- Технічні специфікації: ${specifications || "Стандартні вимоги ДБН"}
-- Загальний опис: ${projectScope || "Будівництво монолітно-каркасної споруди з оздобленням та інженерними мережами"}
+- Назва тендеру: ${tenderTitle}
+- Очікувана вартість: ${budget} грн
+- Обсяг робіт / BoQ позиції: ${JSON.stringify(boqItems)}
+- Технічні специфікації: ${specifications}
+- Загальний опис: ${projectScope}
 
 Поверни ТІЛЬКИ валідний JSON у наступному форматі:
 {
@@ -2370,6 +2295,9 @@ app.post("/api/tenderai/multi-agent-analyze", requireAuth, async (req: AuthReque
 app.post("/api/tenderai/agent-chat", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { message, agentRole, tenderContext } = req.body;
+    if (typeof message !== 'string' || !message.trim() || typeof agentRole !== 'string' || !agentRole.trim() || !tenderContext || typeof tenderContext !== 'object') {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Message, explicit agent role and persisted tender context are required.' }, requestId: req.requestId });
+    }
 
     const ai = getGeminiClient();
     if (!ai) {
@@ -2377,7 +2305,7 @@ app.post("/api/tenderai/agent-chat", requireAuth, async (req: AuthRequest, res) 
     }
 
     const systemPrompt = `Ти – спеціалізований ШІ-агент у команді платформи TenderAI & FoulTender Suite.
-Твоя поточна роль: ${agentRole || "Команда експертів (Консиліум)"}.
+Твоя поточна роль: ${agentRole}.
 Ролі в системі:
 - ESTIMATOR (Кошторисник): відповідає за кошториси, ДБН, розцінки АВК-5, матеріали, машиногодини, прямі та непрямі витрати.
 - TECH_LEAD (Головний Інженер): відповідає за технологію, графіки, безпеку, обладнання, ДБН А.3.1-5:2016.
@@ -2385,7 +2313,7 @@ app.post("/api/tenderai/agent-chat", requireAuth, async (req: AuthRequest, res) 
 - FOULTENDER (Антифрод & FoulTender): виявляє дискримінаційні пастки, корупційні схеми, аналізує рішення АМКУ.
 - BID_MANAGER (Тендерний Директор): формує цінову стратегію на аукціоні, оцінює маржинальність.
 
-Контекст активного проєкту: ${JSON.stringify(tenderContext || "Будівельний тендер Prozorro")}.
+Контекст активного проєкту: ${JSON.stringify(tenderContext)}.
 Давай точні, авторитетні, професійні відповіді українською мовою з практичними діями та посиланнями на нормативи.`;
 
     const response = await generateContentWithFallback(ai, {
@@ -2396,8 +2324,8 @@ app.post("/api/tenderai/agent-chat", requireAuth, async (req: AuthRequest, res) 
     });
 
     return res.json({
-      reply: response.text || "Агент опрацював ваше звернення.",
-      agentRole: agentRole || "ALL_AGENTS"
+      reply: response.text || '',
+      agentRole
     });
   } catch (error: any) {
     console.error("Agent Chat Error:", error);
@@ -2525,6 +2453,9 @@ ${JSON.stringify(history || {})}
 app.post("/api/tenderai/version-diff", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { tenderId, version1Text, version2Text } = req.body;
+    if (![tenderId, version1Text, version2Text].every((value) => typeof value === 'string' && value.trim())) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Tender ID and both source document versions are required.' }, requestId: req.requestId });
+    }
     const ai = getGeminiClient();
 
     if (!ai) {
@@ -2536,17 +2467,17 @@ app.post("/api/tenderai/version-diff", requireAuth, async (req: AuthRequest, res
 
 Редакція 1 (попередня):
 """
-${version1Text || "Стандартні умови ТД з терміном виконання 60 днів"}
+${version1Text}
 """
 
 Редакція 2 (нова):
 """
-${version2Text || "Змінені умови: додано вимогу про завод не далі 12 км, строк виконання 18 днів"}
+${version2Text}
 """
 
 Поверни JSON:
 {
-  "tenderId": "${tenderId || 'diff-tender'}",
+  "tenderId": "${tenderId}",
   "previousVersion": "Редакція 1.0",
   "currentVersion": "Редакція 2.0",
   "changesCount": number,
@@ -2638,6 +2569,9 @@ app.post("/api/tenderai/readiness-audit", requireAuth, async (req: AuthRequest, 
 app.post("/api/tenderai/prozorro-ingest", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { urlOrId, tenderText, category } = req.body;
+    if (typeof urlOrId !== 'string' || !urlOrId.trim() || typeof tenderText !== 'string' || !tenderText.trim() || typeof category !== 'string' || !category.trim()) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Official Prozorro URL/ID, fetched source text and category are required.' }, requestId: req.requestId });
+    }
     const ai = getGeminiClient();
 
     if (!ai) {
@@ -2649,13 +2583,13 @@ app.post("/api/tenderai/prozorro-ingest", requireAuth, async (req: AuthRequest, 
 
 Текст закупівлі / Специфікація:
 """
-${tenderText || "Капітальний ремонт будівлі школи. Очікувана вартість: 35 млн грн. Роботи: утеплення фасадів 2500 м2, заміна віконних блоків 400 м2, влаштування покрівлі з ПВХ-мембрани 1200 м2."}
+${tenderText}
 """
 
 Поверни валідний JSON у наступному форматі:
 {
   "id": "tender-custom-id",
-  "tenderNumber": "${urlOrId?.includes('UA-') ? urlOrId : 'UA-2026-03-994821-a'}",
+  "tenderNumber": "${urlOrId}",
   "title": "Повна назва предмету закупівлі",
   "customer": "Назва замовника",
   "customerEdrpou": "ЄДРПОУ замовника (8 цифр)",
@@ -2664,7 +2598,7 @@ ${tenderText || "Капітальний ремонт будівлі школи. 
   "deadline": "YYYY-MM-DD",
   "region": "Область або місто",
   "status": "ACTIVE",
-  "category": "${category || 'Будівельні роботи'}",
+  "category": "${category}",
   "foulScore": number (0-100),
   "riskLevel": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   "summary": "Короткий висновок декомпозиції",
