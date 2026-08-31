@@ -13,6 +13,7 @@ import {
   TrendingUp, 
   HelpCircle 
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface MultiAgentChatProps {
   currentTender: Tender;
@@ -28,6 +29,7 @@ const AGENT_OPTIONS = [
 ];
 
 export const MultiAgentChat: React.FC<MultiAgentChatProps> = ({ currentTender }) => {
+  const { token } = useAuth();
   const [selectedAgent, setSelectedAgent] = useState<string>('CONSILIUM');
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -61,7 +63,7 @@ export const MultiAgentChat: React.FC<MultiAgentChatProps> = ({ currentTender })
     try {
       const res = await fetch('/api/tenderai/agent-chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           message: text,
           agentRole: selectedAgent,

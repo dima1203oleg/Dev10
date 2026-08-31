@@ -13,6 +13,7 @@ import {
   Layers,
   Check
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface PreSubmissionAuditModuleProps {
   currentTender: Tender;
@@ -31,6 +32,7 @@ export const PreSubmissionAuditModule: React.FC<PreSubmissionAuditModuleProps> =
   onNavigateToVault,
   onNavigateToBidPackages,
 }) => {
+  const { token } = useAuth();
   const [readiness, setReadiness] = useState<PreSubmissionReadinessScore | undefined>(currentTender.readinessScore);
   const [isAuditing, setIsAuditing] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
@@ -43,7 +45,7 @@ export const PreSubmissionAuditModule: React.FC<PreSubmissionAuditModuleProps> =
     try {
       const response = await fetch('/api/tenderai/readiness-audit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           tender: currentTender,
           companyProfile: company,

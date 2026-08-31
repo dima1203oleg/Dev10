@@ -17,6 +17,7 @@ import {
   Info,
   DollarSign
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface FoulTenderModuleProps {
   currentTender: Tender;
@@ -33,6 +34,7 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
   onNavigate,
   onPrepareComplaintForTender,
 }) => {
+  const { token } = useAuth();
   const [tenderText, setTenderText] = useState(currentTender.tenderText || '');
   const [customTitle, setCustomTitle] = useState(currentTender.title);
   const [customBudget, setCustomBudget] = useState(currentTender.budgetUah.toString());
@@ -53,7 +55,7 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
     try {
       const res = await fetch('/api/foultender/audit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           tenderTitle: customTitle,
           tenderId: currentTender.tenderNumber,

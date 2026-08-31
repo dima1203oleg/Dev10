@@ -15,6 +15,7 @@ import {
   Eye,
   AlertCircle
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface CompetitorCollusionModuleProps {
   currentTender: Tender;
@@ -29,6 +30,7 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
   onNavigateToAmcu,
   onUpdateTenderCollusion,
 }) => {
+  const { token } = useAuth();
   const [competitorList, setCompetitorList] = useState<CompetitorProfile[]>(competitors);
   const [isScanning, setIsScanning] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
     try {
       const response = await fetch('/api/tenderai/collusion-detect', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           tenderId: currentTender.tenderNumber,
           tenderTitle: currentTender.title,

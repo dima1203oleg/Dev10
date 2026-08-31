@@ -14,6 +14,7 @@ import {
   Building2,
   ShieldAlert
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface AmcuComplaintGeneratorProps {
   currentTender: Tender;
@@ -28,6 +29,7 @@ export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
   complaints,
   onAddComplaint,
 }) => {
+  const { token } = useAuth();
   const [selectedComplaint, setSelectedComplaint] = useState<AmcuComplaintDoc | null>(complaints[0] || null);
   const [complainantName, setComplainantName] = useState(company?.shortName || company?.fullName || 'Учасник закупівель');
   const [complainantEdrpou, setComplainantEdrpou] = useState(company?.edrpou || 'NOT_AVAILABLE');
@@ -44,7 +46,7 @@ export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
       const violationsList = currentTender.violations.map(v => `${v.title}: ${v.description}`);
       const res = await fetch('/api/foultender/generate-complaint', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           tenderId: currentTender.tenderNumber,
           tenderTitle: currentTender.title,
