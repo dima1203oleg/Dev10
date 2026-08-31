@@ -7,6 +7,8 @@
 
 **Deterministic score update:** pre-submission readiness is now computed by versioned formula `pre-submission-v1` from document hashes/statuses, requirement statuses, persisted BoQ values and source hashes. Missing evidence scores zero and blocks submission; Gemini is not involved. The wider chart/DuckDB gate remains blocked.
 
+**DuckDB evidence update:** market-price averages, medians, ranges and variance are now calculated by DuckDB formula `market-price-v1` only from validated HTTPS observations with retrieval timestamps. Fewer than two valid observations produce `UNKNOWN`; Gemini no longer creates prices or source links.
+
 ---
 
 ## 1. Verified Analytics Visualization Framework

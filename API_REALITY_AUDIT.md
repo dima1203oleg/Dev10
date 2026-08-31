@@ -7,6 +7,8 @@
 
 **Truthful gate update:** `/api/production/verify` can no longer emit `PRODUCTION_READY`; it explicitly reports that only the offline audited suite may release a revision. The Prozorro detail/audit routes no longer synthesize a missing tender, customer, documents, prices, deadlines or risks.
 
+**Market-price contract:** `/api/tenderai/parse-market-prices` now accepts structured price observations with HTTPS source URL/title/timestamp and returns deterministic DuckDB aggregates. Missing provenance returns `UNKNOWN` or validation failure instead of generated prices.
+
 ---
 
 ## 1. API Verification Principles

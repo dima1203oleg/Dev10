@@ -24,6 +24,7 @@ import { requestContext, apiErrorHandler } from "./src/middleware/api.ts";
 import { verifyUpload } from "./src/lib/uploadSecurity.ts";
 import { dispatchDocumentJob } from "./src/services/temporal.ts";
 import { calculatePreSubmissionReadiness } from "./src/utils/readiness.ts";
+import { aggregateMarketPrices } from "./src/analytics/marketPrices.ts";
 
 dotenv.config();
 
@@ -2489,72 +2490,17 @@ ${tenderText}
 });
 
 
-// API: Parse & Analyze Market Prices for Materials & Equipment using Gemini Search Grounding
+// API: Deterministic market-price aggregation from externally verified observations.
 app.post("/api/tenderai/parse-market-prices", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { rawText, items } = req.body;
-    const ai = getGeminiClient();
-
-    if (!ai) {
-      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
+    const { items } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Structured items with cited price observations are required.' }, requestId: req.requestId });
     }
-
-    const prompt = `Ти є висококласним експертом-аналітиком ринкових цін на будівельні матеріали та обладнання в Україні.
-Твоє завдання — проаналізувати наданий список або неструктурований текст матеріалів та обладнання, визначити їхні поточні середньоринкові ціни в Україні за допомогою пошуку в реальному часі (Google Search), розрахувати відхилення від вказаної ціни замовника та знайти реальні посилання на джерела (наприклад, Епіцентр, Prom.ua, розетка, прайс-листи виробників тощо).
-
-ВХІДНІ ДАНІ:
-${items && items.length > 0 ? `Задані структуровані позиції для аналізу:\n${JSON.stringify(items, null, 2)}` : ""}
-${rawText ? `Неструктурований текст для парсингу та аналізу:\n"""\n${rawText}\n"""` : ""}
-
-Для кожного виявленого будівельного матеріалу або обладнання (проаналізуй щонайменше 5-8 основних позицій для детального порівняння):
-1. Зроби точний пошуковий запит в Google Search для пошуку поточної ціни цього конкретного товару/марки в гривнях в Україні станом на 2026 рік.
-2. Визнач середньоринкову ціну (UAH), очікуваний діапазон цін (мінімальна-максимальна), та реальні URL-посилання (із зрозумілими назвами джерел), які підтверджують цю ціну.
-3. Якщо для позиції вказано очікувану ціну (estimatePriceUah або estimatePrice), порівняй її з ринковою середньою та розрахуй відсоток відхилення (variancePercent = ((estimatePriceUah - marketAvgPrice) / marketAvgPrice) * 100).
-4. Класифікуй рівень ризику: OVERPRICED (завищено на >15%), UNDERESTIMATED (занижено на >15%), NORMAL (у межах норми).
-5. Запропонуй дешевші аналоги або замінники та додай детальні аналітичні нотатки.
-
-Поверни результат строго у форматі JSON (без жодного вступного чи підсумкового тексту, лише чистий JSON-об'єкт):
-{
-  "summary": "Загальний аналітичний висновок щодо ринкових цін на матеріали та обладнання в даному переліку, зафіксовані аномалії, загальна потенційна економія тощо.",
-  "items": [
-    {
-      "code": "Шифр або код позиції (наприклад, С111-123 або згенеруй)",
-      "name": "Назва матеріалу чи обладнання українською мовою з маркуванням",
-      "unit": "Одиниця виміру (шт, м, м², т, кг тощо)",
-      "quantity": число,
-      "estimatePriceUah": число (вказана ціна замовника, або 0 якщо не вказано),
-      "marketAvgPriceUah": число (знайдена середня ринкова ціна в гривнях),
-      "priceRange": "Діапазон цін (наприклад, '1200 - 1400 UAH')",
-      "variancePercent": число (відсоток відхилення, позитивний якщо завищено, негативний якщо занижено),
-      "anomalyRisk": "OVERPRICED" | "UNDERESTIMATED" | "NORMAL",
-      "category": "MATERIALS" | "EQUIPMENT",
-      "sources": [
-        {
-          "title": "Назва сайту/джерела (наприклад, EpicentrK, Prom.ua, Одескабель)",
-          "url": "Посилання на товар або прайс-лист"
-        }
-      ],
-      "alternatives": "Опис аналогів або брендів-замінників українського виробництва",
-      "notes": "Аналітичний коментар щодо ціни"
-    }
-  ]
-}`;
-
-    const response = await generateContentWithFallback(ai, {
-      contents: prompt,
-      primaryModel: "gemini-3.7-flash",
-      config: {
-        responseMimeType: "application/json",
-        tools: [{ googleSearch: {} }],
-        toolConfig: { includeServerSideToolInvocations: true }
-      }
-    });
-
-    const parsed = JSON.parse(response.text || "{}");
-    return res.json(parsed);
+    return res.json(await aggregateMarketPrices(items));
   } catch (error: any) {
     console.error("Market Price Parser Error:", error);
-    return handleAiError(res, error, "Помилка парсингу ринкових цін");
+    return res.status(400).json({ error: { code: error?.message || 'MARKET_PRICE_AGGREGATION_FAILED', message: 'Market-price observations could not be verified.' }, requestId: req.requestId });
   }
 });
 
