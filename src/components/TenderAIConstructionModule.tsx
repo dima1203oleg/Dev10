@@ -683,7 +683,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                 {analysis?.agents.bidManager.recommendedBidPrice != null ? `${analysis.agents.bidManager.recommendedBidPrice.toLocaleString()} ₴` : 'UNKNOWN'}
               </div>
               <p className="text-xs text-slate-200">
-                Оптимальна ціна перемоги. Гарантована маржа 18.5% після покриття всіх прямих та непрямих витрат.
+                Підтверджена стратегія та маржа з’являться лише після розрахунку на основі джерельних даних.
               </p>
             </div>
 

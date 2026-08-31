@@ -211,7 +211,7 @@ ${calculatedPrice != null ? `${calculatedPrice.toLocaleString()} грн (з ПД
 
               <div className="flex justify-between text-slate-300">
                 <span>Маржинальність:</span>
-                <strong className="text-indigo-300 font-mono font-bold">18.5%</strong>
+                <strong className="text-indigo-300 font-mono font-bold">{selectedPkg?.marginPercent != null ? `${selectedPkg.marginPercent}%` : 'UNKNOWN'}</strong>
               </div>
             </div>
           </div>
