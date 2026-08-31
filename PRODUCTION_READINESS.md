@@ -16,6 +16,8 @@ Latest hidden-workflow gate: War Room navigation and Multi-Agent Chat entry rend
 
 Clean-install reproducibility gate: `npm ci --ignore-scripts && npm run verify` passed on 2026-09-01. Release is still `NOT READY` until external production-like services and authenticated E2E are proven.
 
+Production self-test: completed with database/direct Prozorro/Gemini/multiplatform checks passing, but live authenticated search timing out at the safety boundary. The endpoint correctly returned `BLOCKED`, not `READY`.
+
 ## Verified blockers
 
 1. Git provenance is now available on `Dev10/main`; the current verified implementation commit is recorded in Git, but no release tag or rollback rehearsal exists.

@@ -17,6 +17,8 @@
 
 **2026-09-01 follow-up:** Construction UI consumes the persisted BoQ list endpoint on tender load; unknown unit prices are not converted into numeric zeroes.
 
+**2026-09-01 production self-test:** PostgreSQL, direct Prozorro connectivity, Gemini configuration and multiplatform source-integrity checks passed. Live authenticated search timed out at the 15-second safety boundary; pagination is explicitly marked `BLOCKED` rather than left pending.
+
 ---
 
 ## 1. API Verification Principles

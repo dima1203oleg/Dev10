@@ -16,6 +16,8 @@
 
 > **2026-09-01 reproducibility gate:** `npm ci --ignore-scripts && npm run verify` completed from a clean dependency install: 18 tests passed (1 skipped), production build and `npm audit --audit-level=moderate` passed.
 
+> **2026-09-01 production self-test:** `/api/production/verify` completed in 15.5 seconds with PostgreSQL, direct Prozorro connectivity, Gemini configuration and multiplatform checks `PASS`; authenticated Prozorro search timed out and pagination was marked `BLOCKED`. Release remains blocked.
+
 ---
 
 ## 1. Загальні положення та мета тестування

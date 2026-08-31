@@ -1894,7 +1894,7 @@ app.get("/api/health", async (_req, res) => {
   }
 
   try {
-    const pRes = await fetch("https://public.api.openprocurement.org/api/2.5/tenders?limit=1");
+    const pRes = await fetch("https://public.api.openprocurement.org/api/2.5/tenders?limit=1", { signal: AbortSignal.timeout(5000) });
     if (!pRes.ok) prozorroCheck = "degraded";
   } catch (err) {
     prozorroCheck = "unreachable";
@@ -1943,7 +1943,7 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
 
     // 3. Prozorro API Connectivity
     try {
-      const pRes = await fetch("https://public.api.openprocurement.org/api/2.5/tenders?limit=1");
+      const pRes = await fetch("https://public.api.openprocurement.org/api/2.5/tenders?limit=1", { signal: AbortSignal.timeout(10000) });
       results.prozorro_api = pRes.ok ? { status: "PASS", details: "Prozorro API reachable" } : { status: "FAIL", details: `HTTP ${pRes.status}` };
     } catch (e: any) {
       results.prozorro_api = { status: "FAIL", details: e.message };
@@ -1952,6 +1952,7 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
     // 4. Prozorro Search (Live Test)
     try {
       const searchRes = await fetch(`http://localhost:${PORT}/api/prozorro/search?query=${encodeURIComponent("укриття")}`, {
+        signal: AbortSignal.timeout(15000),
         headers: { 'Authorization': req.headers.authorization || '' }
       });
       const searchData = await searchRes.json();
@@ -1961,6 +1962,7 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
         // 5. Pagination Test
         if (searchData.pagination && searchData.searchId) {
           const page2Res = await fetch(`http://localhost:${PORT}/api/prozorro/search?searchId=${searchData.searchId}`, {
+            signal: AbortSignal.timeout(15000),
             headers: { 'Authorization': req.headers.authorization || '' }
           });
           const page2Data = await page2Res.json();
@@ -1977,9 +1979,11 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
         }
       } else {
         results.prozorro_search = { status: "FAIL", details: "No tenders returned for 'укриття'" };
+        results.prozorro_pagination = { status: "BLOCKED", details: "Skipped because the live search returned no records." };
       }
     } catch (e: any) {
       results.prozorro_search = { status: "FAIL", details: e.message };
+      results.prozorro_pagination = { status: "BLOCKED", details: "Skipped because the live search failed." };
     }
 
     // 6. AI Engine

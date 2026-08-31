@@ -9,6 +9,8 @@
 
 **2026-09-01 execution note:** null-safe UI/API errors and tenant-scoped bid-package writes were exercised locally; Firebase-positive and live malware/service gates remain `BLOCKED/UNKNOWN`.
 
+**2026-09-01 self-test note:** production verification enforces a 15-second timeout on live Prozorro search and reports the timeout as `FAIL/BLOCKED`; no indefinitely hanging diagnostic request remains.
+
 ---
 
 ## 1. Vulnerability Analysis and Supply Chain Shield
