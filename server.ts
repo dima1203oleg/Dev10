@@ -23,6 +23,7 @@ import rateLimit from "express-rate-limit";
 import { requestContext, apiErrorHandler } from "./src/middleware/api.ts";
 import { verifyUpload } from "./src/lib/uploadSecurity.ts";
 import { dispatchDocumentJob } from "./src/services/temporal.ts";
+import { calculatePreSubmissionReadiness } from "./src/utils/readiness.ts";
 
 dotenv.config();
 
@@ -1293,86 +1294,20 @@ app.get("/api/prozorro/tender/:id/audit", requireAuth, async (req: AuthRequest, 
     }
 
     if (!data) {
-      data = {
-        title: `Закупівля ${id}`,
-        description: `Закупівля ${id}. Комплексна документація та кваліфікаційні вимоги.`,
-        tenderID: id,
-        value: { amount: 1500000, currency: "UAH" },
-        items: [{ description: "Товари та послуги за предметом закупівлі" }],
-        documents: [{ id: "doc-1", title: "Тендерна_документація.pdf" }]
-      };
+      return res.status(404).json({ error: { code: 'PROZORRO_TENDER_NOT_FOUND', message: 'The tender was not returned by the official Prozorro API.' }, requestId: req.requestId });
     }
 
-    // 2. Perform AI Audit using Gemini with fallback
-    const ai = getGeminiClient();
-    
-    if (ai) {
-      const auditPrompt = `
-        Ти — провідний експерт із державних закупівель Prozorro та аудитор ризиків. 
-        Проаналізуй дані тендера та надай структурований висновок для потенційного учасника.
-        
-        ДАНІ ТЕНДЕРА:
-        Назва: ${data.title}
-        Опис: ${data.description || "Немає опису"}
-        Сума: ${data.value?.amount} ${data.value?.currency}
-        Предмет: ${data.items?.map((it: any) => it.description).join(", ") || "Не вказано"}
-        
-        ЗАВДАННЯ:
-        1. Визнач 3 основні технічні вимоги.
-        2. Знайди потенційні ризики (стислі терміни, специфічні сертифікати, складні умови оплати).
-        3. Оціни "складність" підготовки документів за шкалою 1-10.
-        4. Сформулюй пораду: на що звернути увагу в тендерній документації.
-
-        ВІДПОВІДЬ НАДАЙ ВИКЛЮЧНО В ФОРМАТІ JSON (валидний JSON, без markdown блоків):
-        {
-          "technicalAnalysis": ["вимога 1", "вимога 2", "вимога 3"],
-          "risks": ["ризик 1", "ризик 2"],
-          "complexityScore": 7,
-          "expertAdvice": "твоя порада тут"
-        }
-      `;
-
-      try {
-        const result = await generateContentWithFallback(ai, {
-          contents: auditPrompt,
-          config: {
-            responseMimeType: "application/json"
-          }
-        });
-        const text = result.text || "";
-        const cleanJson = text.replace(/```json|```/g, "").trim();
-        const auditResult = JSON.parse(cleanJson);
-        return res.json(auditResult);
-      } catch (aiErr) {
-        console.warn("AI audit failed, using deterministic audit engine:", aiErr);
-      }
-    }
-
-    // Heuristic deterministic fallback audit in Ukrainian
-    const itemCount = data.items?.length || 1;
-    const amount = data.value?.amount || 0;
-    const hasDocuments = (data.documents?.length || 0) > 0;
-
-    const technicalAnalysis = [
-      data.items?.[0]?.description ? `Відповідність специфікації: ${data.items[0].description}` : "Повна відповідність технічній специфікації замовника",
-      `Наявність матеріально-технічної бази та підтверджуючих документів на ${itemCount} поз.`,
-      "Надання сертифікатів відповідності або паспортів якості на продукцію"
-    ];
-
-    const risks = [];
-    if (amount > 1000000) {
-      risks.push("Значний розмір забезпечення тендерної пропозиції / виконання договору");
-    }
-    if (!hasDocuments) {
-      risks.push("Додаткові вимоги замовника у формі роз'яснень або протоколів");
-    }
-    risks.push("Вимога щодо надання аналогічного досвіду за останні 1-2 роки");
-
-    res.json({
+    const technicalAnalysis = (Array.isArray(data.items) ? data.items : [])
+      .map((item: any) => item?.description)
+      .filter((description: unknown): description is string => typeof description === 'string' && description.trim().length > 0);
+    return res.json({
+      tenderId: data.tenderID || data.id || id,
       technicalAnalysis,
-      risks,
-      complexityScore: amount > 5000000 ? 8 : amount > 500000 ? 5 : 3,
-      expertAdvice: `Ретельно перевірте проект договору та терміни поставки/виконання робіт для закупівлі ${data.tenderID || id}. Забезпечте повну відповідність кваліфікаційній частині статті 16 Закону України «Про публічні закупівлі».`
+      risks: [],
+      complexityScore: null,
+      status: 'UNKNOWN',
+      reason: 'Risk and complexity conclusions require parsed source documents with page and bbox provenance.',
+      source: { api: 'official-prozorro', fetchedAt: new Date().toISOString() },
     });
   } catch (error) {
     console.error("Audit Error:", error);
@@ -1398,19 +1333,22 @@ app.get("/api/prozorro/radar", requireAuth, async (req: AuthRequest, res) => {
         ? vault.preferredKeywords
         : (profile?.typesOfWork && profile.typesOfWork.length > 0)
           ? profile.typesOfWork
-          : ['будівництво', 'ремонт', 'кабель', 'ноутбук', 'послуги'],
+          : [],
       location: { city: null, region: vault.preferredRegion || profile?.regionsOfWork?.[0] || null },
       cpvCandidates: (vault.cpvCodes && vault.cpvCodes.length > 0)
         ? vault.cpvCodes
         : (profile?.cpvCodes && profile.cpvCodes.length > 0)
           ? profile.cpvCodes
-          : ['45000000-7', '30200000-1', '44300000-3'],
+          : [],
       minBudget: vault.minTenderBudget || profile?.minTenderBudget || null,
       maxBudget: vault.maxTenderBudget || profile?.maxTenderBudget || null,
       procedureTypes: [],
       status: 'active'
     };
 
+    if (radarQuery.keywords.length === 0 && radarQuery.cpvCandidates.length === 0) {
+      return res.json({ radarFeed: [], count: 0, status: 'INSUFFICIENT_PROFILE_DATA' });
+    }
     const searchResult = await searchMultiPlatformTenders(radarQuery, { limit: 30 });
     const rawTenders = searchResult.tenders || [];
 
@@ -1418,7 +1356,7 @@ app.get("/api/prozorro/radar", requireAuth, async (req: AuthRequest, res) => {
       const matchResult = calculatePersonalRadarMatch(tender, profile);
       return {
         ...tender,
-        fitScore: matchResult.fitScore ?? 85,
+        fitScore: matchResult.fitScore,
         fitFactors: matchResult.factors,
         radarReasons: matchResult.reasons
       };
@@ -1948,54 +1886,9 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
       results.ai_engine = { status: "FAIL", details: "Gemini API key missing" };
     }
 
-    // 7. Tenant Isolation (Active Test)
-    try {
-      // Attempt to query with a non-existent random ID to verify filter strictly applies to auth context
-      // CRITICAL FIX: use number 999999 instead of string
-      const otherUserTenders = await db.select().from(tendersTable).where(eq(tendersTable.userId, 999999));
-      if (otherUserTenders.length === 0) {
-        results.tenant_isolation = { status: "PASS", details: "Isolation verified: cannot access data of other users" };
-      } else {
-        results.tenant_isolation = { status: "FAIL", details: "Data leakage detected: returned records for other user" };
-      }
-    } catch (e: any) {
-      results.tenant_isolation = { status: "FAIL", details: e.message };
-    }
-
-    // 8. No Fake Data (Recursive Scanner)
-    const mockPatterns = [/fake/i, /mock/i, /test/i, /demo/i, /00000000/, /11111111/, /placeholder/i];
-    const scanForMock = (obj: any): string | null => {
-      if (!obj) return null;
-      if (typeof obj === 'string') {
-        for (const p of mockPatterns) {
-          if (p.test(obj)) return obj;
-        }
-      } else if (Array.isArray(obj)) {
-        for (const item of obj) {
-          const found = scanForMock(item);
-          if (found) return found;
-        }
-      } else if (typeof obj === 'object') {
-        for (const key in obj) {
-          const found = scanForMock(obj[key]);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    // Scan the search results from Prozorro test
-    const searchResForMock = await fetch(`http://localhost:${PORT}/api/prozorro/search?query=${encodeURIComponent("укриття")}`, {
-        headers: { 'Authorization': req.headers.authorization || '' }
-    });
-    const searchDataForMock = await searchResForMock.json();
-    const mockFound = scanForMock(searchDataForMock);
-
-    if (mockFound) {
-      results.no_fake_data = { status: "FAIL", details: `Mock data detected: "${mockFound}"` };
-    } else {
-      results.no_fake_data = { status: "PASS", details: "Deep scan complete: No mock patterns found in live data" };
-    }
+    // These invariants require isolated offline tests and cannot be certified by an in-request probe.
+    results.tenant_isolation = { status: "UNKNOWN", details: "Run the direct cross-tenant RLS integration gate for this revision." };
+    results.no_fake_data = { status: "UNKNOWN", details: "Run the repository and browser zero-mock audit for this revision." };
 
     // 9. Multi-Platform Aggregator Test Suite
     try {
@@ -2060,7 +1953,9 @@ ${r.metrics ? `* **Metrics**: ${JSON.stringify(r.metrics, null, 2)}` : ''}
     const overallPass = Object.values(results).every((r: any) => r.status === "PASS" || r.status === "WARNING");
 
     res.json({
-      status: overallPass ? "PRODUCTION_READY" : "BLOCKED",
+      status: overallPass ? "RUNTIME_CHECKS_PASSED_NOT_RELEASE_GATE" : "BLOCKED",
+      releaseReady: false,
+      releaseDecision: "Only the offline audited gate suite can mark a revision READY.",
       durationMs: Date.now() - startTime,
       results,
       timestamp: new Date().toISOString()
@@ -2090,10 +1985,8 @@ app.post("/api/foultender/audit", requireAuth, async (req: AuthRequest, res) => 
 1. Кожне виявлене порушення ПОВИННО обов'язково містити:
    - "exactQuote": Дослівна цитата з тексту тендерної документації. ЯКЩО ЦИТАТИ НЕМАЄ — ПОРУШЕННЯ НЕ ВКЛЮЧАЄТЬСЯ.
    - "pageReference": Номер сторінки або назва розділу документа.
-   - "legalBasis": Конкретна стаття та частина ЗУ "Про публічні закупівлі".
-   - "amcuPrecedent": Опис аналогічної практики Колегії АМКУ.
 2. КАТЕГОРИЧНО ЗАБОРОНЕНО вигадувати порушення, яких немає в наданому тексті.
-3. Оцінюй впевненість ("confidence") за шкалою 0-1.
+3. Не створюй числових оцінок, правових норм або прецедентів. ШІ лише пояснює дослівно підтверджені факти.
 
 Дані тендеру:
 - Назва: ${tenderTitle}
@@ -2108,28 +2001,16 @@ ${tenderText}
 
 Поверни ТІЛЬКИ валідний JSON у наступному форматі:
 {
-  "foulScore": number (від 0 до 100),
-  "riskLevel": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
   "summary": "Короткий висновок аудитора українською мовою з підтвердженням за джерелами",
   "violations": [
     {
       "type": "DISCRIMINATORY_REQUIREMENT" | "UNREALISTIC_TIMELINE" | "PRICING_ANOMALY" | "COLLUSION_RISK" | "TECHNICAL_LOCKIN",
-      "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
       "title": "Назва порушення",
-      "description": "Детальний опис",
+      "description": "Пояснення підтвердженого факту без правового висновку",
       "exactQuote": "Цитата з тексту",
-      "pageReference": "стор. X або Розділ Y",
-      "legalBasis": "ст. X ч. Y",
-      "amcuPrecedent": "Практика АМКУ",
-      "confidence": number
+      "pageReference": "лише номер сторінки або розділ, присутній у вхідних даних"
     }
-  ],
-  "amcuAppealRecommendation": {
-    "recommended": boolean,
-    "prospectsText": "Високий юридичний потенціал",
-    "appealGrounds": "Підстави для оскарження",
-    "estimatedAmcuFeeUah": number
-  }
+  ]
 }`;
 
     const response = await generateContentWithFallback(ai, {
@@ -2141,7 +2022,10 @@ ${tenderText}
     });
 
     const parsed = JSON.parse(response.text || "{}");
-    return res.json(parsed);
+    const violations = Array.isArray(parsed.violations)
+      ? parsed.violations.filter((item: any) => typeof item?.exactQuote === 'string' && item.exactQuote.trim() && tenderText.includes(item.exactQuote))
+      : [];
+    return res.json({ summary: typeof parsed.summary === 'string' ? parsed.summary : '', violations, evidenceOnly: true, numericScore: null });
   } catch (error: any) {
     console.error("FoulTender Audit Error:", error);
     return handleAiError(res, error, "Помилка аналізу тендеру");
@@ -2515,53 +2399,14 @@ ${version2Text}
 app.post("/api/tenderai/readiness-audit", requireAuth, async (req: AuthRequest, res) => {
   try {
     const { tender, companyProfile, bidPackage } = req.body;
-    const ai = getGeminiClient();
-
-    if (!ai) {
-      return res.status(503).json({ error: "Gemini AI API key is missing. Analysis cannot be performed." });
+    if (!tender || typeof tender !== 'object' || !companyProfile || typeof companyProfile !== 'object' || !bidPackage || typeof bidPackage !== 'object') {
+      return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Persisted tender, company profile and bid package are required.' }, requestId: req.requestId });
     }
 
-    const prompt = `Ти – Головний Тендерний Контролер платформи TenderAI. Проведи фінальний Pre-Submission Compliance Audit перед поданням пропозиції на майданчик Prozorro.
-Тендер: ${JSON.stringify(tender?.title || "Будівельний тендер")}
-Бюджет: ${tender?.budgetUah || 30000000} грн
-Дані пропозиції: ${JSON.stringify(bidPackage || {})}
-Дані компанії: ${JSON.stringify(companyProfile?.shortName || "ТОВ УкрБуд")}
-
-Оціни готовність за шкалою 0-100 та сформуй критичний стоп-лист перевірок.
-Поверни JSON:
-{
-  "totalScore": number (0-100),
-  "readyToSubmit": boolean,
-  "categories": {
-    "documentsVault": number,
-    "qualificationArt16": number,
-    "costAndBoQ": number,
-    "legalDraftContract": number,
-    "technicalSpecs": number
-  },
-  "criticalChecklist": [
-    {
-      "id": "chk-1",
-      "title": "Назва контрольної точки",
-      "passed": boolean,
-      "severity": "BLOCKING" | "WARNING" | "INFO",
-      "detail": "Пояснення та рекомендація для усунення ризику"
-    }
-  ]
-}`;
-
-    const response = await generateContentWithFallback(ai, {
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-      }
-    });
-
-    const parsed = JSON.parse(response.text || "{}");
-    return res.json(parsed);
+    return res.json(calculatePreSubmissionReadiness({ tender, companyProfile, bidPackage }));
   } catch (error: any) {
     console.error("Readiness Audit Error:", error);
-    return handleAiError(res, error, "Помилка Pre-Submission аудиту");
+    return res.status(500).json({ error: { code: 'READINESS_AUDIT_FAILED', message: 'Pre-submission audit failed.' }, requestId: req.requestId });
   }
 });
 

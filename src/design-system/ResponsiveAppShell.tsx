@@ -53,11 +53,8 @@ export const ResponsiveAppShell: React.FC<ResponsiveAppShellProps> = ({
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [language, setLanguage] = useState<'UK' | 'EN'>('UK');
 
-  const notifications = [
-    { id: '1', title: 'Новий тендер за вашим CPV', desc: 'UA-2026-08-28-009123: Будівництво укриття (Київ)', time: '5 хв тому', read: false },
-    { id: '2', title: 'Оновлено BoQ кошторис', desc: 'ШІ виявив відхилення у 3 позиціях металопрокату', time: '40 хв тому', read: false },
-    { id: '3', title: 'Висновок АМКУ', desc: 'Скаргу зареєстровано у реєстрі за № 4521/26', time: '2 год тому', read: true },
-  ];
+  // Notifications stay empty until the persisted notifications API is available.
+  const notifications: Array<{ id: string; title: string; desc: string; time: string; read: boolean }> = [];
 
   return (
     <div className="min-h-[100dvh] bg-slate-950 text-slate-200 flex flex-row overflow-hidden selection:bg-emerald-500/30">

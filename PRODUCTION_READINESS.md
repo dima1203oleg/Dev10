@@ -11,6 +11,7 @@ The repository cannot truthfully be submitted as a tested production release yet
 1. Git provenance is now available on `Dev10/main`; the current verified implementation commit is recorded in Git, but no release tag or rollback rehearsal exists.
 2. Local PostgreSQL and enforced RLS are available. Acceptance infrastructure/credentials remain incomplete: Firebase browser login fails, Gemini is not configured, and Temporal, ClamAV, Docling/PaddleOCR, pgvector, DuckDB and S3-compatible storage have not passed live gates.
 3. The local Docker acceptance stack cannot finish pulling images while the Mac has only about 116 MiB free. No cache or user data was deleted without explicit authorization.
+4. Docker later reported about 2.6 GiB free, but its image store remains unhealthy after the earlier disk I/O failure and Docker Desktop could not restart cleanly. Container gates remain `BLOCKED`, not `PASS`.
 3. The UI cost-estimate module contains synthetic reports, suppliers, prices, random calculations and simulated uploads.
 4. The multi-platform connector contained generated corporate/social tenders presented as results. Its runtime use was disabled on 2026-08-31; only the verified Prozorro connector may now return records.
 5. `/api/data` fabricated statuses/categories/regions while seeding live Prozorro records. Automatic seeding was removed on 2026-08-31.

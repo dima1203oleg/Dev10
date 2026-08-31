@@ -5,6 +5,8 @@
 
 > **Current verification override — 2026-08-31:** `FAIL / BLOCKED`. No complete chart-to-independent-SQL/DuckDB reconciliation has been executed. Any statement below claiming every chart is verified is superseded until each number, empty-data state, filter and export has reproducible evidence.
 
+**Deterministic score update:** pre-submission readiness is now computed by versioned formula `pre-submission-v1` from document hashes/statuses, requirement statuses, persisted BoQ values and source hashes. Missing evidence scores zero and blocks submission; Gemini is not involved. The wider chart/DuckDB gate remains blocked.
+
 ---
 
 ## 1. Verified Analytics Visualization Framework

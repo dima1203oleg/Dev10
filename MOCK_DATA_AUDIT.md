@@ -7,6 +7,8 @@
 
 **Latest implementation evidence:** the fabricated Prozorro tender-detail fallback and sample legal/AI request defaults were removed; incomplete official records now retain `null/UNKNOWN`, and missing source inputs return validation errors. Further runtime paths still require review, so status remains `PARTIAL`.
 
+**Zero-mock gate update:** known fabricated tender records, UI notifications, fallback CPV/keywords, default Fit Score and random business values are now rejected by `src/tests/zeroMock.test.ts`. The audited runtime routes return `UNKNOWN`, empty collections or validation errors when evidence is missing.
+
 ---
 
 ## 1. Zero Mock Data Policy

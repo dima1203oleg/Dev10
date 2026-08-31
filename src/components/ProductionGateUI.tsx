@@ -58,8 +58,8 @@ export const ProductionGateUI: React.FC = () => {
             <ShieldCheck size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-black text-white uppercase tracking-tighter">Production Safety Gate</h2>
-            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Системний аудит та верифікація даних</p>
+            <h2 className="text-xl font-black text-white uppercase tracking-tighter">Runtime Diagnostics</h2>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Не є рішенням про production readiness</p>
           </div>
         </div>
         <button 
@@ -79,9 +79,9 @@ export const ProductionGateUI: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-4"
           >
-            <div className={`p-4 rounded-2xl border flex items-center justify-between ${report.status === 'PRODUCTION_READY' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'}`}>
+            <div className={`p-4 rounded-2xl border flex items-center justify-between ${report.releaseReady ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}>
               <div className="flex items-center gap-3">
-                {report.status === 'PRODUCTION_READY' ? <CheckCircle2 size={24} /> : <ShieldAlert size={24} />}
+                {report.releaseReady ? <CheckCircle2 size={24} /> : <ShieldAlert size={24} />}
                 <div>
                   <div className="text-xs font-black uppercase tracking-widest">Статус системи</div>
                   <div className="text-lg font-black uppercase">{report.status.replace('_', ' ')}</div>
