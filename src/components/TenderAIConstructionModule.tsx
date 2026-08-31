@@ -380,7 +380,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
 
                   <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
                     <span>Технологічний строк:</span>
-                    <strong className="text-blue-400 font-bold">{analysis.agents.techLead.timelineWeeks || 12} тижнів</strong>
+                    <strong className="text-blue-400 font-bold">{analysis.agents.techLead.timelineWeeks != null ? `${analysis.agents.techLead.timelineWeeks} тижнів` : 'UNKNOWN'}</strong>
                   </div>
                 </div>
 
@@ -413,7 +413,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
 
                   <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
                     <span>Комплаєнс відповідності:</span>
-                    <strong className="text-emerald-400 font-bold">{analysis.agents.legalCounsel.complianceScore || 95}%</strong>
+                    <strong className="text-emerald-400 font-bold">{analysis.agents.legalCounsel.complianceScore != null ? `${analysis.agents.legalCounsel.complianceScore}%` : 'UNKNOWN'}</strong>
                   </div>
                 </div>
 
@@ -436,7 +436,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                       </div>
                     </div>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-950 text-red-300 border border-red-800">
-                      Foul Score: {analysis.agents.antiFraud.corruptionRiskScore || currentTender.foulScore}
+                      Foul Score: {analysis.agents.antiFraud.corruptionRiskScore != null ? `${analysis.agents.antiFraud.corruptionRiskScore}/100` : currentTender.foulScore != null ? `${currentTender.foulScore}/100` : 'UNKNOWN'}
                     </span>
                   </div>
 
@@ -469,7 +469,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                       </div>
                     </div>
                     <span className="text-[10px] font-bold px-2.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      {analysis.agents.bidManager.readinessScore ? `Оцінка готовності: ${analysis.agents.bidManager.readinessScore}%` : 'Недостатньо історичних даних'}
+                      {analysis.agents.bidManager.readinessScore != null ? `Оцінка готовності: ${analysis.agents.bidManager.readinessScore}%` : 'UNKNOWN: недостатньо історичних даних'}
                     </span>
                   </div>
 
@@ -716,7 +716,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
             <div className="bg-emerald-950/50 border border-emerald-800 rounded-xl p-4 space-y-2">
               <div className="text-[11px] font-bold text-emerald-400 uppercase">Раунд 3 • Фінальна перемога</div>
               <div className="text-xl font-bold text-emerald-300 font-mono">
-                {analysis?.agents.bidManager.recommendedBidPrice != null ? `${analysis.agents.bidManager.recommendedBidPrice.toLocaleString()} ₴` : 'UNKNOWN'}
+                {analysis?.agents?.bidManager?.recommendedBidPrice != null ? `${analysis.agents.bidManager.recommendedBidPrice.toLocaleString()} ₴` : 'UNKNOWN'}
               </div>
               <p className="text-xs text-slate-200">
                 Підтверджена стратегія та маржа з’являться лише після розрахунку на основі джерельних даних.
