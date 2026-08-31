@@ -7,6 +7,8 @@
 
 **Latest implementation evidence:** production startup now requires Firebase, ClamAV, Docling, Temporal and S3 configuration; local filesystem storage is rejected in production. S3 keys and metadata are SHA-256 bound. Live ClamAV/S3 contract evidence remains blocked by host disk exhaustion.
 
+**2026-09-01 execution note:** null-safe UI/API errors and tenant-scoped bid-package writes were exercised locally; Firebase-positive and live malware/service gates remain `BLOCKED/UNKNOWN`.
+
 ---
 
 ## 1. Vulnerability Analysis and Supply Chain Shield

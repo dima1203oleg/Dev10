@@ -81,7 +81,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
         setApprovedBlocks({ block1: false, block2: false, block3: false, block4: false });
         setShowApprovalModal(true);
       } else {
-        alert('Помилка: ' + (data.error || 'Не вдалося виконати автовитяг даних'));
+        alert('Помилка: ' + (data.error?.message || data.error || 'Не вдалося виконати автовитяг даних'));
       }
     } catch (err: any) {
       console.error(err);
@@ -220,7 +220,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
         }
         alert('Реквізити та налаштування успішно збережено у базі даних!');
       } else {
-        alert('Помилка збереження: ' + (data.error || 'Невідома помилка'));
+        alert('Помилка збереження: ' + (data.error?.message || data.error || 'Невідома помилка'));
       }
     } catch (err: any) {
       console.error(err);
@@ -268,7 +268,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
         alert(`ШІ успішно згенерував ${data.keywords.length} ключових слів та додав їх до списку Must Have!`);
         setAiDescription('');
       } else {
-        alert('Помилка генерації: ' + (data.error || 'Не вдалося отримати ключові слова'));
+        alert('Помилка генерації: ' + (data.error?.message || data.error || 'Не вдалося отримати ключові слова'));
       }
     } catch (err: any) {
       console.error(err);
@@ -299,7 +299,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
         }
         alert('ШІ-аналіз профілю та документів успішно завершено! Готовність та показники оновлено.');
       } else {
-        alert('Помилка аналізу: ' + (data.error || 'Невідома помилка'));
+        alert('Помилка аналізу: ' + (data.error?.message || data.error || 'Невідома помилка'));
       }
     } catch (err: any) {
       console.error(err);
@@ -362,7 +362,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
             alert('Документ успішно завантажено та пропарсено! Реквізити та цифрові дані компанії оновлено.');
         } else {
             console.error('Upload failed:', data.error);
-            alert('Помилка обробки: ' + (data.error || 'Невідома помилка'));
+            alert('Помилка обробки: ' + (data.error?.message || data.error || 'Невідома помилка'));
         }
         
         setUploadProgress(100);

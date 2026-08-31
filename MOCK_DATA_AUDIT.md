@@ -11,6 +11,8 @@
 
 **2026-08-31 runtime recheck:** multi-agent numeric analysis and AI tender ingestion now fail closed until persisted, source-cited data exists; bid/round/package views render `UNKNOWN` instead of synthetic price, margin, or timeline fallbacks. Offline tests/build pass; authenticated E2E remains pending.
 
+**2026-09-01 runtime recheck:** null Prozorro budgets, FoulTender scores and bid-package values are rendered as `UNKNOWN`; the former construction pricing discount and null-unsafe package/audit formatting were removed. Browser smoke used live Prozorro records and intentionally left unverified AI/OCR outputs blocked.
+
 ---
 
 ## 1. Zero Mock Data Policy

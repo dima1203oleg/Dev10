@@ -54,7 +54,7 @@ export const PreSubmissionAuditModule: React.FC<PreSubmissionAuditModuleProps> =
       });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || 'Не вдалося провести аудит готовності');
+        throw new Error(errData.error?.message || errData.error || 'Не вдалося провести аудит готовності');
       }
       const data = await response.json();
       setReadiness(data);

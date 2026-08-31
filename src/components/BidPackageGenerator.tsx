@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tender, BidPackage, CompanyProfile } from '../types';
 import { 
   Briefcase, 
@@ -13,6 +13,7 @@ import {
   Calendar,
   FileSpreadsheet
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface BidPackageGeneratorProps {
   currentTender: Tender;
@@ -27,17 +28,35 @@ export const BidPackageGenerator: React.FC<BidPackageGeneratorProps> = ({
   bidPackages,
   onAddBidPackage,
 }) => {
+  const { token } = useAuth();
+  const [packages, setPackages] = useState<BidPackage[]>(bidPackages);
   const [selectedPkg, setSelectedPkg] = useState<BidPackage | null>(bidPackages[0] || null);
   const [companyName, setCompanyName] = useState(company?.shortName || company?.fullName || 'Учасник закупівель');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => { setPackages(bidPackages); setSelectedPkg(bidPackages[0] || null); }, [bidPackages]);
+  useEffect(() => {
+    if (!token) return;
+    void fetch(`/api/tenders/${currentTender.id}/bid-packages`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (response) => {
+        const body = await response.json();
+        if (!response.ok) throw new Error(body?.error?.message || 'Не вдалося завантажити пакети');
+        const loaded = Array.isArray(body.data) ? body.data as BidPackage[] : [];
+        setPackages(loaded);
+        setSelectedPkg(loaded[0] || null);
+      })
+      .catch((cause) => setError(cause instanceof Error ? cause.message : 'Не вдалося завантажити пакети'));
+  }, [currentTender.id, token]);
 
   // Build an evidence-bound draft. The package stays blocked until the database
   // contains verified BoQ, staff, equipment, license, and signature evidence.
-  const handleCreatePackage = () => {
-    const calculatedPrice = currentTender.multiAgentAnalysis?.agents.bidManager.recommendedBidPrice;
+  const handleCreatePackage = async () => {
+    if (!token) { setError('Потрібна авторизація для збереження пакета.'); return; }
+    const calculatedPrice = currentTender.multiAgentAnalysis?.agents?.bidManager?.recommendedBidPrice;
     const customer = currentTender.customer || 'UNKNOWN: замовник не підтверджений';
     const newPkg: BidPackage = {
-      id: `bid-${Date.now()}`,
+      id: '',
       tenderId: currentTender.id,
       tenderNumber: currentTender.tenderNumber,
       tenderTitle: currentTender.title,
@@ -108,8 +127,22 @@ UNKNOWN: перелік конкретних норм і гарантій не �
       ]
     };
 
-    onAddBidPackage(newPkg);
-    setSelectedPkg(newPkg);
+    setError('');
+    try {
+      const response = await fetch(`/api/tenders/${currentTender.id}/bid-packages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ manifest: newPkg }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error?.message || 'Не вдалося зберегти пакет');
+      const saved = body.data as BidPackage;
+      setPackages(previous => [saved, ...previous]);
+      setSelectedPkg(saved);
+      onAddBidPackage(saved);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Не вдалося зберегти пакет');
+    }
   };
 
   const handleCopyDoc = (content: string, index: number) => {
@@ -132,6 +165,7 @@ UNKNOWN: перелік конкретних норм і гарантій не �
 
   return (
     <div className="space-y-8 animate-fadeIn">
+      {error && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300">{error}</div>}
       
       {/* Header */}
       <div className="bg-gradient-to-r from-indigo-950/70 via-slate-900 to-slate-900 border border-indigo-900/50 rounded-2xl p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -198,7 +232,7 @@ UNKNOWN: перелік конкретних норм і гарантій не �
               
               <div className="pt-2 border-t border-slate-700 flex justify-between text-slate-300">
                 <span>Очікувана вартість:</span>
-                <strong className="text-slate-200 font-mono">{(currentTender.budgetUah).toLocaleString()} ₴</strong>
+                <strong className="text-slate-200 font-mono">{currentTender.budgetUah != null ? `${currentTender.budgetUah.toLocaleString()} ₴` : 'UNKNOWN'}</strong>
               </div>
 
               <div className="flex justify-between text-slate-300">
@@ -218,10 +252,10 @@ UNKNOWN: перелік конкретних норм і гарантій не �
           {/* Previous Packages List */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-md space-y-3">
             <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400">
-              Створені пакети ({bidPackages.length})
+              Створені пакети ({packages.length})
             </h3>
             <div className="space-y-2 max-h-60 overflow-y-auto">
-              {bidPackages.map((pkg) => (
+              {packages.map((pkg) => (
                 <div
                   key={pkg.id}
                   onClick={() => setSelectedPkg(pkg)}

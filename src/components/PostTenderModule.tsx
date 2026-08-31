@@ -168,7 +168,7 @@ export const PostTenderModule: React.FC<PostTenderModuleProps> = ({
                   
                   <div className="text-xs text-slate-400 flex justify-between">
                     <span>Бюджет:</span>
-                    <strong className="text-emerald-400 font-mono">{c.budgetUah.toLocaleString()} ₴</strong>
+                    <strong className="text-emerald-400 font-mono">{c.budgetUah != null ? `${c.budgetUah.toLocaleString()} ₴` : 'UNKNOWN'}</strong>
                   </div>
                 </div>
               );

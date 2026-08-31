@@ -123,12 +123,25 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
     return Array.from(new Map(combined.map(t => [t.id, t])).values());
   }, [dbTenders, searchResults]);
 
+  const isUsableProfileValue = (value?: string | null) => {
+    if (!value) return false;
+    const normalized = value.trim().toUpperCase();
+    return normalized !== 'ПРОФІЛЬ_ВІДСУТНІЙ' && normalized !== 'NOT_AVAILABLE' && normalized !== 'UNKNOWN';
+  };
+
+  const firstUsable = (values?: string[]) => values?.find(isUsableProfileValue);
+  const getConfirmedScore = (tender: Tender) => tender.opportunityScore?.overallScore ?? tender.fitScore ?? null;
+  const getConfirmedDecision = (tender: Tender) => tender.opportunityScore?.bidDecision
+    ?? (tender.foulScore != null && tender.foulScore > 60 ? 'NO_BID' : 'UNKNOWN');
+
   // Auto-trigger radar on mount or profile change
   React.useEffect(() => {
+    const profileWorkTypes = company.typesOfWork?.filter(isUsableProfileValue) || [];
+    const profileCpvCodes = company.cpvCodes?.filter(isUsableProfileValue) || [];
     const initialPrompt = 
-      (company.typesOfWork && company.typesOfWork.length > 0) ? company.typesOfWork.join(' ') :
-      (company.cpvCodes && company.cpvCodes.length > 0) ? company.cpvCodes.join(', ') :
-      'будівництво ремонт кабель постачання послуги ноутбуки';
+      profileWorkTypes.length > 0 ? profileWorkTypes.join(' ') :
+      profileCpvCodes.length > 0 ? profileCpvCodes.join(', ') :
+      '';
       
     handleApplyNlPrompt(initialPrompt);
   }, [company.id]);
@@ -141,8 +154,8 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
       filters: {
         minBudget: minBudget > 0 ? minBudget : undefined,
         maxBudget: maxBudget < 1000000000 ? maxBudget : undefined,
-        region: selectedRegion !== 'ALL' && selectedRegion !== 'Всі регіони України' ? selectedRegion : (company.regionsOfWork?.[0] || undefined),
-        cpv: selectedCpvCode !== 'ALL' ? selectedCpvCode : (company.cpvCodes?.[0] || undefined)
+        region: selectedRegion !== 'ALL' && selectedRegion !== 'Всі регіони України' ? selectedRegion : firstUsable(company.regionsOfWork),
+        cpv: selectedCpvCode !== 'ALL' ? selectedCpvCode : firstUsable(company.cpvCodes)
       }
     });
   };
@@ -300,7 +313,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
       }
 
       // 7. Decision Filter
-      const decision = tender.opportunityScore?.bidDecision || (tender.foulScore && tender.foulScore > 60 ? 'NO_BID' : 'BID');
+      const decision = getConfirmedDecision(tender);
       if (selectedDecision !== 'ALL' && decision !== selectedDecision) {
         return false;
       }
@@ -319,8 +332,8 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
       if (selectedRisk === 'WITH_VIOLATIONS' && (!tender.violations || tender.violations.length === 0) && foul < 20) return false;
 
       // 10. Match Score Filter
-      const score = tender.opportunityScore?.overallScore ?? tender.fitScore ?? 0;
-      if (minMatchScore > 0 && score < minMatchScore) {
+      const score = getConfirmedScore(tender);
+      if (minMatchScore > 0 && (score == null || score < minMatchScore)) {
         return false;
       }
 
@@ -342,8 +355,8 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
 
     // Sorting
     return result.sort((a, b) => {
-      const scoreA = a.opportunityScore?.overallScore ?? a.fitScore ?? 0;
-      const scoreB = b.opportunityScore?.overallScore ?? b.fitScore ?? 0;
+      const scoreA = getConfirmedScore(a) ?? -1;
+      const scoreB = getConfirmedScore(b) ?? -1;
       const budgetA = a.budgetUah ?? 0;
       const budgetB = b.budgetUah ?? 0;
       const foulA = a.foulScore ?? 0;
@@ -396,8 +409,8 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
   // Best match tender for top recommendation banner
   const topMatchTender = useMemo(() => {
     return [...filteredTenders].sort((a, b) => 
-      (b.opportunityScore?.overallScore ?? b.fitScore ?? 0) - 
-      (a.opportunityScore?.overallScore ?? a.fitScore ?? 0)
+      (getConfirmedScore(b) ?? -1) -
+      (getConfirmedScore(a) ?? -1)
     )[0];
   }, [filteredTenders]);
 
@@ -440,7 +453,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
             <div className="flex items-center justify-between pt-1 border-t border-slate-800">
               <span className="text-xs text-slate-400">Рекомендовано (BID):</span>
               <span className="font-bold text-emerald-400 font-mono">
-                {allTenders.filter(t => (t.opportunityScore?.bidDecision || 'BID') === 'BID').length}
+                {allTenders.filter(t => getConfirmedDecision(t) === 'BID').length}
               </span>
             </div>
           </div>
@@ -936,7 +949,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Opportunity Fit:</span>
               <span className="text-xl font-black text-emerald-400 font-mono">
-                {topMatchTender.opportunityScore?.overallScore ?? topMatchTender.fitScore ?? 85}% MATCH
+                {getConfirmedScore(topMatchTender) != null ? `${getConfirmedScore(topMatchTender)}% MATCH` : 'UNKNOWN'}
               </span>
             </div>
           </div>
@@ -960,7 +973,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                 <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
                   <div className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter mb-1">AI Рішення</div>
                   <div className="text-sm font-bold text-emerald-300 flex items-center gap-1">
-                    <CheckCircle2 size={14} /> BID
+                    <CheckCircle2 size={14} /> {getConfirmedDecision(topMatchTender)}
                   </div>
                 </div>
                 <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
@@ -981,14 +994,31 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                   AI Обґрунтування вибору
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed italic">
-                  {topMatchTender.opportunityScore?.bidDecisionReason || "Повний збіг за КВЕД, технічною спроможністю компанії та фінансовими критеріями."}
+                  {topMatchTender.opportunityScore?.bidDecisionReason || "Недостатньо профілю компанії для персональної рекомендації. Потрібні CPV, регіони, документи та фінансова спроможність."}
                 </p>
               </div>
 
               <button
-                onClick={() => {
-                  onSelectTender(topMatchTender);
-                  onNavigateToWarRoom(topMatchTender);
+                onClick={async () => {
+                  if (!token) return;
+                  try {
+                    const res = await fetch('/api/tenders', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                      body: JSON.stringify(topMatchTender)
+                    });
+                    if (!res.ok) throw new Error('Не вдалося зберегти тендер');
+                    const saved = await res.json();
+                    const savedTender = {
+                      ...topMatchTender,
+                      id: String(saved.id),
+                      budgetUah: saved.budgetUah != null ? Number(saved.budgetUah) : topMatchTender.budgetUah,
+                    };
+                    onSelectTender(savedTender);
+                    onNavigateToWarRoom(savedTender);
+                  } catch (e) {
+                    console.error(e);
+                  }
                 }}
                 className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-emerald-950/40 cursor-pointer flex items-center justify-center gap-2"
               >
@@ -1032,8 +1062,8 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {filteredTenders.map((tender) => {
-              const score = tender.opportunityScore?.overallScore ?? tender.fitScore ?? (tender.foulScore ? 100 - tender.foulScore : 75);
-              const decision = tender.opportunityScore?.bidDecision || (tender.foulScore && tender.foulScore > 60 ? 'NO_BID' : 'BID');
+              const score = getConfirmedScore(tender);
+              const decision = getConfirmedDecision(tender);
               const isExpanded = expandedWhyTenderId === tender.id;
               const statusBadge = getTenderStatusBadge(tender);
 
@@ -1075,10 +1105,15 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                               NO BID
                             </span>
                           )}
+                          {decision === 'UNKNOWN' && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-black uppercase tracking-tighter bg-slate-800 text-slate-400 border border-slate-700">
+                              UNKNOWN
+                            </span>
+                          )}
                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter ${
                             tender.foulScore && tender.foulScore >= 60 ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-slate-800 text-slate-400'
                           }`}>
-                            Foul: {tender.foulScore ?? 0}/100
+                            Foul: {tender.foulScore != null ? `${tender.foulScore}/100` : 'UNKNOWN'}
                           </span>
                         </div>
                       </div>
@@ -1114,7 +1149,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                     <div className="flex flex-col sm:flex-row xl:flex-col items-stretch sm:items-center xl:items-end gap-3 min-w-[220px]">
                       <div className="hidden xl:block text-right mb-1">
                         <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Відповідність</div>
-                        <div className="text-3xl font-black text-emerald-400 font-mono">{score}%</div>
+                        <div className="text-3xl font-black text-emerald-400 font-mono">{score != null ? `${score}%` : 'UNKNOWN'}</div>
                       </div>
 
                       <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full">
@@ -1140,13 +1175,20 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                           onClick={async () => {
                             if (!token) return;
                             try {
-                              await fetch('/api/tenders', {
+                              const res = await fetch('/api/tenders', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                                 body: JSON.stringify(tender)
                               });
-                              onSelectTender(tender);
-                              onNavigateToWarRoom(tender);
+                              if (!res.ok) throw new Error('Не вдалося зберегти тендер');
+                              const saved = await res.json();
+                              const savedTender = {
+                                ...tender,
+                                id: String(saved.id),
+                                budgetUah: saved.budgetUah != null ? Number(saved.budgetUah) : tender.budgetUah,
+                              };
+                              onSelectTender(savedTender);
+                              onNavigateToWarRoom(savedTender);
                             } catch (e) { console.error(e); }
                           }}
                           className="col-span-2 sm:flex-1 px-4 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-indigo-900/20 flex items-center justify-center gap-2 cursor-pointer"
@@ -1163,12 +1205,12 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-4">
                           <div className="w-14 h-14 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center text-emerald-400 text-2xl font-black shadow-inner font-mono">
-                            {score}%
+                            {score != null ? `${score}%` : 'UNKNOWN'}
                           </div>
                           <div>
                             <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Деталізований AI розрахунок відповідності</div>
                             <div className="text-xs text-slate-200 font-medium italic leading-relaxed">
-                              {tender.opportunityScore?.bidDecisionReason || "Відповідність вимогам тендерної документації та профілю компанії."}
+                              {tender.opportunityScore?.bidDecisionReason || "Недостатньо профілю компанії для персонального розрахунку відповідності."}
                             </div>
                           </div>
                         </div>

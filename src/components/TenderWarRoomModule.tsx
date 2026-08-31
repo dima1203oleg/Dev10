@@ -3,10 +3,7 @@ import {
   Tender, 
   CompanyProfile, 
   SystemMode, 
-  PriceStrategyScenario, 
-  ResourceAuditItem, 
   ActionTask, 
-  GanttFeasibilityTask 
 } from '../types';
 import { 
   Briefcase, 
@@ -66,8 +63,23 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
   onNavigate
 }) => {
   const [activeTab, setActiveTab] = useState<WarRoomTab>('OVERVIEW');
-  const [selectedScenarioId, setSelectedScenarioId] = useState<string>('COMPETITIVE');
   const [tasks, setTasks] = useState<ActionTask[]>(currentTender.actionPlan || []);
+  const verifiedAnalysis = currentTender.multiAgentAnalysis;
+  const verifiedRecommendedBid = verifiedAnalysis?.agents.bidManager.recommendedBidPrice;
+  const hasVerifiedPriceStrategy = verifiedAnalysis && Number.isFinite(verifiedRecommendedBid);
+  const confirmedGanttTasks = currentTender.ganttTasks || [];
+  const decisionLabel = verifiedAnalysis
+    ? (verifiedAnalysis.overallDecision === 'GO'
+      ? 'УЧАСТЬ РЕКОМЕНДОВАНА'
+      : verifiedAnalysis.overallDecision === 'GO_WITH_CONDITIONS'
+        ? 'УЧАСТЬ З УМОВАМИ'
+        : 'НЕ ПОДАВАТИСЬ')
+    : 'ОЧІКУЄ АНАЛІЗУ';
+  const decisionBadgeClass = verifiedAnalysis
+    ? (verifiedAnalysis.overallDecision === 'NO_GO'
+      ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20')
+    : 'bg-amber-500/10 text-amber-400 border-amber-500/20';
 
   const toggleTask = (taskId: string) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, isCompleted: !t.isCompleted } : t));
@@ -331,9 +343,9 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
                 </p>
               </div>
               
-              <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>УЧАСТЬ З УМОВАМИ</span>
+              <div className={`inline-flex items-center space-x-2 px-4 py-2 rounded-2xl border text-[10px] font-black uppercase tracking-widest ${decisionBadgeClass}`}>
+                {verifiedAnalysis ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                <span>{decisionLabel}</span>
               </div>
             </div>
 
@@ -379,9 +391,9 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
                         ))
                       ) : (
                         [
-                          { icon: Check, color: 'text-emerald-400', label: 'Досвід (ст. 16)', value: company?.vaultData?.contracts?.length ? `${company.vaultData.contracts.length} договори` : 'Потребує аналізу' },
-                          { icon: AlertTriangle, color: 'text-amber-400', label: 'Техніка', value: company?.vaultData?.equipment?.length ? `${company.vaultData.equipment.length} од.` : 'Потребує аналізу' },
-                          { icon: Zap, color: 'text-indigo-400', label: 'Маржа (Competitive)', value: '11.5%' }
+                          { icon: Check, color: 'text-emerald-400', label: 'Досвід (ст. 16)', value: company?.vaultData?.contracts?.length ? `${company.vaultData.contracts.length} договори` : 'UNKNOWN' },
+                          { icon: AlertTriangle, color: 'text-amber-400', label: 'Техніка', value: company?.vaultData?.equipment?.length ? `${company.vaultData.equipment.length} од.` : 'UNKNOWN' },
+                          { icon: Zap, color: 'text-slate-500', label: 'Маржа', value: verifiedAnalysis ? `${verifiedAnalysis.expectedMarginPercent}%` : 'UNKNOWN' }
                         ].map((f, i) => (
                           <li key={i} className="flex items-center justify-between text-xs">
                             <div className="flex items-center gap-2 text-slate-400">
@@ -627,87 +639,63 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              {
-                id: 'CONSERVATIVE',
-                name: 'Консервативний сценарій',
-                tagline: 'Максимальна маржа, мінімальний ризик дефіциту',
-                priceUah: (currentTender.budgetUah || 10000000) * 0.96,
-                discountPercent: 4.0,
-                estimatedMarginUah: (currentTender.budgetUah || 10000000) * 0.16,
-                estimatedMarginPercent: 16.0,
-                riskDescription: 'Низька ймовірність перемоги при агресивних конкурентах',
-                color: 'border-blue-500/40 text-blue-400'
-              },
-              {
-                id: 'COMPETITIVE',
-                name: 'Конкурентний (Оптимальний)',
-                tagline: 'Баланс між перемогою та прибутком',
-                priceUah: (currentTender.budgetUah || 10000000) * 0.915,
-                discountPercent: 8.5,
-                estimatedMarginUah: (currentTender.budgetUah || 10000000) * 0.115,
-                estimatedMarginPercent: 11.5,
-                riskDescription: 'Оптимальний баланс за історичною статистикою регіону',
-                color: 'border-emerald-500/50 text-emerald-400'
-              },
-              {
-                id: 'AGGRESSIVE',
-                name: 'Агресивний прорив',
-                tagline: 'Максимальний шанс виграшу з мінімальною маржею',
-                priceUah: (currentTender.budgetUah || 10000000) * 0.86,
-                discountPercent: 14.0,
-                estimatedMarginUah: (currentTender.budgetUah || 10000000) * 0.06,
-                estimatedMarginPercent: 6.0,
-                riskDescription: 'Ризик запиту обґрунтування АНЦ згідно ст. 29 Закону',
-                color: 'border-amber-500/40 text-amber-400'
-              }
-            ].map((scenario) => (
-              <div 
-                key={scenario.id}
-                onClick={() => setSelectedScenarioId(scenario.id)}
-                className={`bg-slate-900 border rounded-3xl p-6 space-y-5 cursor-pointer transition-all ${
-                  selectedScenarioId === scenario.id 
-                    ? `border-2 ${scenario.color} shadow-lg shadow-emerald-950/20 bg-slate-950/80` 
-                    : 'border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <span className="text-xs font-black uppercase tracking-wider text-slate-300">{scenario.name}</span>
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase ${
-                    selectedScenarioId === scenario.id ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-400'
-                  }`}>
-                    {selectedScenarioId === scenario.id ? 'ВИБРАНО' : 'ОБРАТИ'}
-                  </span>
-                </div>
+          {hasVerifiedPriceStrategy && verifiedAnalysis ? (
+            <div className="bg-slate-900 border border-emerald-500/40 rounded-3xl p-6 space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <span className="text-xs font-black uppercase tracking-wider text-slate-300">Підтверджена стратегія подання</span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded uppercase bg-emerald-500 text-slate-950">
+                  VERIFIED
+                </span>
+              </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Пропонована ціна</div>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Рекомендована ціна</div>
                   <div className="text-2xl font-black text-white font-mono mt-0.5">
-                    {Math.round(scenario.priceUah).toLocaleString()} ₴
-                  </div>
-                  <div className="text-xs font-bold text-amber-400 mt-1">
-                    Знижка: -{scenario.discountPercent}% від очікуваної
+                    {verifiedRecommendedBid!.toLocaleString()} ₴
                   </div>
                 </div>
-
-                <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800/80 space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">Прогнозований прибуток:</span>
-                    <span className="font-mono font-bold text-emerald-400">{Math.round(scenario.estimatedMarginUah).toLocaleString()} ₴</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">Чиста маржа:</span>
-                    <span className="font-mono font-bold text-emerald-400">{scenario.estimatedMarginPercent}%</span>
+                <div>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Розрахована собівартість</div>
+                  <div className="text-2xl font-black text-white font-mono mt-0.5">
+                    {verifiedAnalysis.totalCalculatedCost.toLocaleString()} ₴
                   </div>
                 </div>
-
-                <div className="text-xs text-slate-400 leading-snug">
-                  <span className="font-bold text-slate-300">Ризик:</span> {scenario.riskDescription}
+                <div>
+                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Очікувана маржа</div>
+                  <div className="text-2xl font-black text-emerald-400 font-mono mt-0.5">
+                    {verifiedAnalysis.expectedMarginPercent}%
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+
+              <div className="text-xs text-slate-400 leading-snug">
+                <span className="font-bold text-slate-300">Джерело:</span> збережені BoQ-позиції, графік і детермінований backend-розрахунок. Gemini може тільки пояснювати, але не вигадувати числа.
+              </div>
+            </div>
+          ) : (
+            <div className="bg-slate-900 border border-amber-500/30 rounded-3xl p-6 sm:p-8 space-y-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+                <div className="space-y-2">
+                  <h3 className="text-base font-black text-white">Немає підтвердженої цінової стратегії</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed">
+                    Автоматичні сценарії вимкнено: потрібні збережені BoQ-позиції, підтверджені ціни з джерелом і графік робіт. Без цього продакшн-версія не має права показувати маржу або рекомендовану ставку.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button onClick={onNavigateToBoQ} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors">
+                  Перейти до BoQ
+                </button>
+                {onNavigate && (
+                  <button onClick={() => onNavigate('gantt-chart')} className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition-colors">
+                    Перейти до Gantt
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -725,37 +713,46 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
           </div>
 
           <div className="space-y-3">
-            {[
-              { id: 'g1', title: 'Підготовчі та демонтажні роботи', weeks: 'Тижні 1-2', crew: '1 бригада (4 робітники)', machinery: 'Самоскид 20т, Екскаватор', critical: true, feasible: true },
-              { id: 'g2', title: 'Влаштування залізобетонних конструкцій', weeks: 'Тижні 3-6', crew: '2 бригади (10 робітників)', machinery: 'Автобетононасос, Вібратори', critical: true, feasible: true },
-              { id: 'g3', title: 'Монтаж інженерних систем та вентиляції', weeks: 'Тижні 5-8', crew: '1 спец-бригада (4 чол)', machinery: 'Зварювальні пости, Підйомники', critical: false, feasible: true },
-              { id: 'g4', title: 'Опоряджувальні та фінішні роботи', weeks: 'Тижні 7-10', crew: '2 бригади (8 робітників)', machinery: 'Штукатурні станції', critical: true, feasible: true },
-              { id: 'g5', title: 'Пусконаладка та здача в експлуатацію', weeks: 'Тижні 10-12', crew: 'Інженерна група (3 чол)', machinery: 'Лабораторне обладнання', critical: true, feasible: true },
-            ].map((g) => (
+            {confirmedGanttTasks.length > 0 ? confirmedGanttTasks.map((g) => (
               <div key={g.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-white">{g.title}</span>
-                    {g.critical && (
+                    {g.criticalPath && (
                       <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 text-[9px] font-black uppercase">
                         Критичний шлях
                       </span>
                     )}
                   </div>
                   <div className="text-xs text-slate-400 flex flex-wrap gap-x-4 gap-y-1">
-                    <span>⏱ Строки: <strong className="text-slate-200">{g.weeks}</strong></span>
-                    <span>👷 Бригада: <strong className="text-slate-200">{g.crew}</strong></span>
-                    <span>🚜 Техніка: <strong className="text-slate-200">{g.machinery}</strong></span>
+                    <span>Старт: <strong className="text-slate-200">тиждень {g.startWeek}</strong></span>
+                    <span>Тривалість: <strong className="text-slate-200">{g.durationWeeks} тиж.</strong></span>
+                    <span>Бригада: <strong className="text-slate-200">{g.crewNeeded || 'UNKNOWN'}</strong></span>
+                    <span>Техніка: <strong className="text-slate-200">{g.machineryNeeded?.length ? g.machineryNeeded.join(', ') : 'UNKNOWN'}</strong></span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-black rounded-xl">
-                    ✓ РЕСУРСИ ПІДТВЕРДЖЕНО
+                  <span className={`px-3 py-1 border text-xs font-black rounded-xl ${g.feasibleWithCurrentResources ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
+                    {g.feasibleWithCurrentResources ? 'РЕСУРСИ ПІДТВЕРДЖЕНО' : 'ПОТРІБНА ПЕРЕВІРКА'}
                   </span>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-black text-white">Графік робіт ще не підтверджено</h3>
+                  <p className="text-sm text-slate-400">
+                    Вигадані Gantt-етапи вимкнено. Створіть задачі через модуль Gantt, щоб War Room міг оцінювати строки й ресурси.
+                  </p>
+                </div>
+                {onNavigate && (
+                  <button onClick={() => onNavigate('gantt-chart')} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors">
+                    Відкрити Gantt
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

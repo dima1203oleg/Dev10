@@ -83,7 +83,7 @@ export default function App() {
             region: t.detailedData?.region || 'NOT_AVAILABLE',
             status: t.status || 'ACTIVE',
             category: t.detailedData?.category || 'NOT_AVAILABLE',
-            foulScore: t.foulScore || 0,
+            foulScore: t.foulScore ?? null,
             riskLevel: t.riskLevel || 'LOW',
             summary: t.summary || '',
             boqItems: t.detailedData?.boqItems || [],
@@ -96,6 +96,9 @@ export default function App() {
         }
         if (data.favorites) {
           setStarredTenders(new Set(data.favorites.map((id: any) => id.toString())));
+        }
+        if (Array.isArray(data.bidPackages)) {
+          setBidPackages(data.bidPackages as BidPackage[]);
         }
         if (data.profile) {
           const rawProfile = data.profile;

@@ -6,7 +6,8 @@ import dotenv from "dotenv";
 import { requireAuth, AuthRequest, issueLocalDevelopmentToken } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
 import { db } from "./src/db/index.ts";
-import { users, tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments, organizations, teamMembers, teamTasks, teamComments, auditLogs, favorites, jobs, boqItems, ganttTasks } from "./src/db/schema.ts";
+import { users, tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments, organizations, teamMembers, teamTasks, teamComments, auditLogs, favorites, jobs, boqItems, ganttTasks, bidPackages } from "./src/db/schema.ts";
+import { createHash } from "node:crypto";
 import { eq, and } from "drizzle-orm";
 import multer from 'multer';
 import { createStorageProvider } from './src/lib/storage.ts';
@@ -159,11 +160,13 @@ app.get("/api/data", requireAuth, async (req: AuthRequest, res) => {
     
     // Fetch favorites
     const userFavorites = await db.select().from(favorites).where(eq(favorites.userId, dbUser.id));
+    const userBidPackages = await db.select().from(bidPackages).where(eq(bidPackages.orgId, req.orgId!));
     
     res.json({
       tenders: userTenders,
       profile: profile,
-      favorites: userFavorites.map(f => f.tenderId)
+      favorites: userFavorites.map(f => f.tenderId),
+      bidPackages: userBidPackages.map((pkg) => ({ ...(pkg.manifest as Record<string, unknown>), id: pkg.id, tenderId: String(pkg.tenderId), status: pkg.status, updatedAt: pkg.updatedAt?.toISOString().split('T')[0] }))
     });
   } catch (error) {
     console.error("Data fetch error:", error);
@@ -1465,20 +1468,28 @@ app.get("/api/prozorro/tender/:id", requireAuth, async (req: AuthRequest, res) =
 // API: Document Management
 app.get("/api/tenders/:tenderId/documents", requireAuth, async (req: AuthRequest, res) => {
   try {
-    const { tenderId } = req.params;
-    const docs = await db.select().from(tenderDocuments).where(eq(tenderDocuments.tenderId, parseInt(tenderId)));
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
+    if (!Number.isInteger(tenderId)) {
+      return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
+    }
+    const docs = await db.select().from(tenderDocuments).where(and(eq(tenderDocuments.tenderId, tenderId), eq(tenderDocuments.orgId, req.orgId!)));
     res.json(docs);
   } catch (error) {
     console.error("Fetch documents error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: { code: 'DOCUMENT_LIST_FAILED', message: 'Failed to load documents.' }, requestId: req.requestId });
   }
 });
 
 app.post("/api/tenders/:tenderId/documents", requireAuth, upload.single('file'), async (req: AuthRequest, res, next) => {
   try {
-    const { tenderId } = req.params;
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
     const { type } = req.body;
     const file = req.file;
+    if (!Number.isInteger(tenderId)) {
+      return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
+    }
+    const [tender] = await db.select().from(tendersTable).where(and(eq(tendersTable.id, tenderId), eq(tendersTable.orgId, req.orgId!))).limit(1);
+    if (!tender) return res.status(404).json({ error: { code: 'TENDER_NOT_FOUND', message: 'Tender not found in this organization.' }, requestId: req.requestId });
 
     if (!file) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -1492,7 +1503,7 @@ app.post("/api/tenders/:tenderId/documents", requireAuth, upload.single('file'),
     // Save to database
     const [newDoc] = await db.insert(tenderDocuments).values({
       id: crypto.randomUUID(),
-      tenderId: parseInt(tenderId),
+      tenderId,
       orgId: req.orgId!,
       userId: req.dbUserId!,
       name: verified.fileName,
@@ -1514,12 +1525,17 @@ app.post("/api/tenders/:tenderId/documents", requireAuth, upload.single('file'),
 
 app.delete("/api/tenders/:tenderId/documents/:docId", requireAuth, async (req: AuthRequest, res) => {
   try {
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
     const { docId } = req.params;
-    const [doc] = await db.select().from(tenderDocuments).where(eq(tenderDocuments.id, docId));
+    if (!Number.isInteger(tenderId)) {
+      return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
+    }
+    const [doc] = await db.select().from(tenderDocuments).where(and(eq(tenderDocuments.id, docId), eq(tenderDocuments.tenderId, tenderId), eq(tenderDocuments.orgId, req.orgId!)));
     if (doc && doc.storageKey) {
       await storage.delete(doc.storageKey);
     }
-    await db.delete(tenderDocuments).where(eq(tenderDocuments.id, docId));
+    if (!doc) return res.status(404).json({ error: { code: 'DOCUMENT_NOT_FOUND', message: 'Document not found.' }, requestId: req.requestId });
+    await db.delete(tenderDocuments).where(and(eq(tenderDocuments.id, docId), eq(tenderDocuments.tenderId, tenderId), eq(tenderDocuments.orgId, req.orgId!)));
     res.json({ status: "deleted" });
   } catch (error) {
     console.error("Delete document error:", error);
@@ -1529,8 +1545,12 @@ app.delete("/api/tenders/:tenderId/documents/:docId", requireAuth, async (req: A
 
 app.get("/api/tenders/:tenderId/documents/:docId/download", requireAuth, async (req: AuthRequest, res) => {
   try {
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
     const { docId } = req.params;
-    const [doc] = await db.select().from(tenderDocuments).where(eq(tenderDocuments.id, docId));
+    if (!Number.isInteger(tenderId)) {
+      return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
+    }
+    const [doc] = await db.select().from(tenderDocuments).where(and(eq(tenderDocuments.id, docId), eq(tenderDocuments.tenderId, tenderId), eq(tenderDocuments.orgId, req.orgId!)));
     
     if (!doc || !doc.storageKey) {
       return res.status(404).json({ error: "Document not found" });
@@ -1592,68 +1612,144 @@ app.get('/api/jobs/:id', requireAuth, async (req: AuthRequest, res) => {
 });
 
 app.get('/api/tenders/:tenderId/boq', requireAuth, async (req: AuthRequest, res) => {
-  const tenderId = Number.parseInt(req.params.tenderId, 10);
-  if (!Number.isInteger(tenderId)) return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
-  const items = await db.select().from(boqItems).where(and(eq(boqItems.tenderId, tenderId), eq(boqItems.orgId, req.orgId!)));
-  return res.json({ data: items, requestId: req.requestId });
+  try {
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
+    if (!Number.isInteger(tenderId)) return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
+    const items = await db.select().from(boqItems).where(and(eq(boqItems.tenderId, tenderId), eq(boqItems.orgId, req.orgId!)));
+    return res.json({ data: items, requestId: req.requestId });
+  } catch (error) {
+    console.error('BoQ list error:', error);
+    return res.status(500).json({ error: { code: 'BOQ_LIST_FAILED', message: 'Failed to load BoQ items.' }, requestId: req.requestId });
+  }
 });
 
 app.post('/api/tenders/:tenderId/boq', requireAuth, async (req: AuthRequest, res) => {
-  const tenderId = Number.parseInt(req.params.tenderId, 10);
-  const { code, name, unit, quantity, unitPriceUah, sourceDocumentId, sourcePage, sourceBbox } = req.body || {};
-  const parsedQuantity = Number(quantity);
-  const parsedPrice = unitPriceUah === null || unitPriceUah === undefined || unitPriceUah === '' ? null : Number(unitPriceUah);
-  if (!Number.isInteger(tenderId) || !String(name || '').trim() || !String(unit || '').trim() || !Number.isFinite(parsedQuantity) || parsedQuantity < 0 || (parsedPrice !== null && (!Number.isFinite(parsedPrice) || parsedPrice < 0))) {
-    return res.status(400).json({ error: { code: 'INVALID_BOQ_ITEM', message: 'Name, unit and non-negative numeric quantity/price are required.' }, requestId: req.requestId });
+  try {
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
+    const { code, name, unit, quantity, unitPriceUah, sourceDocumentId, sourcePage, sourceBbox } = req.body || {};
+    const parsedQuantity = Number(quantity);
+    const parsedPrice = unitPriceUah === null || unitPriceUah === undefined || unitPriceUah === '' ? null : Number(unitPriceUah);
+    if (!Number.isInteger(tenderId) || !String(name || '').trim() || !String(unit || '').trim() || !Number.isFinite(parsedQuantity) || parsedQuantity < 0 || (parsedPrice !== null && (!Number.isFinite(parsedPrice) || parsedPrice < 0))) {
+      return res.status(400).json({ error: { code: 'INVALID_BOQ_ITEM', message: 'Name, unit and non-negative numeric quantity/price are required.' }, requestId: req.requestId });
+    }
+    const [tender] = await db.select().from(tendersTable).where(and(eq(tendersTable.id, tenderId), eq(tendersTable.orgId, req.orgId!))).limit(1);
+    if (!tender) return res.status(404).json({ error: { code: 'TENDER_NOT_FOUND', message: 'Tender not found in this organization.' }, requestId: req.requestId });
+    const [item] = await db.insert(boqItems).values({ id: crypto.randomUUID(), orgId: req.orgId!, tenderId, code: code || null, name: String(name).trim(), unit: String(unit).trim(), quantity: parsedQuantity, unitPriceUah: parsedPrice, sourceDocumentId: sourceDocumentId || null, sourcePage: sourcePage || null, sourceBbox: sourceBbox || null }).returning();
+    return res.status(201).json({ data: item, requestId: req.requestId });
+  } catch (error) {
+    console.error('BoQ create error:', error);
+    return res.status(500).json({ error: { code: 'BOQ_CREATE_FAILED', message: 'Failed to create BoQ item.' }, requestId: req.requestId });
   }
-  const [item] = await db.insert(boqItems).values({ id: crypto.randomUUID(), orgId: req.orgId!, tenderId, code: code || null, name: String(name).trim(), unit: String(unit).trim(), quantity: parsedQuantity, unitPriceUah: parsedPrice, sourceDocumentId: sourceDocumentId || null, sourcePage: sourcePage || null, sourceBbox: sourceBbox || null }).returning();
-  return res.status(201).json({ data: item, requestId: req.requestId });
 });
 
 app.delete('/api/tenders/:tenderId/boq/:itemId', requireAuth, async (req: AuthRequest, res) => {
-  const tenderId = Number.parseInt(req.params.tenderId, 10);
-  const [deleted] = await db.delete(boqItems).where(and(eq(boqItems.id, req.params.itemId), eq(boqItems.tenderId, tenderId), eq(boqItems.orgId, req.orgId!))).returning();
-  if (!deleted) return res.status(404).json({ error: { code: 'BOQ_ITEM_NOT_FOUND', message: 'BOQ item not found.' }, requestId: req.requestId });
-  return res.json({ data: deleted, requestId: req.requestId });
+  try {
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
+    if (!Number.isInteger(tenderId)) return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
+    const [deleted] = await db.delete(boqItems).where(and(eq(boqItems.id, req.params.itemId), eq(boqItems.tenderId, tenderId), eq(boqItems.orgId, req.orgId!))).returning();
+    if (!deleted) return res.status(404).json({ error: { code: 'BOQ_ITEM_NOT_FOUND', message: 'BoQ item not found.' }, requestId: req.requestId });
+    return res.json({ data: deleted, requestId: req.requestId });
+  } catch (error) {
+    console.error('BoQ delete error:', error);
+    return res.status(500).json({ error: { code: 'BOQ_DELETE_FAILED', message: 'Failed to delete BoQ item.' }, requestId: req.requestId });
+  }
 });
 
 app.get('/api/tenders/:tenderId/gantt', requireAuth, async (req: AuthRequest, res) => {
-  const tenderId = Number.parseInt(req.params.tenderId, 10);
-  const tasks = await db.select().from(ganttTasks).where(and(eq(ganttTasks.tenderId, tenderId), eq(ganttTasks.orgId, req.orgId!)));
-  return res.json({ data: tasks, requestId: req.requestId });
+  try {
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
+    if (!Number.isInteger(tenderId)) return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
+    const tasks = await db.select().from(ganttTasks).where(and(eq(ganttTasks.tenderId, tenderId), eq(ganttTasks.orgId, req.orgId!)));
+    return res.json({ data: tasks, requestId: req.requestId });
+  } catch (error) {
+    console.error('Gantt list error:', error);
+    return res.status(500).json({ error: { code: 'GANTT_LIST_FAILED', message: 'Failed to load Gantt tasks.' }, requestId: req.requestId });
+  }
 });
 
 app.post('/api/tenders/:tenderId/gantt', requireAuth, async (req: AuthRequest, res) => {
-  const tenderId = Number.parseInt(req.params.tenderId, 10);
-  const { title, startsAt, endsAt, status, critical } = req.body || {};
-  const start = new Date(startsAt);
-  const end = new Date(endsAt);
-  if (!Number.isInteger(tenderId) || !String(title || '').trim() || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
-    return res.status(400).json({ error: { code: 'INVALID_GANTT_TASK', message: 'Valid title and date range are required.' }, requestId: req.requestId });
+  try {
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
+    const { title, startsAt, endsAt, status, critical } = req.body || {};
+    const start = new Date(startsAt);
+    const end = new Date(endsAt);
+    if (!Number.isInteger(tenderId) || !String(title || '').trim() || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+      return res.status(400).json({ error: { code: 'INVALID_GANTT_TASK', message: 'Valid title and date range are required.' }, requestId: req.requestId });
+    }
+    const [tender] = await db.select().from(tendersTable).where(and(eq(tendersTable.id, tenderId), eq(tendersTable.orgId, req.orgId!))).limit(1);
+    if (!tender) return res.status(404).json({ error: { code: 'TENDER_NOT_FOUND', message: 'Tender not found in this organization.' }, requestId: req.requestId });
+    const [task] = await db.insert(ganttTasks).values({ id: crypto.randomUUID(), orgId: req.orgId!, tenderId, title: String(title).trim(), startsAt: start, endsAt: end, status: status || 'TODO', critical: Boolean(critical) }).returning();
+    return res.status(201).json({ data: task, requestId: req.requestId });
+  } catch (error) {
+    console.error('Gantt create error:', error);
+    return res.status(500).json({ error: { code: 'GANTT_CREATE_FAILED', message: 'Failed to create Gantt task.' }, requestId: req.requestId });
   }
-  const [task] = await db.insert(ganttTasks).values({ id: crypto.randomUUID(), orgId: req.orgId!, tenderId, title: String(title).trim(), startsAt: start, endsAt: end, status: status || 'TODO', critical: Boolean(critical) }).returning();
-  return res.status(201).json({ data: task, requestId: req.requestId });
 });
 
 app.patch('/api/tenders/:tenderId/gantt/:taskId', requireAuth, async (req: AuthRequest, res) => {
-  const tenderId = Number.parseInt(req.params.tenderId, 10);
-  const allowedStatus = new Set(['TODO', 'IN_PROGRESS', 'DONE']);
-  const changes: { status?: string; critical?: boolean; updatedAt: Date } = { updatedAt: new Date() };
-  if (req.body?.status !== undefined) {
-    if (!allowedStatus.has(req.body.status)) return res.status(400).json({ error: { code: 'INVALID_GANTT_STATUS', message: 'Invalid task status.' }, requestId: req.requestId });
-    changes.status = req.body.status;
+  try {
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
+    if (!Number.isInteger(tenderId)) return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
+    const allowedStatus = new Set(['TODO', 'IN_PROGRESS', 'DONE']);
+    const changes: { status?: string; critical?: boolean; updatedAt: Date } = { updatedAt: new Date() };
+    if (req.body?.status !== undefined) {
+      if (!allowedStatus.has(req.body.status)) return res.status(400).json({ error: { code: 'INVALID_GANTT_STATUS', message: 'Invalid task status.' }, requestId: req.requestId });
+      changes.status = req.body.status;
+    }
+    if (req.body?.critical !== undefined) changes.critical = Boolean(req.body.critical);
+    const [task] = await db.update(ganttTasks).set(changes).where(and(eq(ganttTasks.id, req.params.taskId), eq(ganttTasks.tenderId, tenderId), eq(ganttTasks.orgId, req.orgId!))).returning();
+    if (!task) return res.status(404).json({ error: { code: 'GANTT_TASK_NOT_FOUND', message: 'Gantt task not found.' }, requestId: req.requestId });
+    return res.json({ data: task, requestId: req.requestId });
+  } catch (error) {
+    console.error('Gantt update error:', error);
+    return res.status(500).json({ error: { code: 'GANTT_UPDATE_FAILED', message: 'Failed to update Gantt task.' }, requestId: req.requestId });
   }
-  if (req.body?.critical !== undefined) changes.critical = Boolean(req.body.critical);
-  const [task] = await db.update(ganttTasks).set(changes).where(and(eq(ganttTasks.id, req.params.taskId), eq(ganttTasks.tenderId, tenderId), eq(ganttTasks.orgId, req.orgId!))).returning();
-  if (!task) return res.status(404).json({ error: { code: 'GANTT_TASK_NOT_FOUND', message: 'Gantt task not found.' }, requestId: req.requestId });
-  return res.json({ data: task, requestId: req.requestId });
 });
 
 app.delete('/api/tenders/:tenderId/gantt/:taskId', requireAuth, async (req: AuthRequest, res) => {
-  const tenderId = Number.parseInt(req.params.tenderId, 10);
-  const [deleted] = await db.delete(ganttTasks).where(and(eq(ganttTasks.id, req.params.taskId), eq(ganttTasks.tenderId, tenderId), eq(ganttTasks.orgId, req.orgId!))).returning();
-  if (!deleted) return res.status(404).json({ error: { code: 'GANTT_TASK_NOT_FOUND', message: 'Gantt task not found.' }, requestId: req.requestId });
-  return res.json({ data: deleted, requestId: req.requestId });
+  try {
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
+    if (!Number.isInteger(tenderId)) return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
+    const [deleted] = await db.delete(ganttTasks).where(and(eq(ganttTasks.id, req.params.taskId), eq(ganttTasks.tenderId, tenderId), eq(ganttTasks.orgId, req.orgId!))).returning();
+    if (!deleted) return res.status(404).json({ error: { code: 'GANTT_TASK_NOT_FOUND', message: 'Gantt task not found.' }, requestId: req.requestId });
+    return res.json({ data: deleted, requestId: req.requestId });
+  } catch (error) {
+    console.error('Gantt delete error:', error);
+    return res.status(500).json({ error: { code: 'GANTT_DELETE_FAILED', message: 'Failed to delete Gantt task.' }, requestId: req.requestId });
+  }
+});
+
+app.get('/api/tenders/:tenderId/bid-packages', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
+    if (!Number.isInteger(tenderId)) return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
+    const packages = await db.select().from(bidPackages).where(and(eq(bidPackages.tenderId, tenderId), eq(bidPackages.orgId, req.orgId!)));
+    return res.json({ data: packages.map((pkg) => ({ ...(pkg.manifest as Record<string, unknown>), id: pkg.id, tenderId: String(pkg.tenderId), status: pkg.status, updatedAt: pkg.updatedAt?.toISOString().split('T')[0] })), requestId: req.requestId });
+  } catch (error) {
+    console.error('Bid package list error:', error);
+    return res.status(500).json({ error: { code: 'BID_PACKAGE_LIST_FAILED', message: 'Failed to load bid packages.' }, requestId: req.requestId });
+  }
+});
+
+app.post('/api/tenders/:tenderId/bid-packages', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
+    if (!Number.isInteger(tenderId)) return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
+    const [tender] = await db.select().from(tendersTable).where(and(eq(tendersTable.id, tenderId), eq(tendersTable.orgId, req.orgId!))).limit(1);
+    if (!tender) return res.status(404).json({ error: { code: 'TENDER_NOT_FOUND', message: 'Tender not found in this organization.' }, requestId: req.requestId });
+    const manifest = req.body?.manifest;
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !String(manifest.companyName || '').trim() || !Array.isArray(manifest.documents)) {
+      return res.status(400).json({ error: { code: 'INVALID_BID_PACKAGE', message: 'Company name and document manifest are required.' }, requestId: req.requestId });
+    }
+    const id = crypto.randomUUID();
+    const serialized = JSON.stringify(manifest);
+    const contentHash = createHash('sha256').update(serialized).digest('hex');
+    const [pkg] = await db.insert(bidPackages).values({ id, orgId: req.orgId!, tenderId, status: String(manifest.status || 'IN_PROGRESS'), contentHash, manifest }).returning();
+    return res.status(201).json({ data: { ...(pkg.manifest as Record<string, unknown>), id: pkg.id, tenderId: String(pkg.tenderId), status: pkg.status, updatedAt: pkg.updatedAt?.toISOString().split('T')[0] }, requestId: req.requestId });
+  } catch (error) {
+    console.error('Bid package create error:', error);
+    return res.status(500).json({ error: { code: 'BID_PACKAGE_CREATE_FAILED', message: 'Failed to create bid package.' }, requestId: req.requestId });
+  }
 });
 
 

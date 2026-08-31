@@ -16,6 +16,7 @@ import {
   Scale,
   Building2
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface RequirementMatrixModuleProps {
   currentTender: Tender;
@@ -32,6 +33,7 @@ export const RequirementMatrixModule: React.FC<RequirementMatrixModuleProps> = (
   onNavigateToAmcu,
   onNavigateToVault,
 }) => {
+  const { token } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [isMatching, setIsMatching] = useState(false);
@@ -53,7 +55,7 @@ export const RequirementMatrixModule: React.FC<RequirementMatrixModuleProps> = (
     try {
       const response = await fetch('/api/company/audit-vault-match', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           companyProfile: company,
           tenderTitle: currentTender.title,
@@ -64,7 +66,7 @@ export const RequirementMatrixModule: React.FC<RequirementMatrixModuleProps> = (
 
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || 'Помилка зіставлення вимог з Vault');
+        throw new Error(errData.error?.message || errData.error || 'Помилка зіставлення вимог з Vault');
       }
       const data = await response.json();
       if (data.requirements) {

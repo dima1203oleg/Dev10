@@ -2,11 +2,13 @@
 **Код документу:** TA-TEST-SPEC-2026-V4  
 **Стандарт:** ISO/IEC 29119 • Верифікація повного життєвого циклу публічних закупівель (Prozorro / TenderAI)
 
-> **Поточний статус — 2026-08-31:** `NOT EXECUTED TO COMPLETION`. TypeScript, unit tests, PostgreSQL cross-tenant RLS integration, production build and dependency audit pass. Попередні `PASSED` у таблицях нижче не є доказом для поточної ревізії; реальний Firebase login та повний browser E2E заблоковані.
+> **Поточний статус — 2026-09-01:** `NOT EXECUTED TO COMPLETION`. TypeScript, 18 tests (1 skipped), PostgreSQL cross-tenant RLS integration, production build and dependency audit pass. Попередні `PASSED` у таблицях нижче не є доказом для поточної ревізії; реальний Firebase login та повний browser E2E заблоковані.
 
 > **Browser retest:** оболонка й кнопка входу відображаються без console errors, але Google sign-in завершується точним кодом `auth/internal-error`. Production-захист не вимикався. Для `auth/popup-blocked` і `auth/cancelled-popup-request` додано офіційний Firebase redirect fallback.
 
 > **Firebase configuration recheck:** Google provider is enabled and `localhost` plus `127.0.0.1` are authorized. The in-app browser still cannot persist the redirect session because its embedded browser storage flow returns unauthenticated; `auth/internal-error` now also triggers redirect. Authenticated UI E2E remains `BLOCKED`, not `PASS`.
+
+> **2026-09-01 browser smoke evidence:** Local developer session exercised the live Radar (30 Prozorro results), real tender selection, persisted BoQ create, persisted Gantt create, bid-package create/read via API, and all 14 primary navigation sections. Null-source budgets and scores render `UNKNOWN`; no React-root crashes were observed after the fixes. The consilium action returns a readable validation error when required source data/Gemini configuration is absent. This is a smoke PASS only; authenticated Firebase, live Gemini, OCR and production-like service gates remain BLOCKED.
 
 ---
 

@@ -40,7 +40,7 @@ export const MultiAgentChat: React.FC<MultiAgentChatProps> = ({ currentTender })
       agentRole: 'CONSILIUM',
       agentName: 'Оркестратор консиліуму TenderAI & FoulTender',
       agentAvatar: '🤖',
-      text: `Вітаємо! Ми – команда з 5 спеціалізованих ШІ-агентів. Ми завантажили дані по проєкту «${currentTender.title}» (бюджет: ${currentTender.budgetUah.toLocaleString()} грн). Ви можете запитати будь-якого фахівця (кошторисника, інженера, юриста, антифрод-аудитора або стратега) або отримати колективну відповідь консиліуму.`,
+      text: `Вітаємо! Ми – команда з 5 спеціалізованих ШІ-агентів. Ми завантажили дані по проєкту «${currentTender.title}» (бюджет: ${currentTender.budgetUah != null ? `${currentTender.budgetUah.toLocaleString()} грн` : 'UNKNOWN'}). Ви можете запитати будь-якого фахівця (кошторисника, інженера, юриста, антифрод-аудитора або стратега) або отримати колективну відповідь консиліуму.`,
       timestamp: 'Щойно',
     },
   ]);

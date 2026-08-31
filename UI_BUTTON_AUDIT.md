@@ -5,6 +5,8 @@
 
 > **Current verification override — 2026-08-31:** Production build passes and BoQ/Gantt screens now use persisted APIs, but the required inventory of 237 controls and authenticated Playwright evidence does not exist. Firebase browser login currently fails with `auth/internal-error`; therefore the UI gate is `BLOCKED`.
 
+> **2026-09-01 smoke update:** 14 primary navigation controls were exercised in the local developer session. Radar → War Room → BoQ/Gantt and bid-package creation paths completed with persisted API responses; previously crashing null-budget FoulTender and Bid Package screens now render safely. Full 237-control evidence and Firebase-authenticated E2E remain `BLOCKED`.
+
 ---
 
 ## 1. Interactive Button Verification Register

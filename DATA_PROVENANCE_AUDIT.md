@@ -9,6 +9,8 @@
 
 **Version provenance update:** `line-diff-v1` returns SHA-256 for both source versions and only exact added/removed lines. It deliberately records risk as `UNKNOWN` rather than inferring legal intent from text changes.
 
+**2026-09-01 execution note:** bid-package manifests are SHA-256 persisted; live OCR page/bbox evidence remains `BLOCKED`.
+
 ---
 
 ## 1. Ground Truth Provenance Engine

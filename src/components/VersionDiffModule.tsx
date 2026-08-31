@@ -12,6 +12,7 @@ import {
   Clock,
   Layers
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface VersionDiffModuleProps {
   currentTender: Tender;
@@ -22,6 +23,7 @@ export const VersionDiffModule: React.FC<VersionDiffModuleProps> = ({
   currentTender,
   onNavigateToAmcu,
 }) => {
+  const { token } = useAuth();
   const [versionDiff, setVersionDiff] = useState<TenderVersionDiff | undefined>(currentTender.versionDiff);
   const [isComparing, setIsComparing] = useState(false);
   const [diffError, setDiffError] = useState<string | null>(null);
@@ -33,18 +35,21 @@ export const VersionDiffModule: React.FC<VersionDiffModuleProps> = ({
     setIsComparing(true);
     setDiffError(null);
     try {
+      if (!customV1Text.trim() || !customV2Text.trim()) {
+        throw new Error('Вставте обидві підтверджені редакції тендерної документації для порівняння. Автоматичні приклади вимкнені.');
+      }
       const response = await fetch('/api/tenderai/version-diff', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           tenderId: currentTender.tenderNumber,
-          version1Text: customV1Text || 'Первинна редакція ТД (термін 60 днів, без обмеження 12 км)',
-          version2Text: customV2Text || 'Нова редакція ТД (термін 18 днів, вимога бази не далі 12 км, забезпечення 5%)'
+          version1Text: customV1Text.trim(),
+          version2Text: customV2Text.trim()
         })
       });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || 'Помилка порівняння версій');
+        throw new Error(errData.error?.message || errData.error || 'Помилка порівняння версій');
       }
       const data = await response.json();
       setVersionDiff(data);

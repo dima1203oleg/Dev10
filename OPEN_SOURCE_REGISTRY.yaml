@@ -2,7 +2,7 @@
 ## COMPLIANT AND VERIFIED SOFTWARE DEPENDENCY REGISTRY
 ---
 current_audit:
-  date: 2026-08-31
+  date: 2026-09-01
   overall_status: NOT_READY
   rule: "Only PostgreSQL has a passing local integration gate; all other runtime integrations remain UNKNOWN or BLOCKED. Entries below do not override this gate."
 components:

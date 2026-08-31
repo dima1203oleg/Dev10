@@ -13,6 +13,8 @@
 
 **2026-08-31 fail-closed update:** routes that previously emitted unverified numeric tender/BoQ records return typed `503` errors (`DETERMINISTIC_ANALYSIS_REQUIRED`, `OFFICIAL_PROZORRO_FETCH_REQUIRED`) until official, persisted provenance is available.
 
+**2026-09-01 contract update:** tenant-scoped `GET/POST /api/tenders/:tenderId/bid-packages` now persist and return content-hashed manifests. BoQ/Gantt and bid-package handlers validate numeric tender IDs and same-organization ownership before writes. Local browser smoke confirmed successful BoQ, Gantt and bid-package round trips; live production integrations remain unverified.
+
 ---
 
 ## 1. API Verification Principles

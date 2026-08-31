@@ -37,7 +37,7 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
   const { token } = useAuth();
   const [tenderText, setTenderText] = useState(currentTender.tenderText || '');
   const [customTitle, setCustomTitle] = useState(currentTender.title);
-  const [customBudget, setCustomBudget] = useState(currentTender.budgetUah.toString());
+  const [customBudget, setCustomBudget] = useState(currentTender.budgetUah != null ? String(currentTender.budgetUah) : '');
   const [isAuditing, setIsAuditing] = useState(false);
   const [auditError, setAuditError] = useState<string | null>(null);
   const [auditResult, setAuditResult] = useState<{
@@ -67,7 +67,7 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
       });
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || 'Не вдалося виконати ШІ-аудит ТД');
+        throw new Error(errJson.error?.message || errJson.error || 'Не вдалося виконати ШІ-аудит ТД');
       }
       const data = await res.json();
       setAuditResult(data);
@@ -81,11 +81,12 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
 
   const activeFoulScore = auditResult ? auditResult.foulScore : currentTender.foulScore;
   const activeSummary = auditResult ? auditResult.summary : currentTender.summary;
-  const activeViolations = auditResult ? auditResult.violations : currentTender.violations;
+  const activeViolations = auditResult ? auditResult.violations : (currentTender.violations || []);
   const activeAmcu = auditResult ? auditResult.amcuAppealRecommendation : currentTender.amcuAppealRecommendation;
 
-  const isHighRisk = activeFoulScore >= 60;
-  const isClean = activeFoulScore < 35;
+  const hasScore = Number.isFinite(activeFoulScore);
+  const isHighRisk = hasScore && activeFoulScore >= 60;
+  const isClean = hasScore && activeFoulScore < 35;
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -115,7 +116,7 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
               if (found) {
                 onSelectTender(found);
                 setCustomTitle(found.title);
-                setCustomBudget(found.budgetUah.toString());
+                setCustomBudget(found.budgetUah != null ? String(found.budgetUah) : '');
                 setTenderText(found.tenderText || '');
                 setAuditResult(null);
               }
@@ -288,11 +289,11 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
                         ? 'bg-emerald-500/30 text-emerald-300' 
                         : 'bg-amber-500/30 text-amber-300'
                     }`}>
-                      {isHighRisk ? 'Критичний ризик' : isClean ? 'Чистий тендер' : 'Помірний ризик'}
+                      {!hasScore ? 'Немає підтвердженого балу' : isHighRisk ? 'Критичний ризик' : isClean ? 'Чистий тендер' : 'Помірний ризик'}
                     </span>
                   </div>
                   <h3 className="text-base font-bold text-white mt-1">
-                    {isHighRisk ? 'Виявлено ознаки дискримінації або змови' : isClean ? 'Дискримінаційних обмежень не виявлено' : 'Є спірні кваліфікаційні вимоги'}
+                    {!hasScore ? 'Очікує антикорупційного аналізу' : isHighRisk ? 'Виявлено ознаки дискримінації або змови' : isClean ? 'Дискримінаційних обмежень не виявлено' : 'Є спірні кваліфікаційні вимоги'}
                   </h3>
                 </div>
               </div>
@@ -398,7 +399,7 @@ export const FoulTenderModule: React.FC<FoulTenderModuleProps> = ({
                   {activeAmcu.appealGrounds}
                 </p>
                 <div className="text-[11px] text-slate-400">
-                  Орієнтовна плата за подання: <strong className="text-slate-200 font-mono">{(activeAmcu.estimatedAmcuFeeUah || 85000).toLocaleString()} ₴</strong>
+                  Орієнтовна плата за подання: <strong className="text-slate-200 font-mono">{activeAmcu.estimatedAmcuFeeUah != null ? `${activeAmcu.estimatedAmcuFeeUah.toLocaleString()} ₴` : 'UNKNOWN'}</strong>
                 </div>
               </div>
 

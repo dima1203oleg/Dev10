@@ -1,12 +1,14 @@
 # Production Readiness — Independent Gate
 
-Date: 2026-08-31
+Date: 2026-09-01
 
 ## Decision: **NOT READY / DO NOT DEPLOY**
 
 The repository cannot truthfully be submitted as a tested production release yet. This decision supersedes earlier PASS/READY claims in repository reports.
 
-Latest offline gate: TypeScript lint, 14 tests (1 skipped), production build, and moderate dependency audit pass. Release remains `NOT READY` because live service and authenticated browser evidence are unavailable.
+Latest offline gate: TypeScript lint, 18 tests (1 skipped), production build, and moderate dependency audit pass. Release remains `NOT READY` because live service and authenticated browser evidence are unavailable.
+
+Latest UI smoke gate: local developer session passed Radar live-data rendering, tender selection, BoQ/Gantt persistence, bid-package persistence and all 14 primary navigation sections. This does not change the release decision because Firebase/Gemini and production-like OCR, Temporal, ClamAV, S3 and pgvector gates remain blocked.
 
 ## Verified blockers
 

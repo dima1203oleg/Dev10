@@ -5,6 +5,8 @@
 
 > **Current verification override — 2026-08-31:** PostgreSQL is the only component in this list with a passing local integration test. Repository/license review is not runtime acceptance; Docling, PaddleOCR, Temporal, ClamAV, DuckDB, pgvector and SeaweedFS remain `UNKNOWN/BLOCKED` until their gates pass.
 
+> **2026-09-01 execution note:** no external component was promoted to runtime acceptance; status remains `CANDIDATES / PARTIALLY INTEGRATED`.
+
 ---
 
 ## 1. Core Architecture Integrations

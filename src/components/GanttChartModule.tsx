@@ -65,9 +65,9 @@ export const GanttChartModule: React.FC<Props> = ({ currentTender }) => {
     </header>
     {error && <div role="alert" className="p-4 rounded-xl bg-rose-950 text-rose-300">{error}</div>}
     <section className="grid md:grid-cols-4 gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-4">
-      <input aria-label="Назва завдання" value={title} onChange={e => setTitle(e.target.value)} placeholder="Назва завдання" className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white"/>
-      <input aria-label="Дата початку" type="date" value={startsAt} onChange={e => setStartsAt(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white"/>
-      <input aria-label="Дата завершення" type="date" value={endsAt} onChange={e => setEndsAt(e.target.value)} className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white"/>
+      <input aria-label="Назва завдання" value={title} onChange={e => setTitle(e.target.value)} onInput={e => setTitle(e.currentTarget.value)} placeholder="Назва завдання" className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white"/>
+      <input aria-label="Дата початку" type="date" value={startsAt} onChange={e => setStartsAt(e.target.value)} onInput={e => setStartsAt(e.currentTarget.value)} className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white"/>
+      <input aria-label="Дата завершення" type="date" value={endsAt} onChange={e => setEndsAt(e.target.value)} onInput={e => setEndsAt(e.currentTarget.value)} className="bg-slate-950 border border-slate-700 rounded-lg p-2 text-white"/>
       <button onClick={addTask} disabled={!title.trim() || !startsAt || !endsAt} className="bg-emerald-600 disabled:opacity-40 rounded-lg font-bold flex items-center justify-center gap-2"><Plus size={16}/>Додати</button>
     </section>
     <section className="bg-slate-900 border border-slate-800 rounded-2xl overflow-x-auto">

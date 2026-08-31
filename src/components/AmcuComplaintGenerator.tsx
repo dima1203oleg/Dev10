@@ -59,7 +59,7 @@ export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Не вдалося згенерувати скаргу до АМКУ');
+        throw new Error(errData.error?.message || errData.error || 'Не вдалося згенерувати скаргу до АМКУ');
       }
       const data = await res.json();
 
@@ -73,7 +73,7 @@ export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
         complainantEdrpou: complainantEdrpou,
         content: data.complaintText,
         legalReferences: data.legalReferences || ['Частина 4 статті 5 ЗУ «Про публічні закупівлі»', 'Частина 4 статті 22 ЗУ «Про публічні закупівлі»'],
-        estimatedFee: data.estimatedFee || 85000,
+        estimatedFee: Number.isFinite(Number(data.estimatedFee)) ? Number(data.estimatedFee) : null,
         status: 'DRAFT',
         createdAt: new Date().toISOString().split('T')[0],
       };
@@ -371,7 +371,7 @@ export const AmcuComplaintGenerator: React.FC<AmcuComplaintGeneratorProps> = ({
 
               <div className="bg-slate-800/80 rounded-xl p-4 flex items-center justify-between text-xs">
                 <div className="text-slate-300">
-                  Офіційна плата за розгляд скарги: <strong className="text-emerald-400 font-mono">{(selectedComplaint.estimatedFee || 85000).toLocaleString()} ₴</strong>
+                  Офіційна плата за розгляд скарги: <strong className="text-emerald-400 font-mono">{selectedComplaint.estimatedFee != null ? `${selectedComplaint.estimatedFee.toLocaleString()} ₴` : 'UNKNOWN'}</strong>
                 </div>
                 <div className="text-slate-400 text-[11px]">
                   Подається через авторизований електронний майданчик Prozorro

@@ -11,6 +11,8 @@
 
 **Risk engine update:** collusion numbers are produced only by the deterministic evidence engine covered by unit tests; the former Gemini-generated score path was removed.
 
+**2026-09-01 execution note:** UI smoke confirmed empty/unknown states for unverified scores and prices; complete chart reconciliation remains `BLOCKED`.
+
 ---
 
 ## 1. Verified Analytics Visualization Framework

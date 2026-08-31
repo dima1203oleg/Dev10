@@ -5,6 +5,8 @@
 
 > **Current implementation status — 2026-08-31:** `PARTIAL`. Transaction-scoped tenant context, forced PostgreSQL RLS, persisted jobs, BoQ and Gantt APIs are implemented and tested locally. Temporal, production object storage, live OCR, pgvector and DuckDB remain target architecture, not deployed capability.
 
+> **2026-09-01 execution note:** bid-package persistence is implemented within the tenant-scoped transaction plane; production-like external services remain unproven.
+
 ---
 
 ## 1. Enterprise System Blueprint

@@ -73,7 +73,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
       });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Помилка аналізу консиліуму AI агентів');
+        throw new Error(errData.error?.message || errData.error || 'Помилка аналізу консиліуму AI агентів');
       }
       const data = await res.json();
       onUpdateTenderAnalysis(currentTender.id, data);
@@ -89,14 +89,15 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
   const handleAddBoqItem = () => {
     const newItem: BoQItem = {
       id: `boq-new-${Date.now()}`,
-      code: 'ДБН Р-0-000',
-      description: 'Нова будівельно-монтажна позиція',
-      unit: 'м²',
-      quantity: 100,
-      standardPriceUah: 1500,
-      marketPriceUah: 1350,
-      laborHours: 50,
-      anomaly: 'NORMAL',
+      code: '',
+      description: '',
+      unit: 'UNKNOWN',
+      quantity: 0,
+      standardPriceUah: null,
+      marketPriceUah: null,
+      laborHours: null,
+      anomaly: null,
+      notes: 'Чернетка. Заповніть позицію вручну або імпортуйте її через перевірений document pipeline.',
     };
     const updated = [...boqItems, newItem];
     setBoqItems(updated);
@@ -663,10 +664,10 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
             <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4 space-y-2">
               <div className="text-[11px] font-bold text-slate-400 uppercase">Раунд 1 • Початкова ставка</div>
               <div className="text-xl font-bold text-white font-mono">
-                {((currentTender.budgetUah * 0.94)).toLocaleString()} ₴
+                UNKNOWN
               </div>
               <p className="text-xs text-slate-300">
-                Знижка 6% від очікуваної вартості. Дозволяє зафіксувати позицію в середині списку учасників.
+                Початкова ставка не розраховується без підтвердженої стратегії та джерельних цін.
               </p>
             </div>
 
@@ -677,7 +678,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                 UNKNOWN
               </div>
               <p className="text-xs text-slate-300">
-                Знижка 11%. Відсікання конкурентів без прямого доступу до виробників матеріалів.
+                Раунд очікує незалежного підтвердження вартості та правил аукціону.
               </p>
             </div>
 

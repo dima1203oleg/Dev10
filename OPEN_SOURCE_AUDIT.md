@@ -2,10 +2,12 @@
 ## SYSTEM DISCOVERY, TRIAGE & EVALUATION REGISTER
 **Document ID:** TA-OSA-001  
 **Version:** 1.0.0  
-**Timestamp:** 2026-08-28T09:40:00Z  
+**Timestamp:** 2026-09-01T02:30:00Z
 **Classification:** Proprietary Technical Specification
 
 > **Current verification override — 2026-08-31:** `PARTIAL / NOT READY`. Repository metadata for Docling, PaddleOCR, Temporal, ClamAV, DuckDB, pgvector, SeaweedFS and MinIO was reviewed. Runtime contract tests are still missing for every component except PostgreSQL; unverified claims below are historical target-state descriptions.
+
+> **2026-09-01 execution note:** local UI/API smoke passed for persisted BoQ, Gantt and bid-package paths; component runtime acceptance remains unchanged and `NOT READY`.
 
 ---
 

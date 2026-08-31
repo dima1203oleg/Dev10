@@ -71,7 +71,7 @@ export interface AmcuAppealRecommendation {
   recommended: boolean;
   prospectsText?: string;
   appealGrounds: string;
-  estimatedAmcuFeeUah: number;
+  estimatedAmcuFeeUah: number | null;
 }
 
 export interface AgentReport {
@@ -386,7 +386,7 @@ export interface AmcuComplaintDoc {
   complainantEdrpou: string;
   content: string;
   legalReferences: string[];
-  estimatedFee: number;
+  estimatedFee: number | null;
   status: 'DRAFT' | 'READY_FOR_SUBMISSION' | 'SUBMITTED';
   createdAt: string;
 }
@@ -643,4 +643,3 @@ export interface InteractiveGanttTask {
   status: 'COMPLETED' | 'IN_PROGRESS' | 'PLANNED' | 'DELAYED';
   riskNote?: string;
 }
-

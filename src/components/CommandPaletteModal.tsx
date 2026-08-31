@@ -178,7 +178,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
                         <div className="text-[10px] text-slate-400 flex items-center gap-3 mt-0.5">
                           <span className="truncate max-w-[240px]">{tender.customer}</span>
                           {tender.budgetUah && (
-                            <span className="font-mono text-slate-300">{tender.budgetUah.toLocaleString()} ₴</span>
+                            <span className="font-mono text-slate-300">{tender.budgetUah != null ? `${tender.budgetUah.toLocaleString()} ₴` : 'UNKNOWN'}</span>
                           )}
                         </div>
                       </div>

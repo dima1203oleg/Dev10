@@ -51,7 +51,7 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
       });
       if (!response.ok) {
         const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error || 'Помилка аналізу змов. Спробуйте ще раз.');
+        throw new Error(errJson.error?.message || errJson.error || 'Помилка аналізу змов. Спробуйте ще раз.');
       }
       const data = await response.json();
       const updatedCollusion: CollusionAnalysis = {

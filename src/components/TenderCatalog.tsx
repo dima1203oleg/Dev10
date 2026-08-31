@@ -596,7 +596,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                          {tender.region || tender.customerCity}
                        </span>
                        <span className="text-emerald-400 font-mono font-black text-xs">
-                         {tender.budgetUah !== null ? `${tender.budgetUah.toLocaleString()} ₴` : 'Ціна за запитом'}
+                         {tender.budgetUah != null ? `${tender.budgetUah.toLocaleString()} ₴` : 'Ціна за запитом'}
                        </span>
                      </div>
                    </div>
@@ -645,8 +645,13 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                             });
                             if (!res.ok) throw new Error();
                             const saved = await res.json();
-                            onAddNewTender(tender);
-                            onSelectTender(tender);
+                            const savedTender = {
+                              ...tender,
+                              id: String(saved.id),
+                              budgetUah: saved.budgetUah != null ? Number(saved.budgetUah) : tender.budgetUah,
+                            };
+                            onAddNewTender(savedTender);
+                            onSelectTender(savedTender);
                             alert(`Тендер із джерела "${tender.platformBadge || 'Майданчик'}" успішно додано у ваш кабінет!`);
                           } catch(e) { alert('Помилка при збереженні.'); }
                         }}
@@ -879,7 +884,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                 <div className="flex flex-wrap items-center gap-4 text-xs text-slate-300 pt-1">
                   <div>Замовник: <strong className="text-slate-200">{tender.customer}</strong></div>
                   <div>Очікувана вартість: <strong className="text-emerald-400 font-mono">
-                    {tender.budgetUah !== null ? `${tender.budgetUah.toLocaleString()} ₴` : 'Не вказано'}
+                    {tender.budgetUah != null ? `${tender.budgetUah.toLocaleString()} ₴` : 'Не вказано'}
                   </strong></div>
                   <div>Термін подання: <strong className="text-slate-300">{tender.deadline || 'Не вказано'}</strong></div>
                 </div>
@@ -1016,8 +1021,8 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                     <div className="space-y-1 text-slate-300">
                       <div>Замовник: <strong className="text-slate-200">{importedPreview.customer || importedPreview.customerName}</strong></div>
                       <div>Очікувана вартість: <strong className="text-emerald-400 font-mono">
-                        {(importedPreview.budgetUah || importedPreview.value?.amount) 
-                          ? (importedPreview.budgetUah || importedPreview.value?.amount).toLocaleString() + ' ₴' 
+                        {(importedPreview.budgetUah ?? importedPreview.value?.amount) != null
+                          ? Number(importedPreview.budgetUah ?? importedPreview.value?.amount).toLocaleString() + ' ₴'
                           : 'Не вказано'}
                       </strong></div>
                     </div>
