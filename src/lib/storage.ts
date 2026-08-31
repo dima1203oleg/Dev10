@@ -62,6 +62,17 @@ export class LocalStorageProvider implements StorageProvider {
     }
   }
 
+  private resolveStorageKey(storageKey: string): string {
+    if (!/^[a-f0-9]{64}-[\p{L}\p{N}._ -]{1,180}$/u.test(storageKey)) {
+      throw new Error('Invalid storage key');
+    }
+    const resolved = path.resolve(this.uploadDir, storageKey);
+    if (!resolved.startsWith(`${this.uploadDir}${path.sep}`)) {
+      throw new Error('Storage path escaped its configured root');
+    }
+    return resolved;
+  }
+
   async upload(file: Buffer | Readable, fileName: string, mimeType: string): Promise<UploadResult> {
     await this.ensureDir();
     
@@ -78,8 +89,9 @@ export class LocalStorageProvider implements StorageProvider {
     }
 
     const hash = crypto.createHash('sha256').update(buffer).digest('hex');
-    const storageKey = `${hash}-${fileName}`;
-    const filePath = path.join(this.uploadDir, storageKey);
+    const safeName = path.basename(fileName).normalize('NFKC').replace(/[^\p{L}\p{N}._ -]/gu, '_').slice(0, 180);
+    const storageKey = `${hash}-${safeName}`;
+    const filePath = this.resolveStorageKey(storageKey);
 
     await fs.writeFile(filePath, buffer);
 
@@ -92,13 +104,13 @@ export class LocalStorageProvider implements StorageProvider {
   }
 
   async download(storageKey: string): Promise<Readable> {
-    const filePath = path.join(this.uploadDir, storageKey);
+    const filePath = this.resolveStorageKey(storageKey);
     const buffer = await fs.readFile(filePath);
     return Readable.from(buffer);
   }
 
   async delete(storageKey: string): Promise<void> {
-    const filePath = path.join(this.uploadDir, storageKey);
+    const filePath = this.resolveStorageKey(storageKey);
     try {
       await fs.unlink(filePath);
     } catch (err) {
@@ -107,7 +119,7 @@ export class LocalStorageProvider implements StorageProvider {
   }
 
   async exists(storageKey: string): Promise<boolean> {
-    const filePath = path.join(this.uploadDir, storageKey);
+    const filePath = this.resolveStorageKey(storageKey);
     try {
       await fs.access(filePath);
       return true;

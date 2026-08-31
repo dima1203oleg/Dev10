@@ -6,8 +6,8 @@ import dotenv from "dotenv";
 import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
 import { getOrCreateUser } from "./src/db/users.ts";
 import { db } from "./src/db/index.ts";
-import { users, tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments, organizations, teamMembers, teamTasks, teamComments, auditLogs, favorites } from "./src/db/schema.ts";
-import { eq, and, sql } from "drizzle-orm";
+import { users, tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments, organizations, teamMembers, teamTasks, teamComments, auditLogs, favorites, jobs, boqItems, ganttTasks } from "./src/db/schema.ts";
+import { eq, and } from "drizzle-orm";
 import multer from 'multer';
 import { LocalStorageProvider } from './src/lib/storage.ts';
 import fs from 'fs';
@@ -18,6 +18,11 @@ import { runProzorroConnectorTestSuite } from "./src/connectors/prozorroTestRunn
 import { runMultiPlatformTestSuite } from "./src/connectors/multiPlatformTestRunner.ts";
 import { runEstimateCompilationTestSuite } from "./src/connectors/estimateTestRunner.ts";
 import { detectCollusionRisk } from "./src/utils/collusionEngine.ts";
+import { runMigrations } from "./src/db/migrations.ts";
+import rateLimit from "express-rate-limit";
+import { requestContext, apiErrorHandler } from "./src/middleware/api.ts";
+import { verifyUpload } from "./src/lib/uploadSecurity.ts";
+import { dispatchDocumentJob } from "./src/services/documentProcessor.ts";
 
 dotenv.config();
 
@@ -41,14 +46,30 @@ if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
   throw new Error("PORT must be an integer between 1 and 65535");
 }
 
+app.use(requestContext);
 app.use(express.json({ limit: "10mb" }));
+app.use('/api', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: { code: 'RATE_LIMITED', message: 'Too many API requests.' } },
+}));
+app.use(['/api/tenderai', '/api/foultender', '/api/company/run-ai-analysis', '/api/company/auto-extract'], rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { error: { code: 'AI_RATE_LIMITED', message: 'Too many analysis requests.' } },
+}));
 app.disable("x-powered-by");
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  res.setHeader("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+  const scriptPolicy = process.env.NODE_ENV === 'production' ? "script-src 'self';" : "script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' ws: http:;";
+  res.setHeader("Content-Security-Policy", `default-src 'self'; ${scriptPolicy} img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'`);
   next();
 });
 
@@ -408,6 +429,7 @@ app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
     
     const { tenderNumber, title, customer, budgetUah, status, foulScore, riskLevel, summary, detailedData } = req.body;
     
@@ -424,6 +446,7 @@ app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
     
     const newTender = await db.insert(tendersTable).values({
       userId: dbUser.id,
+      orgId,
       tenderNumber,
       title,
       customer,
@@ -444,28 +467,16 @@ app.post("/api/tenders", requireAuth, async (req: AuthRequest, res) => {
 
 // API: Save/Update Company Profile (Scoped by userId)
 // API: Upload and Extract Document Data (OCR & AI Classification)
-app.post("/api/company/upload-document", requireAuth, upload.single('file'), async (req: AuthRequest, res) => {
+app.post("/api/company/upload-document", requireAuth, upload.single('file'), async (req: AuthRequest, res, next) => {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
     const orgId = await getUserOrganization(dbUser.id);
 
-    let fileName, mimeType, buffer;
-
-    if (req.file) {
-      fileName = req.file.originalname;
-      mimeType = req.file.mimetype;
-      buffer = req.file.buffer;
-    } else {
-      const { fileName: fn, mimeType: mt, base64Data } = req.body;
-      if (!fn || !base64Data) {
-        return res.status(400).json({ error: "File data is missing." });
-      }
-      fileName = fn;
-      mimeType = mt || "application/pdf";
-      buffer = Buffer.from(base64Data, 'base64');
-    }
+    if (!req.file) return res.status(400).json({ error: "File data is missing." });
+    const verified = await verifyUpload(req.file.buffer, req.file.originalname);
+    const { fileName, mimeType, buffer } = verified;
 
     // 1. Save file to storage
     const uploadResult = await storage.upload(buffer, fileName, mimeType);
@@ -547,7 +558,7 @@ app.post("/api/company/upload-document", requireAuth, upload.single('file'), asy
       tenderId: null as any,
       name: fileName,
       type: (aiMetadata as any).category || 'OTHER',
-      status: (aiMetadata as any).status || 'VALID',
+      status: ai ? ((aiMetadata as any).status || 'EXTRACTED') : 'UPLOADED',
       storageKey: uploadResult.storageKey,
       contentHash: uploadResult.contentHash,
       size: uploadResult.size,
@@ -595,11 +606,12 @@ app.post("/api/company/upload-document", requireAuth, upload.single('file'), asy
           vaultData: newVaultData,
           updatedAt: new Date()
         }).where(eq(companyProfiles.userId, dbUser.id));
-      } else {
+      } else if (entities.companyName && entities.edrpou) {
         await db.insert(companyProfiles).values({
           userId: dbUser.id,
+          orgId,
           name: entities.companyName || fileName.replace(/\.[^/.]+$/, ""),
-          edrpou: entities.edrpou || "00000000",
+          edrpou: entities.edrpou,
           legalAddress: entities.legalAddress || null,
           directorName: entities.directorName || null,
           email: null,
@@ -627,7 +639,7 @@ app.post("/api/company/upload-document", requireAuth, upload.single('file'), asy
 
   } catch (error: any) {
     console.error("Document Upload/OCR Error:", error);
-    res.status(500).json({ error: "Помилка завантаження та обробки документа", details: error.message });
+    next(error);
   }
 });
 
@@ -637,6 +649,7 @@ app.post("/api/company/run-ai-analysis", requireAuth, async (req: AuthRequest, r
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
     const userProfiles = await db.select().from(companyProfiles).where(eq(companyProfiles.userId, dbUser.id));
     if (userProfiles.length === 0) {
@@ -694,6 +707,7 @@ app.post("/api/company/auto-extract", requireAuth, async (req: AuthRequest, res)
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
     const { edrpou, companyName } = req.body || {};
     const docs = await db.select().from(tenderDocuments).where(eq(tenderDocuments.userId, dbUser.id));
@@ -707,11 +721,11 @@ app.post("/api/company/auto-extract", requireAuth, async (req: AuthRequest, res)
     if (docs.length > 0) {
       sourceDescription = docs.map(d => `Документ: ${d.name} (Тип: ${d.type})\nДані: ${JSON.stringify(d.extractedData || {})}`).join("\n\n");
     } else {
-      sourceDescription = `Запитувані вхідні дані від користувача:\nКод ЄДРПОУ: ${edrpou || "32490244"}\nНазва компанії: ${companyName || "ТОВ «ЕПІЦЕНТР К» або аналогічне підприємство з реальних даних користувача"}\n(Згенеруй повні, реалістичні та точні українські корпоративні реквізити, ліцензії, обладнання та штат для цього підприємства згідно офіційних державних реєстрів).`;
+      return res.status(422).json({ error: { code: 'SOURCE_DOCUMENTS_REQUIRED', message: 'Завантажте перевірені документи компанії перед автоматичним витягом.' }, requestId: req.requestId });
     }
 
     const prompt = `Ти – Головний AI-аудитор та Експерт із корпоративних даних TenderAI.
-Проаналізуй завантажені документи або вхідні дані компанії та витягни або синтезуй повні реквізити підприємства та дані про його ресурси.
+Проаналізуй лише надані витяги з документів. Не доповнюй відсутні поля, не синтезуй реквізити й не використовуй знання поза джерелами.
 
 Дані джерела:
 ${sourceDescription}
@@ -749,6 +763,9 @@ ${sourceDescription}
 
     const cleanJson = (result.text || "{}").replace(/```json|```/g, "").trim();
     const extractedProfile = JSON.parse(cleanJson);
+    if (!extractedProfile.name || !/^\d{8}$/.test(String(extractedProfile.edrpou || ''))) {
+      return res.status(422).json({ error: { code: 'REQUIRED_COMPANY_EVIDENCE_MISSING', message: 'Документи не містять підтверджених назви та ЄДРПОУ.' }, requestId: req.requestId });
+    }
 
     const existing = await db.select().from(companyProfiles).where(eq(companyProfiles.userId, dbUser.id));
     const currentVaultData = existing.length > 0 ? (existing[0].vaultData as any) || {} : {};
@@ -792,8 +809,9 @@ ${sourceDescription}
       const [inserted] = await db.insert(companyProfiles)
         .values({
           userId: dbUser.id,
-          name: extractedProfile.name || "ТОВ «НОВА КОМПАНІЯ»",
-          edrpou: extractedProfile.edrpou || "00000000",
+          orgId,
+          name: extractedProfile.name,
+          edrpou: extractedProfile.edrpou,
           legalAddress: extractedProfile.legalAddress || null,
           directorName: extractedProfile.directorName || null,
           email: extractedProfile.email || null,
@@ -853,9 +871,7 @@ app.post("/api/company/generate-keywords", requireAuth, async (req: AuthRequest,
       keywords = text.split('\n').map(l => l.replace(/[-*•]/g, '').trim()).filter(Boolean).slice(0, 10);
     }
 
-    if (!Array.isArray(keywords) || keywords.length === 0) {
-      keywords = ["реконструкція", "капітальний ремонт", "будівництво", "проєктування"];
-    }
+    if (!Array.isArray(keywords) || keywords.length === 0) return res.status(422).json({ error: { code: 'KEYWORDS_NOT_EXTRACTED', message: 'Не вдалося витягти ключові слова з наданого опису.' }, requestId: req.requestId });
 
     res.json({ status: "ok", keywords });
   } catch (error: any) {
@@ -869,6 +885,7 @@ app.post("/api/company/profile", requireAuth, async (req: AuthRequest, res) => {
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
 
     const { name, edrpou, legalAddress, directorName, email, phone, vaultData } = req.body;
 
@@ -897,6 +914,7 @@ app.post("/api/company/profile", requireAuth, async (req: AuthRequest, res) => {
       result = await db.insert(companyProfiles)
         .values({
           userId: dbUser.id,
+          orgId,
           name,
           edrpou,
           legalAddress: legalAddress || null,
@@ -1032,6 +1050,7 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
     
     // Fetch user's company profile for personalized Opportunity Scoring
     const dbUser = await getOrCreateUser(req.user.uid, req.user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
     const userProfiles = await db.select().from(companyProfiles).where(eq(companyProfiles.userId, dbUser.id));
     const company = userProfiles[0] || null;
 
@@ -1108,6 +1127,7 @@ app.get("/api/prozorro/search", requireAuth, async (req: AuthRequest, res) => {
       await db.insert(searchSessionsTable).values({
         id: currentSearchId,
         userId: dbUser.id,
+        orgId,
         rawQuery,
         structuredQuery,
         source: "MultiPlatform",
@@ -1167,6 +1187,7 @@ app.post("/api/tenders/:id/favorite", requireAuth, async (req: AuthRequest, res)
     const user = req.user;
     if (!user) return res.status(401).json({ error: "Unauthorized" });
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
+    const orgId = await getUserOrganization(dbUser.id);
     const tenderId = parseInt(req.params.id);
 
     const existing = await db.select().from(favorites).where(
@@ -1179,6 +1200,7 @@ app.post("/api/tenders/:id/favorite", requireAuth, async (req: AuthRequest, res)
     if (existing.length === 0) {
       await db.insert(favorites).values({
         userId: dbUser.id,
+        orgId,
         tenderId
       });
     }
@@ -1591,7 +1613,7 @@ app.get("/api/tenders/:tenderId/documents", requireAuth, async (req: AuthRequest
   }
 });
 
-app.post("/api/tenders/:tenderId/documents", requireAuth, upload.single('file'), async (req: AuthRequest, res) => {
+app.post("/api/tenders/:tenderId/documents", requireAuth, upload.single('file'), async (req: AuthRequest, res, next) => {
   try {
     const { tenderId } = req.params;
     const { type } = req.body;
@@ -1601,22 +1623,18 @@ app.post("/api/tenders/:tenderId/documents", requireAuth, upload.single('file'),
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    // Validate MIME type
-    const allowedMimeTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/jpeg', 'image/png'];
-    if (!allowedMimeTypes.includes(file.mimetype)) {
-      return res.status(400).json({ error: "Unsupported file type" });
-    }
+    const verified = await verifyUpload(file.buffer, file.originalname);
 
     // Upload to storage
-    const uploadResult = await storage.upload(file.buffer, file.originalname, file.mimetype);
+    const uploadResult = await storage.upload(verified.buffer, verified.fileName, verified.mimeType);
 
     // Save to database
     const [newDoc] = await db.insert(tenderDocuments).values({
       id: crypto.randomUUID(),
       tenderId: parseInt(tenderId),
-      orgId: req.user.orgId,
-      userId: req.user.id,
-      name: file.originalname,
+      orgId: req.orgId!,
+      userId: req.dbUserId!,
+      name: verified.fileName,
       type: type || 'OTHER',
       status: 'UPLOADED',
       storageKey: uploadResult.storageKey,
@@ -1629,7 +1647,7 @@ app.post("/api/tenders/:tenderId/documents", requireAuth, upload.single('file'),
     res.json(newDoc);
   } catch (error) {
     console.error("Create document error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    next(error);
   }
 });
 
@@ -1672,69 +1690,107 @@ app.get("/api/tenders/:tenderId/documents/:docId/download", requireAuth, async (
 app.post("/api/tenders/:tenderId/documents/:docId/analyze", requireAuth, async (req: AuthRequest, res) => {
   const { tenderId, docId } = req.params;
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    
-    if (!apiKey) {
-      return res.status(503).json({ error: "Gemini API Key missing" });
+    const parsedTenderId = Number.parseInt(tenderId, 10);
+    if (!Number.isInteger(parsedTenderId) || !req.orgId || !req.dbUserId) {
+      return res.status(400).json({ error: { code: 'INVALID_DOCUMENT_CONTEXT', message: 'Invalid tender or tenant context.' }, requestId: req.requestId });
     }
+    const [document] = await db.select().from(tenderDocuments).where(and(
+      eq(tenderDocuments.id, docId),
+      eq(tenderDocuments.tenderId, parsedTenderId),
+      eq(tenderDocuments.orgId, req.orgId),
+    ));
+    if (!document) return res.status(404).json({ error: { code: 'DOCUMENT_NOT_FOUND', message: 'Document not found.' }, requestId: req.requestId });
 
-    const id = parseInt(docId);
-    // 1. Mark as processing
-    await db.update(tenderDocuments).set({ status: 'PROCESSING' }).where(eq(tenderDocuments.id, docId));
-
-    // 2. Fetch tender context for better AI analysis
-    const tender = await db.select().from(tendersTable).where(eq(tendersTable.id, parseInt(tenderId)));
-    const tenderData = tender[0];
-    const doc = await db.select().from(tenderDocuments).where(eq(tenderDocuments.id, docId));
-    const docData = doc[0];
-
-    const ai = getGeminiClient();
-    if (!ai) throw new Error("AI Client init failed");
-
-    // Since we don't have the real file content in DB (only metadata for now in this sandbox), 
-    // we simulate the extraction of *real-looking* data based on the tender title if content is missing.
-    // In a real prod app, you'd send the PDF buffer to Gemini.
-    const prompt = `
-      Аналізуй документ "${docData.name}" для тендеру "${tenderData.title}".
-      Тендер №: ${tenderData.tenderNumber}
-      Замовник: ${tenderData.customer}
-      
-      ЗАВДАННЯ:
-      Витягни ключові умови:
-      1. Перелік необхідних документів.
-      2. Технічні характеристики (BOQ).
-      3. Кваліфікаційні вимоги.
-      4. Ризики (дискримінація).
-      
-      Відповідь надай ТІЛЬКИ в JSON:
-      {
-        "type": "TECHNICAL" | "BOQ" | "LEGAL",
-        "extractedRequirements": ["вимога 1", "вимога 2"],
-        "riskFlags": ["ризик 1"],
-        "summary": "стислий опис змісту"
-      }
-    `;
-
-    const result = await generateContentWithFallback(ai, {
-      contents: prompt,
-      config: { responseMimeType: "application/json" }
+    const jobId = crypto.randomUUID();
+    await db.insert(jobs).values({
+      id: jobId,
+      orgId: req.orgId,
+      userId: req.dbUserId,
+      kind: 'DOCUMENT_PARSE',
+      status: 'QUEUED',
+      progress: 0,
+      input: { tenderId: parsedTenderId, documentId: docId },
+      provenance: { documentHash: document.contentHash, source: 'USER_UPLOAD' },
     });
-
-    const cleanJson = result.text.replace(/```json|```/g, "").trim();
-    const extracted = JSON.parse(cleanJson);
-
-    const updated = await db.update(tenderDocuments).set({
-      status: 'EXTRACTED',
-      type: extracted.type || docData.type,
-      extractedData: extracted
-    }).where(eq(tenderDocuments.id, docId)).returning();
-
-    res.json(updated[0]);
+    req.afterCommit?.push(() => dispatchDocumentJob({
+      jobId, orgId: req.orgId!, userId: req.dbUserId!, tenderId: parsedTenderId, documentId: docId,
+    }));
+    return res.status(202).json({ jobId, status: 'QUEUED', requestId: req.requestId });
   } catch (error) {
     console.error("Analyze document error:", error);
-    await db.update(tenderDocuments).set({ status: 'ERROR' }).where(eq(tenderDocuments.id, docId));
     res.status(500).json({ error: "Internal server error during analysis" });
   }
+});
+
+app.get('/api/jobs/:id', requireAuth, async (req: AuthRequest, res) => {
+  const [job] = await db.select().from(jobs).where(and(eq(jobs.id, req.params.id), eq(jobs.orgId, req.orgId!)));
+  if (!job) return res.status(404).json({ error: { code: 'JOB_NOT_FOUND', message: 'Job not found.' }, requestId: req.requestId });
+  return res.json({ data: job, requestId: req.requestId });
+});
+
+app.get('/api/tenders/:tenderId/boq', requireAuth, async (req: AuthRequest, res) => {
+  const tenderId = Number.parseInt(req.params.tenderId, 10);
+  if (!Number.isInteger(tenderId)) return res.status(400).json({ error: { code: 'INVALID_TENDER_ID', message: 'Invalid tender id.' }, requestId: req.requestId });
+  const items = await db.select().from(boqItems).where(and(eq(boqItems.tenderId, tenderId), eq(boqItems.orgId, req.orgId!)));
+  return res.json({ data: items, requestId: req.requestId });
+});
+
+app.post('/api/tenders/:tenderId/boq', requireAuth, async (req: AuthRequest, res) => {
+  const tenderId = Number.parseInt(req.params.tenderId, 10);
+  const { code, name, unit, quantity, unitPriceUah, sourceDocumentId, sourcePage, sourceBbox } = req.body || {};
+  const parsedQuantity = Number(quantity);
+  const parsedPrice = unitPriceUah === null || unitPriceUah === undefined || unitPriceUah === '' ? null : Number(unitPriceUah);
+  if (!Number.isInteger(tenderId) || !String(name || '').trim() || !String(unit || '').trim() || !Number.isFinite(parsedQuantity) || parsedQuantity < 0 || (parsedPrice !== null && (!Number.isFinite(parsedPrice) || parsedPrice < 0))) {
+    return res.status(400).json({ error: { code: 'INVALID_BOQ_ITEM', message: 'Name, unit and non-negative numeric quantity/price are required.' }, requestId: req.requestId });
+  }
+  const [item] = await db.insert(boqItems).values({ id: crypto.randomUUID(), orgId: req.orgId!, tenderId, code: code || null, name: String(name).trim(), unit: String(unit).trim(), quantity: parsedQuantity, unitPriceUah: parsedPrice, sourceDocumentId: sourceDocumentId || null, sourcePage: sourcePage || null, sourceBbox: sourceBbox || null }).returning();
+  return res.status(201).json({ data: item, requestId: req.requestId });
+});
+
+app.delete('/api/tenders/:tenderId/boq/:itemId', requireAuth, async (req: AuthRequest, res) => {
+  const tenderId = Number.parseInt(req.params.tenderId, 10);
+  const [deleted] = await db.delete(boqItems).where(and(eq(boqItems.id, req.params.itemId), eq(boqItems.tenderId, tenderId), eq(boqItems.orgId, req.orgId!))).returning();
+  if (!deleted) return res.status(404).json({ error: { code: 'BOQ_ITEM_NOT_FOUND', message: 'BOQ item not found.' }, requestId: req.requestId });
+  return res.json({ data: deleted, requestId: req.requestId });
+});
+
+app.get('/api/tenders/:tenderId/gantt', requireAuth, async (req: AuthRequest, res) => {
+  const tenderId = Number.parseInt(req.params.tenderId, 10);
+  const tasks = await db.select().from(ganttTasks).where(and(eq(ganttTasks.tenderId, tenderId), eq(ganttTasks.orgId, req.orgId!)));
+  return res.json({ data: tasks, requestId: req.requestId });
+});
+
+app.post('/api/tenders/:tenderId/gantt', requireAuth, async (req: AuthRequest, res) => {
+  const tenderId = Number.parseInt(req.params.tenderId, 10);
+  const { title, startsAt, endsAt, status, critical } = req.body || {};
+  const start = new Date(startsAt);
+  const end = new Date(endsAt);
+  if (!Number.isInteger(tenderId) || !String(title || '').trim() || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    return res.status(400).json({ error: { code: 'INVALID_GANTT_TASK', message: 'Valid title and date range are required.' }, requestId: req.requestId });
+  }
+  const [task] = await db.insert(ganttTasks).values({ id: crypto.randomUUID(), orgId: req.orgId!, tenderId, title: String(title).trim(), startsAt: start, endsAt: end, status: status || 'TODO', critical: Boolean(critical) }).returning();
+  return res.status(201).json({ data: task, requestId: req.requestId });
+});
+
+app.patch('/api/tenders/:tenderId/gantt/:taskId', requireAuth, async (req: AuthRequest, res) => {
+  const tenderId = Number.parseInt(req.params.tenderId, 10);
+  const allowedStatus = new Set(['TODO', 'IN_PROGRESS', 'DONE']);
+  const changes: { status?: string; critical?: boolean; updatedAt: Date } = { updatedAt: new Date() };
+  if (req.body?.status !== undefined) {
+    if (!allowedStatus.has(req.body.status)) return res.status(400).json({ error: { code: 'INVALID_GANTT_STATUS', message: 'Invalid task status.' }, requestId: req.requestId });
+    changes.status = req.body.status;
+  }
+  if (req.body?.critical !== undefined) changes.critical = Boolean(req.body.critical);
+  const [task] = await db.update(ganttTasks).set(changes).where(and(eq(ganttTasks.id, req.params.taskId), eq(ganttTasks.tenderId, tenderId), eq(ganttTasks.orgId, req.orgId!))).returning();
+  if (!task) return res.status(404).json({ error: { code: 'GANTT_TASK_NOT_FOUND', message: 'Gantt task not found.' }, requestId: req.requestId });
+  return res.json({ data: task, requestId: req.requestId });
+});
+
+app.delete('/api/tenders/:tenderId/gantt/:taskId', requireAuth, async (req: AuthRequest, res) => {
+  const tenderId = Number.parseInt(req.params.tenderId, 10);
+  const [deleted] = await db.delete(ganttTasks).where(and(eq(ganttTasks.id, req.params.taskId), eq(ganttTasks.tenderId, tenderId), eq(ganttTasks.orgId, req.orgId!))).returning();
+  if (!deleted) return res.status(404).json({ error: { code: 'GANTT_TASK_NOT_FOUND', message: 'Gantt task not found.' }, requestId: req.requestId });
+  return res.json({ data: deleted, requestId: req.requestId });
 });
 
 
@@ -2028,7 +2084,7 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
     try {
       const mpReport = await runMultiPlatformTestSuite();
       if (mpReport.overallStatus === "PASS") {
-        results.multiplatform_aggregator = { status: "PASS", details: `Passed ${mpReport.passCount}/${mpReport.totalTests} tests across 13 procurement sources` };
+        results.multiplatform_aggregator = { status: "PASS", details: `Passed ${mpReport.passCount}/${mpReport.totalTests} source-integrity tests; only audited live connectors return data` };
       } else {
         results.multiplatform_aggregator = { status: "FAIL", details: `Failed ${mpReport.failCount} tests in aggregator suite` };
       }
@@ -2724,47 +2780,11 @@ ${rawText ? `Неструктурований текст для парсингу
 });
 
 
-async function runStartupMigrations() {
-  const statements = [
-    `CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, uid TEXT NOT NULL UNIQUE, email TEXT NOT NULL, created_at TIMESTAMP DEFAULT NOW());`,
-    `CREATE TABLE IF NOT EXISTS organizations (id SERIAL PRIMARY KEY, name TEXT NOT NULL, edrpou TEXT, created_at TIMESTAMP DEFAULT NOW());`,
-    `CREATE TABLE IF NOT EXISTS team_members (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, org_id INTEGER NOT NULL, display_name TEXT, email TEXT, role TEXT NOT NULL DEFAULT 'MEMBER', role_name_uk TEXT, avatar TEXT, status TEXT NOT NULL DEFAULT 'OFFLINE', joined_at TIMESTAMP DEFAULT NOW());`,
-    `ALTER TABLE team_members ADD COLUMN IF NOT EXISTS display_name text;`,
-    `ALTER TABLE team_members ADD COLUMN IF NOT EXISTS email text;`,
-    `ALTER TABLE team_members ADD COLUMN IF NOT EXISTS role_name_uk text;`,
-    `ALTER TABLE team_members ADD COLUMN IF NOT EXISTS avatar text;`,
-    `ALTER TABLE team_members ADD COLUMN IF NOT EXISTS status text DEFAULT 'OFFLINE';`,
-    `ALTER TABLE team_members ADD COLUMN IF NOT EXISTS joined_at timestamp DEFAULT NOW();`,
-    `CREATE TABLE IF NOT EXISTS company_profiles (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, name TEXT NOT NULL, edrpou TEXT NOT NULL, legal_address TEXT, director_name TEXT, email TEXT, phone TEXT, vault_data JSONB, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW());`,
-    `CREATE TABLE IF NOT EXISTS tenders (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, tender_number TEXT NOT NULL, title TEXT NOT NULL, customer TEXT, budget_uah TEXT, status TEXT, foul_score INTEGER, risk_level TEXT, summary TEXT, detailed_data JSONB, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW());`,
-    `CREATE TABLE IF NOT EXISTS tender_documents (id TEXT PRIMARY KEY, tender_id INTEGER, name TEXT NOT NULL, type TEXT NOT NULL, status TEXT NOT NULL, size INTEGER, storage_key TEXT, content_hash TEXT, uploaded_at TIMESTAMP DEFAULT NOW(), extracted_data JSONB, mime_type TEXT, user_id INTEGER, org_id INTEGER);`,
-    `ALTER TABLE tender_documents ADD COLUMN IF NOT EXISTS storage_key text;`,
-    `ALTER TABLE tender_documents ADD COLUMN IF NOT EXISTS content_hash text;`,
-    `ALTER TABLE tender_documents ADD COLUMN IF NOT EXISTS mime_type text;`,
-    `ALTER TABLE tender_documents ADD COLUMN IF NOT EXISTS extracted_data jsonb;`,
-    `ALTER TABLE tender_documents ADD COLUMN IF NOT EXISTS is_vault boolean DEFAULT false;`,
-    `ALTER TABLE tender_documents ADD COLUMN IF NOT EXISTS user_id integer;`,
-    `ALTER TABLE tender_documents ADD COLUMN IF NOT EXISTS org_id integer;`
-  ];
-
-  for (const stmt of statements) {
-    try {
-      await db.execute(sql.raw(stmt));
-    } catch (err: any) {
-      throw new Error(
-        `Startup schema verification failed for ${stmt.substring(0, 48)}: ${err?.message || String(err)}`
-      );
-    }
-  }
-
-  console.log("Startup database migrations verified successfully.");
-}
-
-// Run migrations immediately on server boot (done within startServer)
-
 // Vite middleware for development vs static build in production
 async function startServer() {
   console.log("Starting server initialization...");
+
+  app.use(apiErrorHandler);
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -2780,7 +2800,8 @@ async function startServer() {
     });
   }
 
-  await runStartupMigrations();
+  await runMigrations();
+  console.log("Startup database migrations verified successfully.");
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`TenderAI & FoulTender Server running on http://0.0.0.0:${PORT}`);
   });

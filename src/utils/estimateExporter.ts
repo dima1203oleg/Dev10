@@ -246,9 +246,11 @@ export function exportToExcel(tender: Tender, items: BoQItem[]): void {
  * Formatted exactly as per the Ministry of Infrastructure (Мінрегіон) AVK-5 system import schemas.
  * Includes proper DBN item categories, work tags, volumes, labor costs, and checksum codes.
  */
-export function exportToAvk5(tender: Tender, items: BoQItem[]): void {
+export function exportToAvk5(tender: Tender, items: BoQItem[], bidderEdrpou?: string): void {
   const tenderNumber = tender.tenderNumber || 'БЕЗ_НОМЕРА';
-  const EDRPOU = '44321098'; // Default mock bidder EDRPOU for AVK-5 transport packaging
+  if (!/^\d{8}$/.test(bidderEdrpou || '')) throw new Error('Для експорту АВК-5 потрібен підтверджений ЄДРПОУ учасника.');
+  if (!items.length || items.some(item => !item.code || !item.unit || !item.description)) throw new Error('Для експорту АВК-5 усі позиції повинні мати код, опис та одиницю виміру.');
+  const EDRPOU = bidderEdrpou!;
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
 
   let imd = `*АВК-5_ІМПОРТ_ТРАНСПОРТНИЙ_ФАЙЛ*
@@ -263,8 +265,7 @@ export function exportToAvk5(tender: Tender, items: BoQItem[]): void {
 
 [ДАНІ_БУДІВЕЛЬНОГО_ОБ'ЄКТУ]
 *ОБ_НАЗВА="${tender.title.replace(/"/g, "'")}"
-*ОБ_СРОК_ДНІ=180
-*ОБ_РЕГІОН="${tender.region || 'Київська обл.'}"
+*ОБ_РЕГІОН="${tender.region || ''}"
 
 [СПИСОК_ЛОКАЛЬНИХ_КОШТОРИСІВ]
 *ЛК_НОМЕР=1
@@ -275,9 +276,9 @@ export function exportToAvk5(tender: Tender, items: BoQItem[]): void {
 `;
 
   items.forEach((item, index) => {
-    const cleanCode = (item.code || 'Р-15-1').trim();
+    const cleanCode = item.code.trim();
     const cleanDesc = (item.description || '').replace(/"/g, "'").trim();
-    const cleanUnit = (item.unit || 'м2').replace('³', '3').replace('²', '2');
+    const cleanUnit = item.unit.replace('³', '3').replace('²', '2');
     const qty = item.quantity;
     const price = item.marketPriceUah || 100;
     const labor = item.laborHours || Math.round(qty * 0.7);

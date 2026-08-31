@@ -1,34 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { AppSection, Tender, BoQItem, MultiAgentReport, AmcuComplaintDoc, BidPackage, CompanyProfile, RequirementItem, CollusionAnalysis, SystemMode, TenderDocument } from './types';
-import { DashboardView } from './components/DashboardView';
-import { FoulTenderModule } from './components/FoulTenderModule';
-import { TenderAIConstructionModule } from './components/TenderAIConstructionModule';
-import { AmcuComplaintGenerator } from './components/AmcuComplaintGenerator';
-import { BidPackageGenerator } from './components/BidPackageGenerator';
-import { MultiAgentChat } from './components/MultiAgentChat';
-import { TenderCatalog } from './components/TenderCatalog';
-import { CompanyProfileModule } from './components/CompanyProfileModule';
-import { RequirementMatrixModule } from './components/RequirementMatrixModule';
-import { CompetitorCollusionModule } from './components/CompetitorCollusionModule';
-import { VersionDiffModule } from './components/VersionDiffModule';
-import { PreSubmissionAuditModule } from './components/PreSubmissionAuditModule';
-import { TenderRadarModule } from './components/TenderRadarModule';
-import { TenderWarRoomModule } from './components/TenderWarRoomModule';
-import { PostTenderModule } from './components/PostTenderModule';
-import { ServicesModelModule } from './components/ServicesModelModule';
-import { AnalyticsDashboard } from './components/AnalyticsDashboard';
-import { DocumentWorkspace } from './components/DocumentWorkspace';
-import { CommandPaletteModal } from './components/CommandPaletteModal';
-import { TeamWorkspaceModule } from './components/TeamWorkspaceModule';
-import { CostEstimateAnalysisModule } from './components/CostEstimateAnalysisModule';
-import { GanttChartModule } from './components/GanttChartModule';
 import { useAuth } from './contexts/AuthContext';
-import { Bot, User as UserIcon, ShieldAlert, Search } from 'lucide-react';
+import { User as UserIcon, ShieldAlert, Search } from 'lucide-react';
 
 import { ResponsiveAppShell } from './design-system/ResponsiveAppShell';
 
+const lazyNamed = <T extends React.ComponentType<any>>(loader: () => Promise<Record<string, T>>, name: string) => React.lazy(async () => ({ default: (await loader())[name] }));
+const DashboardView = lazyNamed(() => import('./components/DashboardView'), 'DashboardView');
+const FoulTenderModule = lazyNamed(() => import('./components/FoulTenderModule'), 'FoulTenderModule');
+const TenderAIConstructionModule = lazyNamed(() => import('./components/TenderAIConstructionModule'), 'TenderAIConstructionModule');
+const AmcuComplaintGenerator = lazyNamed(() => import('./components/AmcuComplaintGenerator'), 'AmcuComplaintGenerator');
+const BidPackageGenerator = lazyNamed(() => import('./components/BidPackageGenerator'), 'BidPackageGenerator');
+const MultiAgentChat = lazyNamed(() => import('./components/MultiAgentChat'), 'MultiAgentChat');
+const TenderCatalog = lazyNamed(() => import('./components/TenderCatalog'), 'TenderCatalog');
+const CompanyProfileModule = lazyNamed(() => import('./components/CompanyProfileModule'), 'CompanyProfileModule');
+const RequirementMatrixModule = lazyNamed(() => import('./components/RequirementMatrixModule'), 'RequirementMatrixModule');
+const CompetitorCollusionModule = lazyNamed(() => import('./components/CompetitorCollusionModule'), 'CompetitorCollusionModule');
+const VersionDiffModule = lazyNamed(() => import('./components/VersionDiffModule'), 'VersionDiffModule');
+const PreSubmissionAuditModule = lazyNamed(() => import('./components/PreSubmissionAuditModule'), 'PreSubmissionAuditModule');
+const TenderRadarModule = lazyNamed(() => import('./components/TenderRadarModule'), 'TenderRadarModule');
+const TenderWarRoomModule = lazyNamed(() => import('./components/TenderWarRoomModule'), 'TenderWarRoomModule');
+const PostTenderModule = lazyNamed(() => import('./components/PostTenderModule'), 'PostTenderModule');
+const ServicesModelModule = lazyNamed(() => import('./components/ServicesModelModule'), 'ServicesModelModule');
+const AnalyticsDashboard = lazyNamed(() => import('./components/AnalyticsDashboard'), 'AnalyticsDashboard');
+const DocumentWorkspace = lazyNamed(() => import('./components/DocumentWorkspace'), 'DocumentWorkspace');
+const CommandPaletteModal = lazyNamed(() => import('./components/CommandPaletteModal'), 'CommandPaletteModal');
+const TeamWorkspaceModule = lazyNamed(() => import('./components/TeamWorkspaceModule'), 'TeamWorkspaceModule');
+const CostEstimateAnalysisModule = lazyNamed(() => import('./components/CostEstimateAnalysisModule'), 'CostEstimateAnalysisModule');
+const GanttChartModule = lazyNamed(() => import('./components/GanttChartModule'), 'GanttChartModule');
+
 export default function App() {
-  const { user, loading: authLoading, token, signIn, signInAsDev } = useAuth();
+  const { user, loading: authLoading, token, authError, signIn } = useAuth();
   
   const [currentSection, setCurrentSection] = useState<AppSection>('dashboard');
   const [systemMode, setSystemMode] = useState<SystemMode>('TEAM');
@@ -176,15 +178,8 @@ export default function App() {
               <span>Увійти з Google Workspace</span>
             </button>
 
-            {((import.meta as any).env.DEV || (import.meta as any).env.MODE !== 'production') && (
-              <button
-                onClick={signInAsDev}
-                className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-emerald-500/20 font-bold py-3 px-4 rounded-xl transition-all cursor-pointer text-sm"
-              >
-                <Bot className="w-5 h-5 animate-pulse" />
-                <span>Увійти локально (Режим розробника)</span>
-              </button>
-            )}
+            {authError && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">{authError}</div>}
+
           </div>
           
           <div className="text-[10px] text-slate-500 pt-4 border-t border-slate-800">
@@ -333,8 +328,26 @@ export default function App() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('AI Analysis failed');
-      const updatedDoc = await response.json();
-      setTenderDocuments(prev => prev.map(d => d.id === docId ? updatedDoc : d));
+      const queued = await response.json() as { jobId: string };
+      let completed = false;
+      let attempts = 0;
+      while (!completed && attempts < 400) {
+        attempts += 1;
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const jobResponse = await fetch(`/api/jobs/${queued.jobId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!jobResponse.ok) throw new Error('Document job status failed');
+        const { data: job } = await jobResponse.json();
+        if (job.status === 'FAILED') throw new Error(job.errorCode || 'Document analysis failed');
+        completed = job.status === 'SUCCEEDED';
+      }
+      if (!completed) throw new Error('Document analysis timed out');
+      const documentsResponse = await fetch(`/api/tenders/${currentTender.id}/documents`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!documentsResponse.ok) throw new Error('Failed to refresh documents');
+      setTenderDocuments(await documentsResponse.json());
     } catch (err) {
       console.error('AI Analysis failed:', err);
       setTenderDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: 'ERROR' } : d));
@@ -475,6 +488,7 @@ export default function App() {
           ) : null
         }
       >
+        <React.Suspense fallback={<div className="p-12 text-center text-slate-400">Завантаження модуля…</div>}>
         {!currentTender && requiresTender ? (
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-12 text-center max-w-xl mx-auto space-y-6 my-12 shadow-2xl">
                 <div className="w-16 h-16 bg-slate-950 rounded-2xl flex items-center justify-center mx-auto text-slate-600">
@@ -554,9 +568,11 @@ export default function App() {
               )}
             </>
         )}
+        </React.Suspense>
       </ResponsiveAppShell>
 
       {/* Global Command Palette (⌘ K) */}
+      <React.Suspense fallback={null}>
       <CommandPaletteModal
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
@@ -564,6 +580,7 @@ export default function App() {
         onSelectTender={handleSelectTender}
         onNavigate={(sec) => handleNavigateSection(sec as string)}
       />
+      </React.Suspense>
     </>
   );
 }

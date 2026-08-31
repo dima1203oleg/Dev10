@@ -135,166 +135,93 @@ export function calculatePersonalRadarMatch(tender: any, profile: any): {
   reasons: { title: string; description: string; type: 'POSITIVE' | 'NEUTRAL' | 'WARNING' }[];
   method: string;
   calculatedAt: string;
+  weightsVersion: string;
+  coverage: number;
+  breakdown: Record<string, { score: number | null; weight: number; evidence: string }>;
 } {
   const calculatedAt = new Date().toISOString();
-
-  const vault = (profile?.vaultData && typeof profile.vaultData === 'object' && Object.keys(profile.vaultData).length > 0)
-    ? profile.vaultData
-    : {
-        cpvCodes: profile?.cpvCodes && profile.cpvCodes.length > 0 ? profile.cpvCodes : ["45000000-7", "30200000-1", "44300000-3", "50300000-8"],
-        preferredKeywords: profile?.typesOfWork && profile.typesOfWork.length > 0 ? profile.typesOfWork : ["будівництво", "ремонт", "кабель", "ноутбук", "послуги"],
-        preferredRegion: profile?.regionsOfWork?.[0] || "Київська область",
-        minTenderBudget: profile?.minTenderBudget || 100000,
-        maxTenderBudget: profile?.maxTenderBudget || 500000000,
-        vaultDocuments: profile?.companyDocuments || [{ id: 'doc-1' }],
-        staff: profile?.staffList || [{ id: 'staff-1' }]
-      };
+  const vault = profile?.vaultData && typeof profile.vaultData === 'object' ? profile.vaultData : {};
   const reasons: { title: string; description: string; type: 'POSITIVE' | 'NEUTRAL' | 'WARNING' }[] = [];
-  
-  let cpvScore = 0;
-  let budgetScore = 0;
-  let regionScore = 0;
-  let keywordScore = 0;
-  let docScore = (vault.vaultDocuments && Array.isArray(vault.vaultDocuments) && vault.vaultDocuments.length > 0) ? 100 : 30;
-  let executionScore = (vault.staff && Array.isArray(vault.staff) && vault.staff.length > 0) ? 100 : 40;
+  const weightsVersion = 'FIT_SCORE_V1';
+  const defaults = { cpv: 0.30, region: 0.15, financial: 0.25, licenses: 0.15, documents: 0.15 };
+  const candidateWeights = vault.fitWeights || {};
+  const weights = Object.fromEntries(Object.entries(defaults).map(([key, fallback]) => {
+    const value = Number(candidateWeights[key]);
+    return [key, Number.isFinite(value) && value >= 0 && value <= 1 ? value : fallback];
+  })) as typeof defaults;
+  const weightTotal = Object.values(weights).reduce((sum, value) => sum + value, 0);
+  for (const key of Object.keys(weights) as Array<keyof typeof weights>) weights[key] /= weightTotal;
 
-  // 1. CPV Code Match (35 max weight)
+  const breakdown: Record<string, { score: number | null; weight: number; evidence: string }> = {
+    cpv: { score: null, weight: weights.cpv, evidence: 'CPV data unavailable' },
+    region: { score: null, weight: weights.region, evidence: 'Region data unavailable' },
+    financial: { score: null, weight: weights.financial, evidence: 'Financial capacity unavailable' },
+    licenses: { score: null, weight: weights.licenses, evidence: 'Tender license requirements unavailable' },
+    documents: { score: null, weight: weights.documents, evidence: 'Vault document inventory unavailable' },
+  };
+
   const tenderCpv = (tender.items?.[0]?.classification?.id || tender.category || "").trim();
   const companyCpvs = Array.isArray(vault.cpvCodes) ? vault.cpvCodes : [];
-  
   if (companyCpvs.length > 0 && tenderCpv) {
     let maxCpvEvalScore = 0;
-    let bestMatchDesc = "";
-
     for (const c of companyCpvs) {
       const evalRes = evaluateCpvHierarchy(tenderCpv, c);
-      if (evalRes.score > maxCpvEvalScore) {
-        maxCpvEvalScore = evalRes.score;
-        bestMatchDesc = evalRes.description || "";
-      }
+      maxCpvEvalScore = Math.max(maxCpvEvalScore, evalRes.score);
     }
-
-    cpvScore = (maxCpvEvalScore / 100) * 35;
-
-    if (maxCpvEvalScore >= 90) {
-      reasons.push({
-        title: `CPV-відповідність ${maxCpvEvalScore}%`,
-        description: `Код закупівлі ${tenderCpv} напряму збігається з профілем компанії (${bestMatchDesc}).`,
-        type: "POSITIVE"
-      });
-    } else if (maxCpvEvalScore >= 50) {
-      reasons.push({
-        title: `CPV-відповідність ${maxCpvEvalScore}% (суміжний клас)`,
-        description: `Код закупівлі ${tenderCpv} належить до суміжної групи вашої спеціалізації.`,
-        type: "NEUTRAL"
-      });
-    } else {
-      reasons.push({
-        title: "CPV розбіжність",
-        description: `Код ${tenderCpv} відсутній у списку профільних кодів компанії (${companyCpvs.join(', ')}).`,
-        type: "WARNING"
-      });
-    }
-  } else if (companyCpvs.length === 0) {
-    reasons.push({
-      title: "CPV не вказано у профілі",
-      description: "Додайте коди ДК 021:2015 до профілю компанії для точнішого зіставлення.",
-      type: "NEUTRAL"
-    });
+    breakdown.cpv = { score: maxCpvEvalScore, weight: weights.cpv, evidence: `${tenderCpv} vs ${companyCpvs.join(', ')}` };
+    reasons.push({ title: `CPV-відповідність ${maxCpvEvalScore}%`, description: breakdown.cpv.evidence, type: maxCpvEvalScore >= 80 ? 'POSITIVE' : maxCpvEvalScore >= 30 ? 'NEUTRAL' : 'WARNING' });
   }
 
-  // 2. Budget Range (25 max weight)
   const budget = typeof tender.budgetUah === 'number' ? tender.budgetUah : (parseFloat(tender.budgetUah) || 0);
-  const minBudget = Number(vault.minTenderBudget) || 0;
-  const maxBudget = Number(vault.maxTenderBudget) || Infinity;
-
-  if (budget > 0) {
-    if (budget >= minBudget && budget <= maxBudget) {
-      budgetScore = 25;
-      reasons.push({
-        title: "Бюджетний оптимум",
-        description: `Сума закупівлі (${budget.toLocaleString('uk-UA')} грн) знаходиться у цільовому діапазоні компанії (${minBudget.toLocaleString('uk-UA')} - ${maxBudget === Infinity ? 'без ліміту' : maxBudget.toLocaleString('uk-UA')} грн).`,
-        type: "POSITIVE"
-      });
-    } else if (budget < minBudget) {
-      budgetScore = 10;
-      reasons.push({
-        title: "Бюджет нижче цільового",
-        description: `Сума закупівлі нижче вашого мінімального порогу (${minBudget.toLocaleString('uk-UA')} грн).`,
-        type: "NEUTRAL"
-      });
-    } else {
-      budgetScore = 0;
-      reasons.push({
-        title: "Бюджет перевищує ліміт",
-        description: `Сума (${budget.toLocaleString('uk-UA')} грн) перевищує максимальний поріг можливостей компанії (${maxBudget.toLocaleString('uk-UA')} грн).`,
-        type: "WARNING"
-      });
-    }
+  const minBudget = Number(vault.minTenderBudget);
+  const maxBudget = Number(vault.maxTenderBudget);
+  if (budget > 0 && Number.isFinite(maxBudget) && maxBudget > 0) {
+    const score = budget > maxBudget ? 0 : Number.isFinite(minBudget) && minBudget > 0 && budget < minBudget ? 40 : 100;
+    breakdown.financial = { score, weight: weights.financial, evidence: `${budget} UAH; capacity ${Number.isFinite(minBudget) ? minBudget : 0}-${maxBudget} UAH` };
   }
 
-  // 3. Region Match (20 max weight)
   const tenderRegion = (tender.region || tender.customerCity || "").toLowerCase();
-  const preferredRegion = (vault.preferredRegion || "").toLowerCase();
-  const regionsOfWork = Array.isArray(vault.regionsOfWork) ? vault.regionsOfWork.map((r: string) => r.toLowerCase()) : [];
-
-  if (preferredRegion || regionsOfWork.length > 0) {
-    const isPreferred = preferredRegion && tenderRegion.includes(preferredRegion);
-    const isInRegions = regionsOfWork.some((r: string) => tenderRegion.includes(r));
-
-    if (isPreferred || isInRegions) {
-      regionScore = 20;
-      reasons.push({
-        title: "Цільовий регіон",
-        description: `Закупівля оголошена в пріоритетному регіоні виконання (${tender.region || tender.customerCity || 'Україна'}).`,
-        type: "POSITIVE"
-      });
-    } else {
-      regionScore = 5;
-      reasons.push({
-        title: "Інший регіон",
-        description: `Регіон закупівлі (${tender.region || 'Не вказано'}) не входить до списку пріоритетних регіонів компанії.`,
-        type: "NEUTRAL"
-      });
-    }
-  } else {
-    regionScore = 15;
+  const regionsOfWork = [...(Array.isArray(vault.regionsOfWork) ? vault.regionsOfWork : []), vault.preferredRegion].filter(Boolean).map((value: string) => value.toLowerCase());
+  if (tenderRegion && regionsOfWork.length) {
+    const matched = regionsOfWork.some((region: string) => tenderRegion.includes(region) || region.includes(tenderRegion));
+    breakdown.region = { score: matched ? 100 : 0, weight: weights.region, evidence: `${tenderRegion} vs ${regionsOfWork.join(', ')}` };
   }
 
-  // 4. Keyword & Stem Match (20 max weight)
-  const tenderText = `${tender.title || ""} ${tender.summary || ""}`.toLowerCase();
-  const keywords = Array.isArray(vault.preferredKeywords) ? vault.preferredKeywords : [];
-  
-  if (keywords.length > 0) {
-    const matched = keywords.filter((k: string) => matchUkrainianText(tenderText, k).matched);
-    if (matched.length > 0) {
-      keywordScore = Math.min(20, matched.length * 10);
-      reasons.push({
-        title: `Збіг ключових маркерів (${matched.length})`,
-        description: `Знайдено ключові слова вашої спеціалізації: ${matched.join(", ")}.`,
-        type: "POSITIVE"
-      });
-    }
-  } else {
-    keywordScore = 10;
+  const requiredLicenses = Array.isArray(tender.requiredLicenses) ? tender.requiredLicenses.map((value: unknown) => String(value).toLowerCase()) : [];
+  const companyLicenses = Array.isArray(vault.licenses) ? vault.licenses.map((value: unknown) => String(typeof value === 'string' ? value : (value as any)?.name || '').toLowerCase()) : [];
+  if (requiredLicenses.length) {
+    const matched = requiredLicenses.filter((required: string) => companyLicenses.some((owned: string) => owned && matchUkrainianText(owned, required).matched));
+    breakdown.licenses = { score: Math.round(matched.length / requiredLicenses.length * 100), weight: weights.licenses, evidence: `${matched.length}/${requiredLicenses.length} requirements matched` };
   }
 
-  const finalFitScore = Math.min(100, Math.round(cpvScore + budgetScore + regionScore + keywordScore));
+  const documents = Array.isArray(vault.vaultDocuments) ? vault.vaultDocuments : null;
+  if (documents) breakdown.documents = { score: documents.length ? 100 : 0, weight: weights.documents, evidence: `${documents.length} verified vault documents` };
+  const available = Object.values(breakdown).filter(component => component.score !== null);
+  const coverage = available.reduce((sum, component) => sum + component.weight, 0);
+  const finalFitScore = coverage >= 0.6 ? Math.round(available.reduce((sum, component) => sum + (component.score! * component.weight), 0) / coverage) : null;
+  const docScore = breakdown.documents.score || 0;
+  const executionScore = Array.isArray(vault.staff) && vault.staff.length > 0 ? 100 : 0;
+  const regionScore = breakdown.region.score || 0;
+  const budgetScore = breakdown.financial.score || 0;
+  const licenseScore = breakdown.licenses.score || 0;
 
   return {
     fitScore: finalFitScore,
-    status: 'AVAILABLE',
+    status: finalFitScore === null ? 'INSUFFICIENT_DATA' : 'AVAILABLE',
     factors: {
-      companyFit: finalFitScore,
-      legalFit: 85,
+      companyFit: finalFitScore || 0,
+      legalFit: licenseScore,
       docReadiness: docScore,
       executionFeasibility: executionScore,
-      regionFit: regionScore > 0 ? 100 : 0,
-      budgetFit: budgetScore > 0 ? (budgetScore / 25) * 100 : 0
+      regionFit: regionScore,
+      budgetFit: budgetScore
     },
     reasons,
-    method: "DETERMINISTIC_MULTIFACTOR_PROZORRO_V3_STEMMED",
-    calculatedAt
+    method: "DETERMINISTIC_WEIGHTED_EVIDENCE_ONLY",
+    calculatedAt,
+    weightsVersion,
+    coverage: Math.round(coverage * 100) / 100,
+    breakdown,
   };
 }
 

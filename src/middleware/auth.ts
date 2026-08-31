@@ -1,9 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { adminAuth } from '../lib/firebase-admin.ts';
 import { DecodedIdToken } from 'firebase-admin/auth';
+import { beginTenantRequest } from './tenant.ts';
 
 export interface AuthRequest extends Request {
   user?: DecodedIdToken;
+  requestId?: string;
+  dbUserId?: number;
+  orgId?: number;
+  afterCommit?: Array<() => void>;
 }
 
 export const requireAuth = async (
@@ -13,20 +18,7 @@ export const requireAuth = async (
 ) => {
   const authHeader = req.headers.authorization;
   
-  // Development authentication is an explicit opt-in. Merely forgetting
-  // NODE_ENV must never turn authentication off.
-  const isDevBypassAllowed =
-    process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_AUTH === 'true';
-
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    if (isDevBypassAllowed) {
-      req.user = {
-        uid: 'dev-user-001',
-        email: 'dev@tenderai.ua',
-        name: 'Користувач TenderAI'
-      } as any;
-      return next();
-    }
     return res.status(401).json({ error: 'Unauthorized: No Bearer Token Provided' });
   }
 
@@ -34,16 +26,8 @@ export const requireAuth = async (
   try {
     const decodedToken = await adminAuth.verifyIdToken(token);
     req.user = decodedToken;
-    next();
+    return beginTenantRequest(req, res, next);
   } catch (error) {
-    if (isDevBypassAllowed) {
-      req.user = {
-        uid: 'dev-user-001',
-        email: 'dev@tenderai.ua',
-        name: 'Користувач (Dev Session)'
-      } as any;
-      return next();
-    }
     return res.status(401).json({ error: 'Unauthorized: Invalid or Expired Token' });
   }
 };
