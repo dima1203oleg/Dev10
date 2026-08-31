@@ -14,6 +14,8 @@
 
 > **2026-09-01 hidden workflow:** War Room workflow controls (Radar, Analysis, Audit, BoQ, Documents, Pre-submission, Overview, Resources, Price, Gantt, Plan, QA) and the no-analysis “Відкрити чат агентів” path were exercised without React errors.
 
+> **2026-09-01 reproducibility gate:** `npm ci --ignore-scripts && npm run verify` completed from a clean dependency install: 18 tests passed (1 skipped), production build and `npm audit --audit-level=moderate` passed.
+
 ---
 
 ## 1. Загальні положення та мета тестування

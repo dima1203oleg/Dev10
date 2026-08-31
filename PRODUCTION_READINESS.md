@@ -14,6 +14,8 @@ Latest BoQ truthfulness gate: construction BoQ reloads persisted rows and refuse
 
 Latest hidden-workflow gate: War Room navigation and Multi-Agent Chat entry render successfully with unknown-source data. This is local smoke evidence only; external service and Firebase gates remain blocked.
 
+Clean-install reproducibility gate: `npm ci --ignore-scripts && npm run verify` passed on 2026-09-01. Release is still `NOT READY` until external production-like services and authenticated E2E are proven.
+
 ## Verified blockers
 
 1. Git provenance is now available on `Dev10/main`; the current verified implementation commit is recorded in Git, but no release tag or rollback rehearsal exists.
