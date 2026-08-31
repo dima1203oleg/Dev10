@@ -15,6 +15,8 @@
 
 **2026-09-01 contract update:** tenant-scoped `GET/POST /api/tenders/:tenderId/bid-packages` now persist and return content-hashed manifests. BoQ/Gantt and bid-package handlers validate numeric tender IDs and same-organization ownership before writes. Local browser smoke confirmed successful BoQ, Gantt and bid-package round trips; live production integrations remain unverified.
 
+**2026-09-01 follow-up:** Construction UI consumes the persisted BoQ list endpoint on tender load; unknown unit prices are not converted into numeric zeroes.
+
 ---
 
 ## 1. API Verification Principles

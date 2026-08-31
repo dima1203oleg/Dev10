@@ -10,6 +10,8 @@ Latest offline gate: TypeScript lint, 18 tests (1 skipped), production build, an
 
 Latest UI smoke gate: local developer session passed Radar live-data rendering, tender selection, BoQ/Gantt persistence, bid-package persistence and all 14 primary navigation sections. This does not change the release decision because Firebase/Gemini and production-like OCR, Temporal, ClamAV, S3 and pgvector gates remain blocked.
 
+Latest BoQ truthfulness gate: construction BoQ reloads persisted rows and refuses to display a zero total or “В ринку” when source prices are absent. Release remains `NOT READY`.
+
 ## Verified blockers
 
 1. Git provenance is now available on `Dev10/main`; the current verified implementation commit is recorded in Git, but no release tag or rollback rehearsal exists.

@@ -7,6 +7,8 @@
 
 > **2026-09-01 smoke update:** 14 primary navigation controls were exercised in the local developer session. Radar → War Room → BoQ/Gantt and bid-package creation paths completed with persisted API responses; previously crashing null-budget FoulTender and Bid Package screens now render safely. Full 237-control evidence and Firebase-authenticated E2E remain `BLOCKED`.
 
+> **2026-09-01 follow-up:** Construction BoQ tab was opened after reload; persisted rows and source-missing UNKNOWN states rendered without runtime errors.
+
 ---
 
 ## 1. Interactive Button Verification Register

@@ -13,6 +13,8 @@
 
 **2026-09-01 runtime recheck:** null Prozorro budgets, FoulTender scores and bid-package values are rendered as `UNKNOWN`; the former construction pricing discount and null-unsafe package/audit formatting were removed. Browser smoke used live Prozorro records and intentionally left unverified AI/OCR outputs blocked.
 
+**2026-09-01 follow-up:** Construction BoQ aggregate and price-status cells now remain `UNKNOWN` until every row has a confirmed market price; persisted rows are loaded from PostgreSQL.
+
 ---
 
 ## 1. Zero Mock Data Policy

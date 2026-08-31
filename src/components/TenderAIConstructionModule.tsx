@@ -45,8 +45,27 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
   const [boqItems, setBoqItems] = useState<BoQItem[]>(currentTender.boqItems || []);
   
   React.useEffect(() => {
+    let cancelled = false;
     setBoqItems(currentTender.boqItems || []);
-  }, [currentTender]);
+    if (token) {
+      void fetch(`/api/tenders/${currentTender.id}/boq`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(async response => {
+          const body = await response.json();
+          if (!response.ok) throw new Error(body?.error?.message || 'Не вдалося завантажити BoQ');
+          const rows = Array.isArray(body.data) ? body.data : [];
+          if (!cancelled && rows.length > 0) {
+            setBoqItems(rows.map((row: any) => ({
+              id: String(row.id), code: row.code || '', description: row.name || '', unit: row.unit || 'UNKNOWN',
+              quantity: Number(row.quantity) || 0, standardPriceUah: null,
+              marketPriceUah: row.unitPriceUah == null ? null : Number(row.unitPriceUah), laborHours: null,
+              anomaly: null, notes: row.sourceDocumentId ? `Джерело: ${row.sourceDocumentId}` : undefined,
+            })));
+          }
+        })
+        .catch(error => { if (!cancelled) console.error('BoQ load error:', error); });
+    }
+    return () => { cancelled = true; };
+  }, [currentTender.id, token]);
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -123,7 +142,8 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
     onUpdateTenderBoq(currentTender.id, updated);
   };
 
-  const totalBoqCost = boqItems.reduce((acc, item) => acc + (item.quantity * (item.marketPriceUah || 0)), 0);
+  const hasConfirmedBoqPrices = boqItems.length > 0 && boqItems.every(item => Number.isFinite(item.marketPriceUah));
+  const totalBoqCost = hasConfirmedBoqPrices ? boqItems.reduce((acc, item) => acc + (item.quantity * (item.marketPriceUah as number)), 0) : null;
   const analysis = currentTender.multiAgentAnalysis;
 
   return (
@@ -516,7 +536,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
 
             <div className="flex flex-wrap items-center gap-3">
               <div className="text-xs text-slate-300">
-                Загальна кошторисна вартість: <strong className="text-emerald-400 font-mono text-sm">{totalBoqCost.toLocaleString()} ₴</strong>
+                Загальна кошторисна вартість: <strong className="text-emerald-400 font-mono text-sm">{totalBoqCost != null ? `${totalBoqCost.toLocaleString()} ₴` : 'UNKNOWN'}</strong>
               </div>
 
               <button
@@ -617,10 +637,12 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                       />
                     </td>
                     <td className="p-3 font-mono font-bold text-white">
-                      {(item.quantity * (item.marketPriceUah || 0)).toLocaleString()}
+                      {item.marketPriceUah != null ? (item.quantity * item.marketPriceUah).toLocaleString() : 'UNKNOWN'}
                     </td>
                     <td className="p-3">
-                      {item.anomaly === 'OVERPRICED' ? (
+                      {item.marketPriceUah == null ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700/50 text-slate-400 border border-slate-700">Немає джерельної ціни</span>
+                      ) : item.anomaly === 'OVERPRICED' ? (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-300 border border-red-500/30">
                           Завищено в ТД
                         </span>
