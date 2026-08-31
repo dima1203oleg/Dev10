@@ -22,6 +22,7 @@ import {
   Download
 } from 'lucide-react';
 import { exportToExcel, exportToAvk5 } from '../utils/estimateExporter';
+import { useAuth } from '../contexts/AuthContext';
 
 interface TenderAIConstructionModuleProps {
   currentTender: Tender;
@@ -40,6 +41,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
   onUpdateTenderBoq,
   onUpdateTenderAnalysis,
 }) => {
+  const { token } = useAuth();
   const [boqItems, setBoqItems] = useState<BoQItem[]>(currentTender.boqItems || []);
   
   React.useEffect(() => {
@@ -57,7 +59,10 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
     try {
       const res = await fetch('/api/tenderai/multi-agent-analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           tenderTitle: currentTender.title,
           budget: currentTender.budgetUah,
