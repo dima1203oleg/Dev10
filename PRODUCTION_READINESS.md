@@ -88,4 +88,4 @@ Local production-like component probe 2026-09-01: Docker daemon is available. Co
 
 Document worker smoke passed: the Temporal worker connected to the healthy server and entered `RUNNING` on `tenderai-documents`. Document extraction remains blocked until Docling is available and a real source PDF passes OCR/provenance validation.
 
-Docling probe 2026-09-01: health endpoint passed, but conversion of a real two-page Prozorro PDF timed out after 180 seconds and the Docker service then became unavailable. This gate is recorded as `FAIL/BLOCKED`; no OCR text, pages or bbox evidence is claimed.
+Docling probe 2026-09-01: health endpoint passed, but conversion of a real two-page Prozorro PDF timed out after 180 seconds and the Docker service then became unavailable. The worker now uses the official asynchronous conversion endpoint with bounded polling and explicit timeout/error codes. This gate is recorded as `FAIL/BLOCKED`; no OCR text, pages or bbox evidence is claimed.
