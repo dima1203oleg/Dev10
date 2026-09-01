@@ -133,19 +133,19 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
 
           {/* Progress Pill - Real Data Driven */}
           {(() => {
-            const calculatedReadiness = tasks.length > 0 
-              ? Math.round((completedTaskCount / tasks.length) * 100) 
-              : (currentTender.readinessScore?.overallPercentage ?? 0);
+            const calculatedReadiness = tasks.length > 0
+              ? Math.round((completedTaskCount / tasks.length) * 100)
+              : (typeof currentTender.readinessScore?.totalScore === 'number' ? currentTender.readinessScore.totalScore : null);
             return (
               <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 min-w-[280px] space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Готовність пропозиції:</span>
-                  <span className="text-xl font-black text-emerald-400">{calculatedReadiness}%</span>
+                  <span className="text-xl font-black text-emerald-400">{calculatedReadiness !== null ? `${calculatedReadiness}%` : 'UNKNOWN'}</span>
                 </div>
                 <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-gradient-to-r from-emerald-500 via-indigo-500 to-indigo-600 transition-all duration-500 shadow-lg shadow-emerald-500/20" 
-                    style={{ width: `${calculatedReadiness}%` }}
+                    style={{ width: `${calculatedReadiness ?? 0}%` }}
                   />
                 </div>
                 <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
@@ -163,42 +163,45 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
       <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-4 overflow-x-auto no-scrollbar">
         <div className="flex items-center justify-between min-w-[800px] px-4">
           {[
-            { step: 1, label: 'Радар', status: 'COMPLETED', icon: Target, section: 'radar' },
-            { step: 2, label: 'Аналіз', status: 'COMPLETED', icon: Search, section: 'construction' },
-            { step: 3, label: 'Аудит', status: 'COMPLETED', icon: ShieldAlert, section: 'audit' },
-            { step: 4, label: 'Кошторис', status: 'IN_PROGRESS', icon: DollarSign, section: 'cost-analysis' },
-            { step: 5, label: 'Документи', status: 'PENDING', icon: FileText, section: 'documents' },
-            { step: 6, label: 'Передподання', status: 'PENDING', icon: FileCheck2, section: 'bid-packages' },
-          ].map((item, idx, arr) => (
+            { step: 1, label: 'Радар', done: Boolean(currentTender.opportunityScore), icon: Target, section: 'radar' },
+            { step: 2, label: 'Аналіз', done: Boolean(currentTender.multiAgentAnalysis), icon: Search, section: 'construction' },
+            { step: 3, label: 'Аудит', done: Boolean(currentTender.collusionAnalysis || currentTender.violations?.length), icon: ShieldAlert, section: 'audit' },
+            { step: 4, label: 'Кошторис', done: Boolean(currentTender.boqItems?.length), icon: DollarSign, section: 'cost-analysis' },
+            { step: 5, label: 'Документи', done: false, icon: FileText, section: 'documents' },
+            { step: 6, label: 'Передподання', done: Boolean(currentTender.readinessScore), icon: FileCheck2, section: 'bid-packages' },
+          ].map((item, idx, arr) => {
+            const status = item.done ? 'COMPLETED' : (idx > 0 && arr[idx - 1].done ? 'IN_PROGRESS' : 'PENDING');
+            return (
             <React.Fragment key={item.step}>
               <button 
                 onClick={() => onNavigate && onNavigate(item.section)}
                 className="flex flex-col items-center gap-2 group cursor-pointer hover:scale-105 active:scale-95 transition-all focus:outline-none"
               >
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                  item.status === 'COMPLETED' ? 'bg-emerald-500 text-slate-950 group-hover:bg-emerald-400 shadow-md shadow-emerald-500/10' : 
-                  item.status === 'IN_PROGRESS' ? 'bg-indigo-600 text-white animate-pulse group-hover:bg-indigo-500 shadow-md shadow-indigo-600/10' : 
+                  status === 'COMPLETED' ? 'bg-emerald-500 text-slate-950 group-hover:bg-emerald-400 shadow-md shadow-emerald-500/10' : 
+                  status === 'IN_PROGRESS' ? 'bg-indigo-600 text-white animate-pulse group-hover:bg-indigo-500 shadow-md shadow-indigo-600/10' : 
                   'bg-slate-800 text-slate-500 group-hover:bg-slate-700 group-hover:text-slate-300'
                 }`}>
                   <item.icon size={18} />
                 </div>
                 <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${
-                  item.status === 'COMPLETED' ? 'text-emerald-400 group-hover:text-emerald-300' : 
-                  item.status === 'IN_PROGRESS' ? 'text-indigo-400 group-hover:text-indigo-300' : 
+                  status === 'COMPLETED' ? 'text-emerald-400 group-hover:text-emerald-300' : 
+                  status === 'IN_PROGRESS' ? 'text-indigo-400 group-hover:text-indigo-300' : 
                   'text-slate-600 group-hover:text-slate-400'
                 }`}>{item.label}</span>
               </button>
               {idx < arr.length - 1 && (
                 <div className={`flex-1 h-px max-w-[60px] mx-2 self-center ${
-                  item.status === 'COMPLETED' ? 'bg-emerald-500/40' : 'bg-slate-800'
+                  status === 'COMPLETED' ? 'bg-emerald-500/40' : 'bg-slate-800'
                 }`} />
               )}
             </React.Fragment>
-          ))}
+            );
+          })}
           <div className="ml-8 pl-8 border-l border-slate-800 flex flex-col items-end">
              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">Фінальний статус</div>
              <div className="px-4 py-2 rounded-xl bg-slate-800 text-slate-400 font-black text-xs uppercase tracking-widest border border-slate-700">
-                Очікує аудиту
+                {currentTender.readinessScore ? (currentTender.readinessScore.readyToSubmit ? 'ГОТОВО' : 'ПОТРЕБУЄ УСУНЕННЯ') : 'UNKNOWN'}
              </div>
           </div>
         </div>

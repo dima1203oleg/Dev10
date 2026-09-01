@@ -115,3 +115,5 @@ Removed remaining runtime fallback values from Company Profile, Dashboard and Pr
 The connector self-test no longer embeds a mock company/tender Radar fixture; it reports an explicit non-production failure when no live tenant context is supplied.
 
 War Room QA no longer embeds sanctions, staffing, bank-guarantee or certificate claims; it renders only the persisted readiness checklist.
+
+War Room progress and pipeline statuses no longer claim completion without corresponding persisted evidence.

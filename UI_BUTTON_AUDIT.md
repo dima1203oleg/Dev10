@@ -94,3 +94,5 @@ Construction BoQ add/edit/delete controls now call tenant-scoped POST/PATCH/DELE
 Targeted browser evidence 2026-09-01: `Додати позицію` increased the live BoQ row count and `Видалити` restored it, with the test row removed afterward.
 
 War Room QA action now navigates to the real Pre-Submission Audit route; its checklist reads persisted readiness evidence and displays `UNKNOWN` when no audit exists.
+
+War Room pipeline badges now derive from persisted analysis/BoQ/readiness state instead of hard-coded `COMPLETED`/`IN_PROGRESS` labels.
