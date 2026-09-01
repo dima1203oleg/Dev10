@@ -96,3 +96,5 @@ The Prozorro connector diagnostic no longer calculates Radar scores from fabrica
 The live search mapper now preserves missing Prozorro customer, region, category, status, currency and VAT fields as `UNKNOWN`/undefined rather than inferring values. Search timeout remains a documented external-gate failure.
 
 BoQ creation now validates that an optional source document belongs to the same organization and tender, and accepts only positive integer source pages.
+
+Negative API checks returned `INVALID_BOQ_SOURCE` and `INVALID_BOQ_SOURCE_PAGE` (HTTP 400) after a clean server restart.
