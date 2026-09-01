@@ -76,4 +76,4 @@ Status remains **NOT READY**. BoQ mutation persistence and UI unknown-state hand
 
 Additional browser smoke evidence confirms profile placeholders are absent and BoQ add/delete works against the authenticated local API. This does not change the release decision because required external integration gates remain unavailable.
 
-Latest `/api/production/verify` (2026-09-01) remains `BLOCKED`: database/authentication/Prozorro connectivity/AI configuration/multiplatform checks PASS; live Prozorro search FAIL (timeout), pagination BLOCKED, tenant-isolation and no-fake-data evidence UNKNOWN, and source-bound estimate engine BLOCKED.
+Latest `/api/production/verify` (2026-09-01) remains `BLOCKED`: database/authentication/Prozorro connectivity/multiplatform checks PASS; AI credentials are `UNKNOWN` until a live model call succeeds; live Prozorro search FAIL (timeout), pagination BLOCKED, tenant-isolation and no-fake-data evidence UNKNOWN, and source-bound estimate engine BLOCKED.

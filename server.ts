@@ -2009,7 +2009,7 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
     // 6. AI Engine
     const ai = getGeminiClient();
     if (ai) {
-      results.ai_engine = { status: "PASS", details: "Gemini Pro configured" };
+      results.ai_engine = { status: "UNKNOWN", details: "Gemini credentials are configured but a live model call is required to verify authentication and quota." };
     } else {
       results.ai_engine = { status: "FAIL", details: "Gemini API key missing" };
     }
