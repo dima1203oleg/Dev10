@@ -261,11 +261,13 @@ app.get("/api/team/tasks", requireAuth, async (req: AuthRequest, res) => {
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
     const orgId = await getUserOrganization(dbUser.id);
 
-    const [tasks, orgTenders, orgMembers] = await Promise.all([
-      db.select().from(teamTasks).where(eq(teamTasks.orgId, orgId)),
-      db.select({ id: tendersTable.id, tenderNumber: tendersTable.tenderNumber }).from(tendersTable).where(eq(tendersTable.orgId, orgId)),
-      db.select({ id: teamMembers.id, displayName: teamMembers.displayName, email: teamMembers.email, role: teamMembers.role, roleNameUk: teamMembers.roleNameUk }).from(teamMembers).where(eq(teamMembers.orgId, orgId)),
-    ]);
+    // The tenant middleware binds a request to one PostgreSQL transaction/client;
+    // keep these reads sequential to avoid overlapping queries on that client.
+    const tasks = await db.select().from(teamTasks).where(eq(teamTasks.orgId, orgId));
+    const orgTenders = await db.select({ id: tendersTable.id, tenderNumber: tendersTable.tenderNumber })
+      .from(tendersTable).where(eq(tendersTable.orgId, orgId));
+    const orgMembers = await db.select({ id: teamMembers.id, displayName: teamMembers.displayName, email: teamMembers.email, role: teamMembers.role, roleNameUk: teamMembers.roleNameUk })
+      .from(teamMembers).where(eq(teamMembers.orgId, orgId));
     const tenderById = new Map(orgTenders.map((t) => [t.id, t.tenderNumber]));
     const memberById = new Map(orgMembers.map((m) => [m.id, m]));
 
