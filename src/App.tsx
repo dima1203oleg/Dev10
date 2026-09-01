@@ -43,6 +43,17 @@ export default function App() {
   const [complaints, setComplaints] = useState<AmcuComplaintDoc[]>([]);
   const [bidPackages, setBidPackages] = useState<BidPackage[]>([]);
   const [starredTenders, setStarredTenders] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const handleExternalNavigation = (event: Event) => {
+      const section = (event as CustomEvent<string>).detail;
+      if (typeof section === 'string' && section.length > 0) {
+        setCurrentSection(section as AppSection);
+      }
+    };
+    window.addEventListener('tenderai:navigate', handleExternalNavigation);
+    return () => window.removeEventListener('tenderai:navigate', handleExternalNavigation);
+  }, []);
   
   const [dbLoading, setDbLoading] = useState(false);
 

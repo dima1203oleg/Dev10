@@ -22,6 +22,7 @@ export const ServicesModelModule: React.FC = () => {
   const estimatedTendersNeeded = Math.ceil(targetVolumeMln / 15);
   const hoursSavedPerTender = 68;
   const totalHoursSaved = estimatedTendersNeeded * hoursSavedPerTender;
+  const openSupportChat = () => window.dispatchEvent(new CustomEvent('tenderai:navigate', { detail: 'multiagent-chat' }));
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -81,7 +82,7 @@ export const ServicesModelModule: React.FC = () => {
             </ul>
           </div>
 
-          <button className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all cursor-pointer">
+          <button type="button" onClick={openSupportChat} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all cursor-pointer">
             Активувати підписку DIY
           </button>
         </div>
@@ -122,7 +123,7 @@ export const ServicesModelModule: React.FC = () => {
             </ul>
           </div>
 
-          <button className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-950/60 transition-all cursor-pointer">
+          <button type="button" onClick={openSupportChat} className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-950/60 transition-all cursor-pointer">
             Обрати AI-Assisted
           </button>
         </div>
@@ -159,7 +160,7 @@ export const ServicesModelModule: React.FC = () => {
             </ul>
           </div>
 
-          <button className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all cursor-pointer">
+          <button type="button" onClick={openSupportChat} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-700 transition-all cursor-pointer">
             Замовити аудит компанії
           </button>
         </div>
