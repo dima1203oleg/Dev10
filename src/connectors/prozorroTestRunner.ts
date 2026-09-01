@@ -7,7 +7,6 @@
 import { extractAndExpandKeywords, matchUkrainianText, stemUkrainianWord } from './ukrainianStemmer';
 import { evaluateCpvHierarchy } from './cpvMatcher';
 import { calculateTenderRelevanceScore, executeAdvancedProzorroSearch } from './prozorroSearchEngine';
-import { calculatePersonalRadarMatch } from './prozorro';
 
 export interface TestResultItem {
   testId: string;
@@ -183,49 +182,16 @@ export async function runProzorroConnectorTestSuite(): Promise<FullProzorroTestS
   }
 
   // 5. TEST: Company Radar Personal Fit Score
-  try {
-    const mockProfile = {
-      vaultData: {
-        cpvCodes: ["45210000", "45214200"],
-        minTenderBudget: 500000,
-        maxTenderBudget: 15000000,
-        preferredRegion: "Київська область",
-        preferredKeywords: ["укриття", "ремонт", "будівництво"],
-        vaultDocuments: ["doc1", "doc2"],
-        staff: ["eng1", "eng2"]
-      }
-    };
-
-    const mockTender = {
-      title: "Капітальний ремонт укриття в ліцеї №5",
-      budgetUah: 3500000,
-      region: "Київська область",
-      items: [{ classification: { id: "45214200-2" } }],
-      summary: "Будівельно-монтажні роботи з облаштування захисної споруди цивільного захисту"
-    };
-
-    const radarResult = calculatePersonalRadarMatch(mockTender, mockProfile);
-    const passRadar = (radarResult.fitScore || 0) >= 80 && radarResult.factors.companyFit >= 80;
-
-    results.push({
-      testId: 'TEST-05-RADAR',
-      category: 'RADAR_FIT',
-      title: 'Персональний скоринг відповідності компанії (Radar Match)',
-      status: passRadar ? 'PASS' : 'FAIL',
-      details: passRadar
-        ? `Персональний бал відповідності розраховано: ${radarResult.fitScore}% (Фактори: CPV 100%, Регіон 100%, Бюджет 100%).`
-        : `Помилка скорингу відповідності: ${radarResult.fitScore}`,
-      metrics: { fitScore: radarResult.fitScore, factors: radarResult.factors, reasonsCount: radarResult.reasons.length }
-    });
-  } catch (err: any) {
-    results.push({
-      testId: 'TEST-05-RADAR',
-      category: 'RADAR_FIT',
-      title: 'Персональний скоринг відповідності компанії (Radar Match)',
-      status: 'FAIL',
-      details: `Помилка Radar скорингу: ${err.message}`
-    });
-  }
+  // A fit score is only meaningful for an authenticated, persisted company profile
+  // and a live tender. This connector self-test has no such context, so it must not
+  // invent a profile/tender fixture or claim a production score.
+  results.push({
+    testId: 'TEST-05-RADAR',
+    category: 'RADAR_FIT',
+    title: 'Персональний скоринг відповідності компанії (Radar Match)',
+    status: 'FAIL',
+    details: 'Не виконано: self-test не має live company profile і tender context; запустіть Radar для збережених tenant-даних.',
+  });
 
   // 6. TEST: Live Prozorro API Search, Pagination & Deduplication
   try {

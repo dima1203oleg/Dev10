@@ -90,3 +90,5 @@ export const SyncButton: React.FC = () => {
 ## Re-audit 2026-09-01
 
 Construction BoQ add/edit/delete controls now call tenant-scoped POST/PATCH/DELETE endpoints; dashboard, profile and pre-submission cards no longer render fabricated readiness/requirement values and show `UNKNOWN` when evidence is absent. Full 237-control browser coverage remains BLOCKED.
+
+Targeted browser evidence 2026-09-01: `Додати позицію` increased the live BoQ row count and `Видалити` restored it, with the test row removed afterward.

@@ -111,3 +111,5 @@ export const TenderList: React.FC = () => {
 ## Re-audit 2026-09-01
 
 Removed remaining runtime fallback values from Company Profile, Dashboard and Pre-Submission gauges; absent persisted evidence is rendered as `UNKNOWN`. Test-only fixtures remain isolated under test files. Production release remains NOT READY pending live service gates.
+
+The connector self-test no longer embeds a mock company/tender Radar fixture; it reports an explicit non-production failure when no live tenant context is supplied.

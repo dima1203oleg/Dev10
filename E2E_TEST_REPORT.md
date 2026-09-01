@@ -95,4 +95,6 @@ test.describe("TenderAI OS Comprehensive E2E Verification", () => {
 
 `npm run verify` PASS (TypeScript, 18 Vitest tests, production bundles, npm audit 0 vulnerabilities). BoQ API edit persistence and truthfulness fallbacks are covered by static/type gates; full browser E2E and external-service acceptance remain BLOCKED.
 
+Browser smoke on the current revision: local session loaded the app, profile rendered `UNKNOWN` without placeholder company/resource values, and the Construction BoQ tab added then deleted a persisted row through the live API. This is targeted evidence, not full 237-control coverage.
+
 Static verification completed: TypeScript PASS, Vitest 2/2 PASS, Vite build PASS, server bundle PASS. Production negative-startup test PASS (missing mandatory configuration terminates the process). These checks are not a substitute for browser/database E2E.

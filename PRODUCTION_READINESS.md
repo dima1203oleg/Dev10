@@ -73,3 +73,5 @@ Until all items pass, the only accurate release status is **NOT READY**.
 ## Re-audit 2026-09-01
 
 Status remains **NOT READY**. BoQ mutation persistence and UI unknown-state handling were hardened and verified with `npm run verify`; live Firebase/Gemini, Temporal, OCR, ClamAV, S3/pgvector and complete 237-control E2E evidence are still outstanding.
+
+Additional browser smoke evidence confirms profile placeholders are absent and BoQ add/delete works against the authenticated local API. This does not change the release decision because required external integration gates remain unavailable.
