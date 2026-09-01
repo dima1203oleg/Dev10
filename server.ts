@@ -2482,6 +2482,13 @@ app.post("/api/tenderai/collusion-detect", requireAuth, async (req: AuthRequest,
     if (typeof tenderId !== 'string' || !tenderId.trim() || typeof tenderTitle !== 'string' || !tenderTitle.trim() || !Array.isArray(competitors) || !history || typeof history !== 'object') {
       return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Tender identity, competitors and observed bidding history are required.' }, requestId: req.requestId });
     }
+    if (competitors.length < 2) {
+      return res.status(400).json({ error: { code: 'COLLUSION_COMPETITORS_REQUIRED', message: 'At least two verified competitors are required.' }, requestId: req.requestId });
+    }
+    const evidenceKeys = ['commonIPs', 'sharedAddresses', 'zeroPriceDropBids', 'jointBidsCount'];
+    if (!evidenceKeys.some((key) => Object.prototype.hasOwnProperty.call(history, key) && history[key] !== undefined && history[key] !== null)) {
+      return res.status(400).json({ error: { code: 'COLLUSION_EVIDENCE_REQUIRED', message: 'Verified bidding-history evidence is required before collusion analysis.' }, requestId: req.requestId });
+    }
     return res.json(detectCollusionRisk({ tenderId, tenderTitle, competitors, history }));
   } catch (error: any) {
     console.error("Collusion detection failed:", error);

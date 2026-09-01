@@ -19,6 +19,8 @@
 
 > **2026-09-01 detail-modal update:** «Продовжити аналіз»/«Беру участь» are disabled until official Prozorro details are loaded, preventing actions on unverified data.
 
+> **2026-09-01 collusion update:** FoulTender scan is disabled until the selected tender contains at least two competitors and verified bidding-history evidence; the UI shows the exact missing prerequisite.
+
 ---
 
 ## 1. Interactive Button Verification Register

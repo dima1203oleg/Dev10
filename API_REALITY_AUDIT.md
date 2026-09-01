@@ -21,6 +21,8 @@
 
 **2026-09-01 Team API hardening:** `/api/team/tasks`, `/api/team/comments` and member creation now validate tenant-owned IDs, reject malformed enum values, and return the typed fields consumed by the Team Workspace. Task PATCH is restricted to status changes.
 
+**2026-09-01 collusion gate:** `/api/tenderai/collusion-detect` now rejects requests with fewer than two verified competitors or without observed bidding-history evidence, preventing a false `0/LOW` result.
+
 **Estimate gate correction:** the production self-test no longer executes or persists synthetic estimate fixtures; `auto_estimate_engine` is explicitly `BLOCKED` until a source-bound document/BoQ dataset is supplied.
 
 ---

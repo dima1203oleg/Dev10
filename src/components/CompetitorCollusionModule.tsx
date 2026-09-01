@@ -35,6 +35,9 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
   const [isScanning, setIsScanning] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [collusionData, setCollusionData] = useState<CollusionAnalysis | undefined>(currentTender.collusionAnalysis);
+  const tenderHistory = (currentTender as Tender & { history?: Record<string, unknown>; biddingHistory?: Record<string, unknown> }).history
+    || (currentTender as Tender & { biddingHistory?: Record<string, unknown> }).biddingHistory;
+  const hasVerifiedEvidence = !!tenderHistory && Object.keys(tenderHistory).length > 0;
 
   const handleRunCollusionScan = async () => {
     setIsScanning(true);
@@ -46,7 +49,8 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
         body: JSON.stringify({
           tenderId: currentTender.tenderNumber,
           tenderTitle: currentTender.title,
-          competitors: competitorList
+          competitors: competitorList,
+          history: tenderHistory
         })
       });
       if (!response.ok) {
@@ -129,11 +133,11 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
             <div className="h-10 w-[1px] bg-slate-800" />
             <button
               onClick={handleRunCollusionScan}
-              disabled={isScanning}
+              disabled={isScanning || competitorList.length < 2 || !hasVerifiedEvidence}
               className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
             >
               <Sparkles className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
-              {isScanning ? 'Сканування зв\'язків...' : 'AI Поглиблений скан змов'}
+              {isScanning ? 'Сканування зв\'язків...' : competitorList.length < 2 ? 'Потрібні ≥2 конкуренти' : !hasVerifiedEvidence ? 'Потрібна історія торгів' : 'Детермінований скан змов'}
             </button>
           </div>
         </div>
