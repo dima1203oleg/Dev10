@@ -98,3 +98,5 @@ The live search mapper now preserves missing Prozorro customer, region, category
 BoQ creation now validates that an optional source document belongs to the same organization and tender, and accepts only positive integer source pages.
 
 Negative API checks returned `INVALID_BOQ_SOURCE` and `INVALID_BOQ_SOURCE_PAGE` (HTTP 400) after a clean server restart.
+
+Company AI failure paths now return typed safe errors with request IDs; missing Gemini no longer returns fabricated keyword suggestions. Prozorro detail failures expose a stable gateway error without upstream exception text.

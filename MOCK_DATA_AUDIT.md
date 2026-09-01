@@ -126,6 +126,8 @@ The connector self-test no longer embeds a mock company/tender Radar fixture; it
 
 The live Prozorro search mapper no longer invents customer, geography, category, lifecycle status, currency or VAT values when the official payload omits them.
 
+The company keyword endpoint no longer supplies hard-coded fallback keywords when Gemini is unavailable; it returns `AI_UNAVAILABLE` instead.
+
 War Room QA no longer embeds sanctions, staffing, bank-guarantee or certificate claims; it renders only the persisted readiness checklist.
 
 War Room progress and pipeline statuses no longer claim completion without corresponding persisted evidence.

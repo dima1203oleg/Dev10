@@ -822,7 +822,7 @@ app.post("/api/company/run-ai-analysis", requireAuth, async (req: AuthRequest, r
     res.json({ status: "ok", profile: updatedProfile, documentsCount: docs.length });
   } catch (error: any) {
     console.error("Run Company AI Analysis Error:", error);
-    res.status(500).json({ error: "Помилка AI аналізу компанії", details: error.message });
+    res.status(500).json({ error: { code: 'COMPANY_AI_ANALYSIS_FAILED', message: 'Не вдалося виконати аналіз профілю компанії.' }, requestId: req.requestId });
   }
 });
 
@@ -959,7 +959,7 @@ ${sourceDescription}
     res.json({ status: "ok", profile: savedProfile });
   } catch (error: any) {
     console.error("Auto Extract Error:", error);
-    res.status(500).json({ error: "Помилка автоматичного витягу даних", details: error.message });
+    res.status(500).json({ error: { code: 'COMPANY_AUTO_EXTRACT_FAILED', message: 'Не вдалося автоматично витягнути дані.' }, requestId: req.requestId });
   }
 });
 
@@ -973,8 +973,7 @@ app.post("/api/company/generate-keywords", requireAuth, async (req: AuthRequest,
 
     const ai = getGeminiClient();
     if (!ai) {
-      const fallbackKeywords = ["реконструкція", "капітальний ремонт", "будівництво", "послуги", "обладнання", "монтаж"];
-      return res.json({ status: "ok", keywords: fallbackKeywords });
+      return res.status(503).json({ error: { code: 'AI_UNAVAILABLE', message: 'AI-сервіс тимчасово недоступний; ключ Gemini не налаштовано.' }, requestId: req.requestId });
     }
 
     const prompt = `Проаналізуй опис компанії та згенеруй 8-10 професійних ключових слів (MUST HAVE) українською мовою для моніторингу публічних закупівель Prozorro.
@@ -1001,7 +1000,7 @@ app.post("/api/company/generate-keywords", requireAuth, async (req: AuthRequest,
     res.json({ status: "ok", keywords });
   } catch (error: any) {
     console.error("Generate Keywords AI Error:", error);
-    res.status(500).json({ error: "Помилка генерації ключових слів", details: error.message });
+    res.status(500).json({ error: { code: 'KEYWORDS_GENERATION_FAILED', message: 'Не вдалося згенерувати ключові слова.' }, requestId: req.requestId });
   }
 });
 
@@ -1103,7 +1102,7 @@ app.get("/api/connectors/prozorro/health", async (req, res) => {
 });
 
 // API: Comprehensive Prozorro Search & Scoring Test Suite Runner
-app.get("/api/connectors/prozorro/test", async (_req, res) => {
+app.get("/api/connectors/prozorro/test", async (req, res) => {
   try {
     const report = await runProzorroConnectorTestSuite();
     const httpCode = report.overallStatus === "FAIL" ? 500 : 200;
@@ -1111,13 +1110,13 @@ app.get("/api/connectors/prozorro/test", async (_req, res) => {
   } catch (error: any) {
     res.status(500).json({
       overallStatus: "FAIL",
-      error: error.message || "Failed to execute test suite"
+      error: { code: 'TEST_SUITE_FAILED', message: 'Не вдалося виконати тестовий набір.' }
     });
   }
 });
 
 // API: Multi-Platform Aggregator Test Suite Runner
-app.get("/api/connectors/multiplatform/test", async (_req, res) => {
+app.get("/api/connectors/multiplatform/test", async (req, res) => {
   try {
     const report = await runMultiPlatformTestSuite();
     const httpCode = report.overallStatus === "FAIL" ? 500 : 200;
@@ -1125,7 +1124,7 @@ app.get("/api/connectors/multiplatform/test", async (_req, res) => {
   } catch (error: any) {
     res.status(500).json({
       overallStatus: "FAIL",
-      error: error.message || "Failed to execute test suite"
+      error: { code: 'TEST_SUITE_FAILED', message: 'Не вдалося виконати тестовий набір.' }
     });
   }
 });
@@ -1574,7 +1573,7 @@ app.get("/api/prozorro/tender/:id", requireAuth, async (req: AuthRequest, res) =
 
   } catch (error: any) {
     console.error("Prozorro Tender Full Detail error:", error);
-    res.status(500).json({ error: "Failed to fetch tender details: " + error.message });
+    res.status(502).json({ error: { code: 'PROZORRO_DETAIL_FAILED', message: 'Не вдалося отримати деталі з офіційного Prozorro API.' }, requestId: req.requestId });
   }
 });
 
@@ -2172,7 +2171,7 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
       timestamp: new Date().toISOString()
     });
   } catch (error: any) {
-    res.status(500).json({ error: error.message, results });
+    res.status(500).json({ error: { code: 'PRODUCTION_VERIFY_FAILED', message: 'Не вдалося завершити production verification.' }, results, requestId: req.requestId });
   }
 });
 
