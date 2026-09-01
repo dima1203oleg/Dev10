@@ -118,3 +118,5 @@ Pipeline controls remain navigational but their completion badges are derived fr
 Search result cards now display explicit `UNKNOWN` source fields when Prozorro omits attributes; no UI control treats inferred customer/geography/status values as verified facts.
 
 Collusion scan responses are schema-validated in the UI (bounded numeric score, known risk level, array evidence fields); malformed provider payloads surface an error instead of being rendered as low risk.
+
+Browser smoke 2026-09-01 exercised all 14 primary navigation controls on a fresh loopback session; each rendered without an application error.

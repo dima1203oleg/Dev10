@@ -30,7 +30,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    let localSessionApplied = false;
+    const isLoopback = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost';
+
+    const tryLocalSession = async () => {
+      if (!isLoopback || cancelled || localSessionApplied) return false;
+      try {
+        const response = await fetch('/api/auth/local-session');
+        if (!response.ok) return false;
+        const local = await response.json() as { token: string; user: { uid: string; email: string; displayName: string } };
+        if (cancelled) return false;
+        localSessionApplied = true;
+        setUser(local.user as User);
+        setToken(local.token);
+        setLoading(false);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     const unsubscribe = onIdTokenChanged(auth, async (currentUser) => {
+      if (cancelled || localSessionApplied) return;
       setUser(currentUser);
       if (currentUser) {
         const idToken = await currentUser.getIdToken();
@@ -48,26 +70,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error("Failed to sync user with DB", error);
         }
       } else {
-        if (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') {
-          try {
-            const response = await fetch('/api/auth/local-session');
-            if (response.ok) {
-              const local = await response.json() as { token: string; user: { uid: string; email: string; displayName: string } };
-              setUser(local.user as User);
-              setToken(local.token);
-              setLoading(false);
-              return;
-            }
-          } catch {
-            // Local development sessions are optional and unavailable in production.
-          }
-        }
+        if (await tryLocalSession()) return;
         setToken(null);
       }
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Firebase initialization can be delayed by blocked third-party requests.
+    // Keep loopback development usable without weakening production auth.
+    const localFallbackTimer = isLoopback ? window.setTimeout(() => { void tryLocalSession(); }, 1500) : undefined;
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      if (localFallbackTimer !== undefined) window.clearTimeout(localFallbackTimer);
+    };
   }, []);
 
   const signIn = async () => {

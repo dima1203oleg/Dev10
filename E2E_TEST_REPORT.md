@@ -116,3 +116,5 @@ Static verification completed: TypeScript PASS, Vitest 2/2 PASS, Vite build PASS
 2026-09-01: `npm run verify` PASS after hardening live Prozorro mapping (18 tests passed, 1 skipped, production build and dependency audit clean). Full live search acceptance remains BLOCKED by upstream timeout.
 
 Collusion UI now rejects malformed scores/risk levels and never falls back to a fabricated `0/LOW` result.
+
+Fresh browser smoke after server restart exercised all 14 primary navigation buttons successfully. This validates route rendering only; control-level E2E and external-service acceptance remain blocked.
