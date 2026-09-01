@@ -38,6 +38,7 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
   const tenderHistory = (currentTender as Tender & { history?: Record<string, unknown>; biddingHistory?: Record<string, unknown> }).history
     || (currentTender as Tender & { biddingHistory?: Record<string, unknown> }).biddingHistory;
   const hasVerifiedEvidence = !!tenderHistory && Object.keys(tenderHistory).length > 0;
+  const sourceUrl = currentTender.sourceUrl;
 
   const handleRunCollusionScan = async () => {
     setIsScanning(true);
@@ -266,7 +267,7 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
 
               <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-500">
                 <span>Спаринг-партнери: {comp.suspiciousPairingsCount}</span>
-                <button className="text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1">
+                <button type="button" disabled={!sourceUrl} onClick={() => sourceUrl && window.open(sourceUrl, '_blank', 'noopener,noreferrer')} title={sourceUrl ? 'Відкрити офіційне джерело торгів' : 'Офіційне джерело не вказане'} className="text-emerald-400 hover:text-emerald-300 disabled:text-slate-600 disabled:cursor-not-allowed font-semibold flex items-center gap-1">
                   <Eye className="w-3.5 h-3.5" /> Історія торгів
                 </button>
               </div>

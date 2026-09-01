@@ -126,3 +126,5 @@ Extended browser audit 2026-09-01 visited every primary section and recorded vis
 Unsupported ROI claims in the services view were replaced with explicit UNKNOWN states; scenario-only tender/hour calculations remain labeled as user-input projections.
 
 Services plan CTA controls now have a real navigation effect: each opens the authenticated Multi-Agent support chat via the application navigation event. They do not claim to create a subscription without a billing backend.
+
+Additional control audit 2026-09-01: legacy Sidebar settings/profile/company icons now navigate to the audit or company profile sections with accessible labels. Document upload's manual file button now triggers the real file input (the transparent overlay no longer intercepts it). The competitor “Історія торгів” control opens only a verified official source URL and is disabled when none exists.

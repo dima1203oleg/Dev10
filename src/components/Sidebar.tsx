@@ -48,9 +48,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentSection, onSelectSectio
       </nav>
 
       <div className="mt-auto flex flex-col gap-4 text-slate-500">
-        <button className="p-2 hover:text-slate-200"><Settings /></button>
-        <button className="p-2 hover:text-slate-200"><User /></button>
-        <button className="p-2 hover:text-slate-200"><Building2 /></button>
+        <button type="button" title="Налаштування та аудит" aria-label="Налаштування та аудит" onClick={() => onSelectSection('audit')} className="p-2 hover:text-slate-200"><Settings /></button>
+        <button type="button" title="Профіль користувача" aria-label="Профіль користувача" onClick={() => onSelectSection('profile')} className="p-2 hover:text-slate-200"><User /></button>
+        <button type="button" title="Профіль компанії" aria-label="Профіль компанії" onClick={() => onSelectSection('profile')} className="p-2 hover:text-slate-200"><Building2 /></button>
       </div>
     </aside>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Tender, TenderDocument } from '../types';
 import { 
   FileText, 
@@ -34,6 +34,7 @@ export const DocumentWorkspace: React.FC<DocumentWorkspaceProps> = ({
 }) => {
   const [dragActive, setDragActive] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const downloadDocument = async (doc: TenderDocument) => {
     if (!token) return;
@@ -117,6 +118,7 @@ export const DocumentWorkspace: React.FC<DocumentWorkspaceProps> = ({
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
             className={`relative border-2 border-dashed rounded-3xl p-8 transition-all flex flex-col items-center justify-center text-center space-y-4 ${
               dragActive 
                 ? 'border-emerald-500 bg-emerald-500/5' 
@@ -131,12 +133,13 @@ export const DocumentWorkspace: React.FC<DocumentWorkspaceProps> = ({
               <p className="text-[10px] text-slate-500 font-medium">Підтримуються PDF, DOCX, XLSX (до 50 МБ)</p>
             </div>
             <input 
+              ref={fileInputRef}
               type="file" 
               multiple 
-              className="absolute inset-0 opacity-0 cursor-pointer"
+              className="hidden"
               onChange={(e) => e.target.files && onUpload(Array.from(e.target.files))}
             />
-            <button className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all">
+            <button type="button" onClick={(event) => { event.stopPropagation(); fileInputRef.current?.click(); }} className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all">
               Обрати файли вручну
             </button>
           </div>

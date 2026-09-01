@@ -132,6 +132,8 @@ Services/ROI overview no longer presents fixed 18% margin or 0% loss-risk claims
 
 Service plan CTAs do not fabricate subscription state: they navigate to support chat where a real commercial workflow can be handled.
 
+Legacy Sidebar and competitor controls now expose only real navigation/source actions; unsupported history links are disabled instead of implying unavailable evidence.
+
 War Room QA no longer embeds sanctions, staffing, bank-guarantee or certificate claims; it renders only the persisted readiness checklist.
 
 War Room progress and pipeline statuses no longer claim completion without corresponding persisted evidence.
