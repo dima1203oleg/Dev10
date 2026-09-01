@@ -11,6 +11,8 @@
 
 > **2026-09-01 hidden-control update:** War Room workflow controls and direct Multi-Agent Chat entry from the no-analysis state are reachable and rendered successfully; destructive controls were not invoked.
 
+> **2026-09-01 Team update:** Team Workspace loaded through the live browser session with task/member/audit controls present and no runtime errors. Team task/comment payloads are aligned with backend contracts; destructive create flows were not executed against the shared tenant.
+
 ---
 
 ## 1. Interactive Button Verification Register

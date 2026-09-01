@@ -210,8 +210,11 @@ app.post("/api/team/members", requireAuth, async (req: AuthRequest, res) => {
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
     const orgId = await getUserOrganization(dbUser.id);
 
-    const { name, email, role } = req.body;
-    if (!email) return res.status(400).json({ error: "Email is required" });
+    const { name, email, role, roleNameUk } = req.body;
+    if (!String(name || '').trim()) return res.status(400).json({ error: "Name is required", code: "NAME_REQUIRED" });
+    if (!String(email || '').trim() || !/^\S+@\S+\.\S+$/.test(String(email))) return res.status(400).json({ error: "Valid email is required", code: "INVALID_EMAIL" });
+    const allowedRoles = new Set(['BID_DIRECTOR', 'LEAD_ESTIMATOR', 'SENIOR_LAWYER', 'PROJECT_MANAGER', 'ENGINEER', 'ADMIN', 'MANAGER', 'MEMBER', 'VIEWER']);
+    if (role !== undefined && !allowedRoles.has(String(role))) return res.status(400).json({ error: "Invalid role", code: "INVALID_ROLE" });
 
     // In a real app, we would invite the user. For this prototype, we'll create/link a user.
     const targetUser = await getOrCreateUser(`invited-${email}`, email);
@@ -219,7 +222,10 @@ app.post("/api/team/members", requireAuth, async (req: AuthRequest, res) => {
     const [newMember] = await db.insert(teamMembers).values({
       userId: targetUser.id,
       orgId,
+      displayName: String(name).trim(),
+      email: String(email).trim().toLowerCase(),
       role: role || 'MEMBER',
+      roleNameUk: roleNameUk ? String(roleNameUk).trim() : null,
     }).returning();
 
     // Record audit event
@@ -234,9 +240,11 @@ app.post("/api/team/members", requireAuth, async (req: AuthRequest, res) => {
 
     res.json({
       id: `tm-${newMember.id}`,
-      name: email.split('@')[0],
-      email,
+      name: newMember.displayName || String(email).split('@')[0],
+      email: newMember.email,
       role: newMember.role,
+      roleNameUk: newMember.roleNameUk || 'UNKNOWN',
+      avatar: newMember.avatar || '👤',
       status: "OFFLINE"
     });
   } catch (err) {
@@ -253,19 +261,33 @@ app.get("/api/team/tasks", requireAuth, async (req: AuthRequest, res) => {
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
     const orgId = await getUserOrganization(dbUser.id);
 
-    const tasks = await db.select().from(teamTasks).where(eq(teamTasks.orgId, orgId));
-    
-    // Map to expected UI format
-    const formattedTasks = tasks.map(t => ({
+    const [tasks, orgTenders, orgMembers] = await Promise.all([
+      db.select().from(teamTasks).where(eq(teamTasks.orgId, orgId)),
+      db.select({ id: tendersTable.id, tenderNumber: tendersTable.tenderNumber }).from(tendersTable).where(eq(tendersTable.orgId, orgId)),
+      db.select({ id: teamMembers.id, displayName: teamMembers.displayName, email: teamMembers.email, role: teamMembers.role, roleNameUk: teamMembers.roleNameUk }).from(teamMembers).where(eq(teamMembers.orgId, orgId)),
+    ]);
+    const tenderById = new Map(orgTenders.map((t) => [t.id, t.tenderNumber]));
+    const memberById = new Map(orgMembers.map((m) => [m.id, m]));
+
+    // Map to the UI contract; missing relational data stays explicitly unknown.
+    const formattedTasks = tasks.map(t => {
+      const assignee = t.assigneeId ? memberById.get(t.assigneeId) : undefined;
+      return {
       id: `task-${t.id}`,
       tenderId: t.tenderId?.toString(),
+      tenderNumber: t.tenderId ? (tenderById.get(t.tenderId) || 'UNKNOWN') : 'UNKNOWN',
       title: t.title,
       description: t.description,
       assigneeId: t.assigneeId ? `tm-${t.assigneeId}` : "unassigned",
+      assigneeName: assignee?.displayName || assignee?.email?.split('@')[0] || 'UNKNOWN',
+      assigneeRole: assignee?.roleNameUk || assignee?.role || 'UNKNOWN',
+      dueDate: 'UNKNOWN',
       priority: t.priority,
       status: t.status,
+      commentsCount: 0,
       createdAt: t.createdAt?.toISOString()
-    }));
+      };
+    });
 
     res.json(formattedTasks);
   } catch (err) {
@@ -284,12 +306,40 @@ app.post("/api/team/tasks", requireAuth, async (req: AuthRequest, res) => {
     const { tenderId, title, description, assigneeId, priority } = req.body;
     if (!title) return res.status(400).json({ error: "Task title is required" });
 
+    const parsedTenderId = tenderId === undefined || tenderId === null || tenderId === ''
+      ? null
+      : Number.parseInt(String(tenderId), 10);
+    if (parsedTenderId !== null && (!Number.isInteger(parsedTenderId) || parsedTenderId < 1)) {
+      return res.status(400).json({ error: "Invalid tenderId", code: "INVALID_TENDER_ID" });
+    }
+    if (parsedTenderId !== null) {
+      const [ownedTender] = await db.select({ id: tendersTable.id }).from(tendersTable)
+        .where(and(eq(tendersTable.id, parsedTenderId), eq(tendersTable.orgId, orgId))).limit(1);
+      if (!ownedTender) return res.status(404).json({ error: "Tender not found", code: "TENDER_NOT_FOUND" });
+    }
+
+    const parsedAssigneeId = assigneeId === undefined || assigneeId === null || assigneeId === '' || assigneeId === 'unassigned'
+      ? null
+      : Number.parseInt(String(assigneeId).replace(/^tm-/, ''), 10);
+    if (parsedAssigneeId !== null && (!Number.isInteger(parsedAssigneeId) || parsedAssigneeId < 1)) {
+      return res.status(400).json({ error: "Invalid assigneeId", code: "INVALID_ASSIGNEE_ID" });
+    }
+    if (parsedAssigneeId !== null) {
+      const [ownedMember] = await db.select({ id: teamMembers.id }).from(teamMembers)
+        .where(and(eq(teamMembers.id, parsedAssigneeId), eq(teamMembers.orgId, orgId))).limit(1);
+      if (!ownedMember) return res.status(404).json({ error: "Team member not found", code: "MEMBER_NOT_FOUND" });
+    }
+    const allowedPriorities = new Set(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
+    if (priority !== undefined && !allowedPriorities.has(String(priority))) {
+      return res.status(400).json({ error: "Invalid priority", code: "INVALID_PRIORITY" });
+    }
+
     const [newTask] = await db.insert(teamTasks).values({
       orgId,
-      tenderId: tenderId ? parseInt(tenderId) : null,
+      tenderId: parsedTenderId,
       title,
       description,
-      assigneeId: assigneeId ? parseInt(assigneeId.replace('tm-', '')) : null,
+      assigneeId: parsedAssigneeId,
       priority: priority || 'MEDIUM',
     }).returning();
 
@@ -322,17 +372,28 @@ app.patch("/api/team/tasks/:id", requireAuth, async (req: AuthRequest, res) => {
     const dbUser = await getOrCreateUser(user.uid, user.email || "");
     const orgId = await getUserOrganization(dbUser.id);
 
-    const id = parseInt(req.params.id.replace('task-', ''));
-    const updates = req.body;
+    const id = Number.parseInt(req.params.id.replace(/^task-/, ''), 10);
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: "Invalid task id", code: "INVALID_TASK_ID" });
+    const allowedStatuses = new Set(['TODO', 'IN_PROGRESS', 'IN_REVIEW', 'DONE']);
+    const { status } = req.body || {};
+    if (!allowedStatuses.has(String(status))) return res.status(400).json({ error: "Invalid task status", code: "INVALID_TASK_STATUS" });
 
     const [updatedTask] = await db.update(teamTasks)
-      .set({ ...updates, updatedAt: new Date() })
+      .set({ status: String(status), updatedAt: new Date() })
       .where(and(eq(teamTasks.id, id), eq(teamTasks.orgId, orgId)))
       .returning();
 
     if (!updatedTask) return res.status(404).json({ error: "Task not found" });
 
-    res.json(updatedTask);
+    res.json({
+      id: `task-${updatedTask.id}`,
+      tenderId: updatedTask.tenderId?.toString(),
+      title: updatedTask.title,
+      description: updatedTask.description,
+      priority: updatedTask.priority,
+      status: updatedTask.status,
+      createdAt: updatedTask.createdAt?.toISOString(),
+    });
   } catch (err) {
     console.error("Update task error:", err);
     res.status(500).json({ error: "Failed to update task" });
@@ -359,10 +420,20 @@ app.get("/api/team/comments", requireAuth, async (req: AuthRequest, res) => {
       // Logic for filtering by tender if needed (join would be better)
     }
     if (taskId) {
-      filtered = filtered.filter(c => c.taskId === parseInt(taskId as string));
+      const parsedTaskId = Number.parseInt(String(taskId).replace(/^task-/, ''), 10);
+      if (!Number.isInteger(parsedTaskId) || parsedTaskId < 1) return res.status(400).json({ error: "Invalid taskId", code: "INVALID_TASK_ID" });
+      filtered = filtered.filter(c => c.taskId === parsedTaskId);
     }
 
-    res.json(filtered);
+    res.json(filtered.map((comment) => ({
+      id: `comment-${comment.id}`,
+      taskId: comment.taskId ? `task-${comment.taskId}` : undefined,
+      authorId: String(comment.authorId),
+      authorName: 'UNKNOWN',
+      authorRole: 'UNKNOWN',
+      text: comment.content,
+      createdAt: comment.createdAt?.toISOString(),
+    })));
   } catch (err) {
     console.error("Load comments error:", err);
     res.status(500).json({ error: "Failed to load comments" });
@@ -379,14 +450,34 @@ app.post("/api/team/comments", requireAuth, async (req: AuthRequest, res) => {
     const { taskId, text } = req.body;
     if (!text) return res.status(400).json({ error: "Comment text is required" });
 
+    const parsedTaskId = taskId === undefined || taskId === null || taskId === ''
+      ? null
+      : Number.parseInt(String(taskId).replace(/^task-/, ''), 10);
+    if (parsedTaskId !== null && (!Number.isInteger(parsedTaskId) || parsedTaskId < 1)) {
+      return res.status(400).json({ error: "Invalid taskId", code: "INVALID_TASK_ID" });
+    }
+    if (parsedTaskId !== null) {
+      const [ownedTask] = await db.select({ id: teamTasks.id }).from(teamTasks)
+        .where(and(eq(teamTasks.id, parsedTaskId), eq(teamTasks.orgId, orgId))).limit(1);
+      if (!ownedTask) return res.status(404).json({ error: "Task not found", code: "TASK_NOT_FOUND" });
+    }
+
     const [newComment] = await db.insert(teamComments).values({
       orgId,
-      taskId: taskId ? parseInt(taskId) : null,
+      taskId: parsedTaskId,
       authorId: dbUser.id, // Fixed: use dbUser.id
       content: text,
     }).returning();
 
-    res.json(newComment);
+    res.json({
+      id: `comment-${newComment.id}`,
+      taskId: newComment.taskId ? `task-${newComment.taskId}` : undefined,
+      authorId: String(newComment.authorId),
+      authorName: user.displayName || user.email?.split('@')[0] || 'UNKNOWN',
+      authorRole: 'UNKNOWN',
+      text: newComment.content,
+      createdAt: newComment.createdAt?.toISOString(),
+    });
   } catch (err) {
     console.error("Add comment error:", err);
     res.status(500).json({ error: "Failed to add comment" });

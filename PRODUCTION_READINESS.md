@@ -74,6 +74,8 @@ Until all items pass, the only accurate release status is **NOT READY**.
 
 Status remains **NOT READY**. BoQ mutation persistence and UI unknown-state handling were hardened and verified with `npm run verify`; live Firebase/Gemini, Temporal, OCR, ClamAV, S3/pgvector and complete 237-control E2E evidence are still outstanding.
 
+Team Workspace contract hardening also passed the local type/build gate; external service and authenticated Firebase acceptance gates remain outstanding.
+
 Additional browser smoke evidence confirms profile placeholders are absent and BoQ add/delete works against the authenticated local API. This does not change the release decision because required external integration gates remain unavailable.
 
 Latest `/api/production/verify` (2026-09-01) remains `BLOCKED`: database/authentication/Prozorro connectivity/multiplatform checks PASS; AI credentials are `UNKNOWN` until a live model call succeeds; live Prozorro search FAIL (timeout), pagination BLOCKED, tenant-isolation and no-fake-data evidence UNKNOWN, and source-bound estimate engine BLOCKED.

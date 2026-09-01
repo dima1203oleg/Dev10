@@ -10,6 +10,8 @@
 
 > **2026-09-01 browser smoke evidence:** Local developer session exercised the live Radar (30 Prozorro results), real tender selection, persisted BoQ create, persisted Gantt create, bid-package create/read via API, and all 14 primary navigation sections. Null-source budgets and scores render `UNKNOWN`; no React-root crashes were observed after the fixes. The consilium action returns a readable validation error when required source data/Gemini configuration is absent. This is a smoke PASS only; authenticated Firebase, live Gemini, OCR and production-like service gates remain BLOCKED.
 
+> **2026-09-01 Team smoke evidence:** Team Workspace rendered task/member/audit controls without an application error after API contract hardening. Invalid task IDs/statuses were rejected with `400` and stable codes. No shared-tenant test records were created.
+
 > **2026-09-01 follow-up:** Construction BoQ now reloads persisted rows from `/api/tenders/:id/boq` and renders `UNKNOWN` for totals/status when no source price is present. Offline gate remains green; release gates remain blocked by external services.
 
 > **2026-09-01 hidden workflow:** War Room workflow controls (Radar, Analysis, Audit, BoQ, Documents, Pre-submission, Overview, Resources, Price, Gantt, Plan, QA) and the no-analysis “Відкрити чат агентів” path were exercised without React errors.

@@ -125,20 +125,25 @@ export const TeamWorkspaceModule: React.FC<TeamWorkspaceModuleProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
-          tenderId: targetTender?.id || 'general',
-          tenderNumber: targetTender?.tenderNumber || 'Загальне завдання',
+          tenderId: targetTender?.id || null,
           title: newTaskTitle,
           description: newTaskDesc,
-          assigneeId: assignedMember?.id || 'user',
-          assigneeName: assignedMember?.name || 'Фахівець',
-          assigneeRole: assignedMember?.roleNameUk || 'Спеціаліст',
+          assigneeId: assignedMember?.id || null,
           priority: newTaskPriority,
-          dueDate: new Date(Date.now() + 86400000 * 3).toISOString().split('T')[0]
         })
       });
       if (res.ok) {
         const created = await res.json();
-        setTasks(prev => [created, ...prev]);
+        setTasks(prev => [{
+          ...created,
+          tenderId: targetTender?.id,
+          tenderNumber: targetTender?.tenderNumber || 'UNKNOWN',
+          assigneeId: assignedMember?.id || 'unassigned',
+          assigneeName: assignedMember?.name || 'UNKNOWN',
+          assigneeRole: assignedMember?.roleNameUk || 'UNKNOWN',
+          dueDate: 'UNKNOWN',
+          commentsCount: 0,
+        }, ...prev]);
         setIsNewTaskOpen(false);
         setNewTaskTitle('');
         setNewTaskDesc('');

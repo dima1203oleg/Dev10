@@ -19,6 +19,8 @@
 
 **2026-09-01 production self-test:** PostgreSQL, direct Prozorro connectivity, Gemini configuration and multiplatform source-integrity checks passed. Live authenticated search timed out at the 15-second safety boundary; pagination is explicitly marked `BLOCKED` rather than left pending.
 
+**2026-09-01 Team API hardening:** `/api/team/tasks`, `/api/team/comments` and member creation now validate tenant-owned IDs, reject malformed enum values, and return the typed fields consumed by the Team Workspace. Task PATCH is restricted to status changes.
+
 **Estimate gate correction:** the production self-test no longer executes or persists synthetic estimate fixtures; `auto_estimate_engine` is explicitly `BLOCKED` until a source-bound document/BoQ dataset is supplied.
 
 ---
