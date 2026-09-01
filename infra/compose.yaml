@@ -46,7 +46,7 @@ services:
     ports:
       - "7233:7233"
     healthcheck:
-      test: ["CMD", "tctl", "--address", "127.0.0.1:7233", "cluster", "health"]
+      test: ["CMD-SHELL", "tctl --address \"$(hostname -i):7233\" cluster health"]
       interval: 10s
       timeout: 10s
       retries: 30

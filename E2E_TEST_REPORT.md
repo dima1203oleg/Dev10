@@ -133,4 +133,4 @@ Latest gate run 2026-09-01: `npm run test:integration` passed the disposable RLS
 
 Clean-install reproducibility gate 2026-09-01: `npm ci --ignore-scripts && npm run verify` passed (694 packages installed, 0 vulnerabilities; typecheck, 18 tests, production bundles and dependency audit all green).
 
-Production-like stack probe 2026-09-01: Docker daemon is available; Compose PostgreSQL, ClamAV and SeaweedFS/S3 are healthy, Temporal PostgreSQL is healthy and Temporal server is running. Temporal's legacy `tctl` healthcheck is still starting; Docling remains unpulled and host PaddleOCR/DuckDB are unavailable.
+Production-like stack probe 2026-09-01: Docker daemon is available; Compose PostgreSQL, ClamAV, SeaweedFS/S3, Temporal PostgreSQL and Temporal server are healthy. Docling remains in download/startup and host PaddleOCR/DuckDB are unavailable.
