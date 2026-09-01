@@ -114,3 +114,5 @@ Type/build verification covers the evidence-derived pipeline refactor; targeted 
 Static verification completed: TypeScript PASS, Vitest 2/2 PASS, Vite build PASS, server bundle PASS. Production negative-startup test PASS (missing mandatory configuration terminates the process). These checks are not a substitute for browser/database E2E.
 
 2026-09-01: `npm run verify` PASS after hardening live Prozorro mapping (18 tests passed, 1 skipped, production build and dependency audit clean). Full live search acceptance remains BLOCKED by upstream timeout.
+
+Collusion UI now rejects malformed scores/risk levels and never falls back to a fabricated `0/LOW` result.

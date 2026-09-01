@@ -58,13 +58,18 @@ export const CompetitorCollusionModule: React.FC<CompetitorCollusionModuleProps>
         throw new Error(errJson.error?.message || errJson.error || 'Помилка аналізу змов. Спробуйте ще раз.');
       }
       const data = await response.json();
+      const parsedScore = Number(data.collusionRiskScore);
+      const validRiskLevels = new Set(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
+      if (!Number.isFinite(parsedScore) || parsedScore < 0 || parsedScore > 100 || !validRiskLevels.has(data.riskLevel)) {
+        throw new Error('Некоректна відповідь аналізатора змов');
+      }
       const updatedCollusion: CollusionAnalysis = {
         tenderId: currentTender.id,
-        collusionRiskScore: data.collusionRiskScore ?? 0,
-        riskLevel: data.riskLevel || 'LOW',
-        primarySuspects: data.primarySuspects || [],
-        anomaliesDetected: data.anomaliesDetected || [],
-        coBiddingGraph: data.coBiddingGraph || []
+        collusionRiskScore: parsedScore,
+        riskLevel: data.riskLevel,
+        primarySuspects: Array.isArray(data.primarySuspects) ? data.primarySuspects : [],
+        anomaliesDetected: Array.isArray(data.anomaliesDetected) ? data.anomaliesDetected : [],
+        coBiddingGraph: Array.isArray(data.coBiddingGraph) ? data.coBiddingGraph : []
       };
       setCollusionData(updatedCollusion);
       if (onUpdateTenderCollusion) {

@@ -116,3 +116,5 @@ War Room overview progress and pipeline status are now evidence-derived; QA show
 Pipeline controls remain navigational but their completion badges are derived from the selected tender's persisted Radar, analysis, BoQ, collusion and readiness fields.
 
 Search result cards now display explicit `UNKNOWN` source fields when Prozorro omits attributes; no UI control treats inferred customer/geography/status values as verified facts.
+
+Collusion scan responses are schema-validated in the UI (bounded numeric score, known risk level, array evidence fields); malformed provider payloads surface an error instead of being rendered as low risk.
