@@ -76,6 +76,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     });
 
+    // Start the loopback session probe immediately; Firebase may take several
+    // seconds to initialize when third-party requests are blocked by a browser.
+    if (isLoopback) void tryLocalSession();
+
     // Firebase initialization can be delayed by blocked third-party requests.
     // Keep loopback development usable without weakening production auth.
     const localFallbackTimer = isLoopback ? window.setTimeout(() => { void tryLocalSession(); }, 1500) : undefined;

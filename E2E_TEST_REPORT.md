@@ -118,3 +118,5 @@ Static verification completed: TypeScript PASS, Vitest 2/2 PASS, Vite build PASS
 Collusion UI now rejects malformed scores/risk levels and never falls back to a fabricated `0/LOW` result.
 
 Fresh browser smoke after server restart exercised all 14 primary navigation buttons successfully. This validates route rendering only; control-level E2E and external-service acceptance remain blocked.
+
+Auth bootstrap now probes the loopback session immediately as well as using the bounded fallback timer, preventing a Firebase initialization delay from leaving local UI indefinitely on the loading screen. Browser harness re-check is currently intermittent and does not alter the production fail-closed path.
