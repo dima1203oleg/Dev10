@@ -92,3 +92,5 @@ export default router;
 Added `PATCH /api/tenders/:tenderId/boq/:itemId` with organization-scoped ownership checks and strict numeric validation. Construction UI persists edits on blur; unauthorized requests remain fail-closed. External Temporal/OCR/ClamAV/S3/Gemini credentials still require integration evidence.
 
 The Prozorro connector diagnostic no longer calculates Radar scores from fabricated profile/tender objects.
+
+The live search mapper now preserves missing Prozorro customer, region, category, status, currency and VAT fields as `UNKNOWN`/undefined rather than inferring values. Search timeout remains a documented external-gate failure.

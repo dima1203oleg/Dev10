@@ -112,3 +112,5 @@ Latest browser smoke confirmed the unaudited tender renders `UNKNOWN` readiness/
 Type/build verification covers the evidence-derived pipeline refactor; targeted browser smoke confirms QA navigation. Full responsive and 237-control E2E remains BLOCKED.
 
 Static verification completed: TypeScript PASS, Vitest 2/2 PASS, Vite build PASS, server bundle PASS. Production negative-startup test PASS (missing mandatory configuration terminates the process). These checks are not a substitute for browser/database E2E.
+
+2026-09-01: `npm run verify` PASS after hardening live Prozorro mapping (18 tests passed, 1 skipped, production build and dependency audit clean). Full live search acceptance remains BLOCKED by upstream timeout.

@@ -114,3 +114,5 @@ Document download controls now call the authenticated object-storage download en
 War Room overview progress and pipeline status are now evidence-derived; QA shows persisted checklist data or `UNKNOWN`, and its audit action navigates to the real audit module.
 
 Pipeline controls remain navigational but their completion badges are derived from the selected tender's persisted Radar, analysis, BoQ, collusion and readiness fields.
+
+Search result cards now display explicit `UNKNOWN` source fields when Prozorro omits attributes; no UI control treats inferred customer/geography/status values as verified facts.

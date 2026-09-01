@@ -17,7 +17,7 @@ export interface ProzorroTenderItem {
   customerCity: string;
   budgetUah: number | null;
   currency: string;
-  isVatIncluded: boolean;
+  isVatIncluded?: boolean;
   deadline: string | null;
   datePublished: string | null;
   region: string;

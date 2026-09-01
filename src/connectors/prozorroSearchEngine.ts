@@ -263,24 +263,28 @@ export async function executeAdvancedProzorroSearch(
             continue;
           }
 
-          const currency = data.value?.currency || "UAH";
-          const isVatIncluded = data.value?.valueAddedTaxIncluded ?? true;
+          // Preserve source uncertainty. Never infer currency or VAT semantics when
+          // the official payload omits them; downstream UI renders UNKNOWN.
+          const currency = data.value?.currency || "UNKNOWN";
+          const isVatIncluded = typeof data.value?.valueAddedTaxIncluded === 'boolean'
+            ? data.value.valueAddedTaxIncluded
+            : undefined;
 
           const item: ScoredProzorroTender = {
             id: data.id,
             tenderId,
             title: data.title || "Без назви закупівлі",
-            customer: data.procuringEntity?.name || data.procuringEntity?.identifier?.legalName || "Замовник Prozorro",
-            customerEdrpou: data.procuringEntity?.identifier?.id || "НЕ ВКАЗАНО",
-            customerCity: data.procuringEntity?.address?.locality || data.procuringEntity?.address?.region || "Україна",
+            customer: data.procuringEntity?.name || data.procuringEntity?.identifier?.legalName || "UNKNOWN",
+            customerEdrpou: data.procuringEntity?.identifier?.id || "UNKNOWN",
+            customerCity: data.procuringEntity?.address?.locality || data.procuringEntity?.address?.region || "UNKNOWN",
             budgetUah: budget,
             currency,
             isVatIncluded,
             deadline: data.tenderPeriod?.endDate || null,
             datePublished: data.datePublished || data.dateModified || null,
-            region: data.procuringEntity?.address?.region || data.procuringEntity?.address?.locality || "Україна",
-            status: data.status || 'active',
-            category: data.mainProcurementCategory || (data.items?.[0]?.classification?.description ? data.items[0].classification.description : "Товари та послуги"),
+            region: data.procuringEntity?.address?.region || data.procuringEntity?.address?.locality || "UNKNOWN",
+            status: data.status || 'UNKNOWN',
+            category: data.mainProcurementCategory || data.items?.[0]?.classification?.description || "UNKNOWN",
             summary: data.description || data.title || "",
             relevanceScore: relResult.score,
             scoringBreakdown: relResult.breakdown,

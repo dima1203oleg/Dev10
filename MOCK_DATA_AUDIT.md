@@ -124,6 +124,8 @@ Removed remaining runtime fallback values from Company Profile, Dashboard and Pr
 
 The connector self-test no longer embeds a mock company/tender Radar fixture; it reports an explicit non-production failure when no live tenant context is supplied.
 
+The live Prozorro search mapper no longer invents customer, geography, category, lifecycle status, currency or VAT values when the official payload omits them.
+
 War Room QA no longer embeds sanctions, staffing, bank-guarantee or certificate claims; it renders only the persisted readiness checklist.
 
 War Room progress and pipeline statuses no longer claim completion without corresponding persisted evidence.
