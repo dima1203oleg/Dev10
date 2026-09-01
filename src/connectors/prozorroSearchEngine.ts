@@ -159,7 +159,9 @@ export async function executeAdvancedProzorroSearch(
   const tendersMap = new Map<string, ScoredProzorroTender>();
   const maxPages = options.maxPages || 4;
   const targetLimit = options.limit || 25;
-  const timeoutMs = 25000;
+  // Keep the UI responsive when the public upstream API stalls. A partial
+  // result is preferable to an unbounded request; telemetry exposes the state.
+  const timeoutMs = 5000;
 
   let pagesFetched = 0;
   let recordsFetched = 0;

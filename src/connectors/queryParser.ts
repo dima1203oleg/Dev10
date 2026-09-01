@@ -254,9 +254,14 @@ export async function parseTenderQuery(prompt: string, apiKey?: string): Promise
 
   let responseText = "";
 
+  const withTimeout = <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('AI query parser timeout')), timeoutMs);
+    promise.then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
+  });
+
   for (const modelName of modelsToTry) {
     try {
-      const result = await ai.models.generateContent({
+      const result = await withTimeout(ai.models.generateContent({
         model: modelName,
         contents: [
           systemInstruction,
@@ -266,7 +271,7 @@ export async function parseTenderQuery(prompt: string, apiKey?: string): Promise
           responseMimeType: "application/json",
           temperature: 0.1
         }
-      });
+      }), 3500);
       responseText = result.text || "";
       if (responseText.trim()) {
         break;
@@ -313,4 +318,3 @@ export async function parseTenderQuery(prompt: string, apiKey?: string): Promise
     return heuristicParseQuery(prompt);
   }
 }
-

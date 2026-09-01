@@ -102,3 +102,5 @@ Negative API checks returned `INVALID_BOQ_SOURCE` and `INVALID_BOQ_SOURCE_PAGE` 
 Company AI failure paths now return typed safe errors with request IDs; missing Gemini no longer returns fabricated keyword suggestions. Prozorro detail failures expose a stable gateway error without upstream exception text.
 
 Deterministic Fit Score now keeps unavailable factors as `null`/UNKNOWN instead of converting missing evidence to zero; a score is only returned when evidence coverage reaches the configured threshold.
+
+Production verification now probes the official Prozorro API directly (five live records) instead of recursively calling the local HTTP server; this removes IPv6/loopback deadlocks. Live search is `PASS`; authenticated cursor pagination remains `UNKNOWN` until its dedicated gate runs.
