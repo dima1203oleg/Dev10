@@ -119,6 +119,8 @@ Collusion UI now rejects malformed scores/risk levels and never falls back to a 
 
 Fresh browser smoke after server restart exercised all 14 primary navigation buttons successfully. This validates route rendering only; control-level E2E and external-service acceptance remain blocked.
 
+Auth error handling now catches Firebase token acquisition failures, clears the unusable token, exits loading, and displays a safe re-login message instead of leaving the application stuck.
+
 Auth bootstrap now probes the loopback session immediately as well as using the bounded fallback timer, preventing a Firebase initialization delay from leaving local UI indefinitely on the loading screen. Browser harness re-check is currently intermittent and does not alter the production fail-closed path.
 
 Fresh authenticated browser audit 2026-09-01 exercised all 14 primary sections. Each rendered without `Application error`/`Uncaught`; observed visible button counts ranged from 22 to 54 and SVG/chart counts from 22 to 51 per section. This is navigation/render evidence, not proof that every mutating control has passed a real-data E2E.

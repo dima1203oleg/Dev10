@@ -55,19 +55,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (cancelled || localSessionApplied) return;
       setUser(currentUser);
       if (currentUser) {
-        const idToken = await currentUser.getIdToken();
-        setToken(idToken);
-        
-        // Ensure user exists in our DB
         try {
+          const idToken = await currentUser.getIdToken();
+          setToken(idToken);
+
+          // Ensure user exists in our DB
           await fetch('/api/auth/sync', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${idToken}`
             }
           });
+          setAuthError(null);
         } catch (error) {
-          console.error("Failed to sync user with DB", error);
+          console.error("Failed to initialize authenticated session", error);
+          setToken(null);
+          setAuthError('Не вдалося підтвердити сесію. Увійдіть повторно.');
         }
       } else {
         if (await tryLocalSession()) return;
