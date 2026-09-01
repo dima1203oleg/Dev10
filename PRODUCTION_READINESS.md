@@ -80,7 +80,7 @@ Additional browser smoke evidence confirms profile placeholders are absent and B
 
 Earlier `/api/production/verify` sample (2026-09-01) was `BLOCKED`: database/authentication/Prozorro connectivity/multiplatform checks PASS; AI credentials were `UNKNOWN` until a live model call succeeds; one transient live search timeout was observed, pagination and tenant-isolation evidence were unresolved, and the source-bound estimate engine was BLOCKED.
 
-Re-run 2026-09-01 after the official API self-test hardening: database, authentication, Prozorro connectivity/search (5 live tenders), and multiplatform integrity PASS; pagination is `UNKNOWN`; AI live call, external RLS, document pipeline and source-bound estimate evidence remain `UNKNOWN`/`BLOCKED`. Release status correctly remains **NOT READY**.
+Re-run 2026-09-01 after the official API self-test hardening: database, authentication, Prozorro connectivity/search (5 live tenders), multiplatform integrity and cursor pagination PASS; AI live call, external RLS, document pipeline and source-bound estimate evidence remain `UNKNOWN`/`BLOCKED`. Release status correctly remains **NOT READY**.
 
 Clean reproducibility run 2026-09-01: `npm ci --ignore-scripts && npm run verify` PASS; 694 packages installed, 0 dependency vulnerabilities, typecheck/tests/build/audit green. This validates the local gate only and does not satisfy the outstanding external production gates.
 

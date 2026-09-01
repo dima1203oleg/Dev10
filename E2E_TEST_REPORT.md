@@ -129,7 +129,7 @@ Auth bootstrap now probes the loopback session immediately as well as using the 
 
 Fresh authenticated browser audit 2026-09-01 exercised all 14 primary sections. Each rendered without `Application error`/`Uncaught`; observed visible button counts ranged from 22 to 54 and SVG/chart counts from 22 to 51 per section. This is navigation/render evidence, not proof that every mutating control has passed a real-data E2E.
 
-Latest gate run 2026-09-01: `npm run test:integration` passed the disposable RLS integration test (1/1). `/api/production/verify` authenticated with the loopback session and passed database, authentication, official Prozorro reachability/search (5 live tenders), and aggregator integrity; pagination is `UNKNOWN`, while live Gemini, external tenant isolation, document pipeline and source-bound estimate gates remain unresolved.
+Latest gate run 2026-09-01: `npm run test:integration` passed the disposable RLS integration test (1/1). The live connector self-test passed official Prozorro reachability/search and cursor pagination (10 real tenders, 0 duplicates). `/api/production/verify` still requires authenticated tenant evidence; live Gemini, external tenant isolation, document pipeline and source-bound estimate gates remain unresolved.
 
 Clean-install reproducibility gate 2026-09-01: `npm ci --ignore-scripts && npm run verify` passed (694 packages installed, 0 vulnerabilities; typecheck, 18 tests, production bundles and dependency audit all green).
 
