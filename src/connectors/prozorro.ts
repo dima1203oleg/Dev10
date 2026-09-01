@@ -125,12 +125,12 @@ export function calculatePersonalRadarMatch(tender: any, profile: any): {
   fitScore: number | null;
   status: 'AVAILABLE' | 'INSUFFICIENT_DATA';
   factors: {
-    companyFit: number;
-    legalFit: number;
-    docReadiness: number;
-    executionFeasibility: number;
-    regionFit: number;
-    budgetFit: number;
+    companyFit: number | null;
+    legalFit: number | null;
+    docReadiness: number | null;
+    executionFeasibility: number | null;
+    regionFit: number | null;
+    budgetFit: number | null;
   };
   reasons: { title: string; description: string; type: 'POSITIVE' | 'NEUTRAL' | 'WARNING' }[];
   method: string;
@@ -199,17 +199,17 @@ export function calculatePersonalRadarMatch(tender: any, profile: any): {
   const available = Object.values(breakdown).filter(component => component.score !== null);
   const coverage = available.reduce((sum, component) => sum + component.weight, 0);
   const finalFitScore = coverage >= 0.6 ? Math.round(available.reduce((sum, component) => sum + (component.score! * component.weight), 0) / coverage) : null;
-  const docScore = breakdown.documents.score || 0;
-  const executionScore = Array.isArray(vault.staff) && vault.staff.length > 0 ? 100 : 0;
-  const regionScore = breakdown.region.score || 0;
-  const budgetScore = breakdown.financial.score || 0;
-  const licenseScore = breakdown.licenses.score || 0;
+  const docScore = breakdown.documents.score;
+  const executionScore = Array.isArray(vault.staff) ? (vault.staff.length > 0 ? 100 : 0) : null;
+  const regionScore = breakdown.region.score;
+  const budgetScore = breakdown.financial.score;
+  const licenseScore = breakdown.licenses.score;
 
   return {
     fitScore: finalFitScore,
     status: finalFitScore === null ? 'INSUFFICIENT_DATA' : 'AVAILABLE',
     factors: {
-      companyFit: finalFitScore || 0,
+      companyFit: finalFitScore,
       legalFit: licenseScore,
       docReadiness: docScore,
       executionFeasibility: executionScore,

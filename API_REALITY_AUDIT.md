@@ -100,3 +100,5 @@ BoQ creation now validates that an optional source document belongs to the same 
 Negative API checks returned `INVALID_BOQ_SOURCE` and `INVALID_BOQ_SOURCE_PAGE` (HTTP 400) after a clean server restart.
 
 Company AI failure paths now return typed safe errors with request IDs; missing Gemini no longer returns fabricated keyword suggestions. Prozorro detail failures expose a stable gateway error without upstream exception text.
+
+Deterministic Fit Score now keeps unavailable factors as `null`/UNKNOWN instead of converting missing evidence to zero; a score is only returned when evidence coverage reaches the configured threshold.

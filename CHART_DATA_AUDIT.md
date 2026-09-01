@@ -85,3 +85,5 @@ export default router;
 # Independent re-audit (2026-08-31)
 
 **Status: FAIL.** Cost-estimate and supplier figures include synthetic constants and random calculations; charts derived from them are not production evidence.
+
+Fit Score component values now preserve missing evidence as `null`; UI consumers must render UNKNOWN rather than plotting absent evidence as zero. Live chart acceptance remains blocked until independent DuckDB/SQL reconciliation is demonstrated.

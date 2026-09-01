@@ -73,7 +73,7 @@ export function evaluateCpvHierarchy(tenderCpvRaw: string, targetCpvRaw: string)
       matchedCpvCode: targetCpv,
       depth: 'EXACT_8_DIGIT',
       score: 100,
-      description: COMMON_CPV_DIRECTORY[tenderCpv] || "Точний збіг коду ДК 021:2015"
+      description: COMMON_CPV_DIRECTORY[tenderCpv] || "UNKNOWN"
     };
   }
 
