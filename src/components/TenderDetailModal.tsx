@@ -97,42 +97,24 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
 
   const convertToTenderObject = (): Tender => {
     if (!detailData) {
-      return {
-        id: tenderId,
-        tenderNumber: `UA-${tenderId.substring(0, 8)}`,
-        title: "Тендер Prozorro",
-        customer: "Замовник Prozorro",
-        customerEdrpou: "NOT_AVAILABLE",
-        customerCity: "NOT_AVAILABLE",
-        budgetUah: null,
-        deadline: "NOT_AVAILABLE",
-        region: "NOT_AVAILABLE",
-        status: 'ACTIVE',
-        category: "Закупівлі",
-        foulScore: null,
-        riskLevel: 'NOT_ANALYZED',
-        summary: "Імпортовано з Prozorro API",
-        boqItems: [],
-        violations: [],
-        createdDate: new Date().toISOString().split('T')[0],
-      };
+      throw new Error('Офіційні деталі Prozorro ще не підтверджені. Дію заблоковано.');
     }
 
     return {
       id: detailData.id,
-      tenderNumber: detailData.tenderNumber,
-      title: detailData.title,
-      customer: detailData.customer.name,
-      customerEdrpou: detailData.customer.edrpou,
-      customerCity: detailData.customer.locality || detailData.customer.region,
-      budgetUah: detailData.value.amount,
-      deadline: detailData.timeline?.tenderPeriod?.endDate || "NOT_AVAILABLE",
-      region: detailData.customer.region,
-      status: 'ACTIVE',
-      category: detailData.items?.[0]?.cpvName || "Будівельні роботи",
+      tenderNumber: detailData.tenderNumber || 'UNKNOWN',
+      title: detailData.title || 'UNKNOWN',
+      customer: detailData.customer?.name || 'UNKNOWN',
+      customerEdrpou: detailData.customer?.edrpou || 'UNKNOWN',
+      customerCity: detailData.customer?.locality || detailData.customer?.region || 'UNKNOWN',
+      budgetUah: detailData.value?.amount ?? null,
+      deadline: detailData.timeline?.tenderPeriod?.endDate || "UNKNOWN",
+      region: detailData.customer?.region || 'UNKNOWN',
+      status: detailData.status || 'UNKNOWN',
+      category: detailData.items?.[0]?.cpvName || "UNKNOWN",
       foulScore: null,
       riskLevel: 'NOT_ANALYZED',
-      summary: detailData.description || `Офіційна закупівля Prozorro № ${detailData.tenderNumber}`,
+      summary: detailData.description || `Офіційна закупівля Prozorro № ${detailData.tenderNumber || 'UNKNOWN'}`,
       source: {
         name: 'Prozorro',
         url: `https://prozorro.gov.ua/tender/${detailData.tenderNumber}`,
@@ -552,12 +534,14 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
 
                 {onOpenWarRoom && (
                   <button
+                    disabled={!detailData}
                     onClick={() => {
+                      if (!detailData) return;
                       const tenderObj = convertToTenderObject();
                       onOpenWarRoom(tenderObj);
                       onClose();
                     }}
-                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-indigo-900/50 text-indigo-300 font-bold text-xs flex items-center gap-1.5 border border-indigo-500/30 cursor-pointer transition-colors"
+                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-indigo-900/50 text-indigo-300 font-bold text-xs flex items-center gap-1.5 border border-indigo-500/30 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span>ПРОДОВЖИТИ АНАЛІЗ</span>
                   </button>
@@ -565,13 +549,14 @@ export const TenderDetailModal: React.FC<TenderDetailModalProps> = ({
 
                 {onOpenWarRoom && (
                   <button
+                    disabled={!detailData}
                     onClick={() => {
+                      if (!detailData) return;
                       const tenderObj = convertToTenderObject();
-                      tenderObj.status = 'BID_IN_PREPARATION';
                       onOpenWarRoom(tenderObj);
                       onClose();
                     }}
-                    className="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center space-x-1.5 shadow-lg shadow-emerald-950/40 cursor-pointer transition-all uppercase tracking-wider"
+                    className="flex-1 sm:flex-initial px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center space-x-1.5 shadow-lg shadow-emerald-950/40 cursor-pointer transition-all uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span>БЕРУ УЧАСТЬ</span>
                     <ArrowRight className="w-4 h-4" />
