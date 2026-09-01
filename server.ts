@@ -8,7 +8,7 @@ import { getOrCreateUser } from "./src/db/users.ts";
 import { db } from "./src/db/index.ts";
 import { users, tenders as tendersTable, companyProfiles, complaints, searchSessions as searchSessionsTable, tenderDocuments, organizations, teamMembers, teamTasks, teamComments, auditLogs, favorites, jobs, boqItems, ganttTasks, bidPackages } from "./src/db/schema.ts";
 import { createHash } from "node:crypto";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import multer from 'multer';
 import { createStorageProvider } from './src/lib/storage.ts';
 import fs from 'fs';
@@ -411,15 +411,16 @@ app.get("/api/team/comments", requireAuth, async (req: AuthRequest, res) => {
     const orgId = await getUserOrganization(dbUser.id);
 
     const { tenderId, taskId } = req.query;
-    
-    let query = db.select().from(teamComments).where(eq(teamComments.orgId, orgId));
-    
-    // Note: Drizzle filters would be better here, but for now we filter in JS or add complex where
-    const comments = await query;
-    
+    const comments = await db.select().from(teamComments).where(eq(teamComments.orgId, orgId));
+
     let filtered = comments;
-    if (tenderId) {
-      // Logic for filtering by tender if needed (join would be better)
+    if (tenderId !== undefined) {
+      const parsedTenderId = Number.parseInt(String(tenderId), 10);
+      if (!Number.isInteger(parsedTenderId) || parsedTenderId < 1) return res.status(400).json({ error: "Invalid tenderId", code: "INVALID_TENDER_ID" });
+      const tenderTasks = await db.select({ id: teamTasks.id }).from(teamTasks)
+        .where(and(eq(teamTasks.orgId, orgId), eq(teamTasks.tenderId, parsedTenderId)));
+      const taskIds = tenderTasks.map((task) => task.id);
+      filtered = taskIds.length ? filtered.filter((comment) => comment.taskId !== null && taskIds.includes(comment.taskId)) : [];
     }
     if (taskId) {
       const parsedTaskId = Number.parseInt(String(taskId).replace(/^task-/, ''), 10);
@@ -427,11 +428,17 @@ app.get("/api/team/comments", requireAuth, async (req: AuthRequest, res) => {
       filtered = filtered.filter(c => c.taskId === parsedTaskId);
     }
 
+    const authorIds = [...new Set(filtered.map((comment) => comment.authorId))];
+    const authors = authorIds.length
+      ? await db.select({ id: users.id, email: users.email }).from(users).where(inArray(users.id, authorIds))
+      : [];
+    const authorById = new Map(authors.map((author) => [author.id, author.email.split('@')[0]]));
+
     res.json(filtered.map((comment) => ({
       id: `comment-${comment.id}`,
       taskId: comment.taskId ? `task-${comment.taskId}` : undefined,
       authorId: String(comment.authorId),
-      authorName: 'UNKNOWN',
+      authorName: authorById.get(comment.authorId) || 'UNKNOWN',
       authorRole: 'UNKNOWN',
       text: comment.content,
       createdAt: comment.createdAt?.toISOString(),
@@ -495,7 +502,21 @@ app.get("/api/audit-logs", requireAuth, async (req: AuthRequest, res) => {
     const orgId = await getUserOrganization(dbUser.id);
 
     const logs = await db.select().from(auditLogs).where(eq(auditLogs.orgId, orgId)).orderBy(auditLogs.createdAt);
-    res.json(logs);
+    const userIds = [...new Set(logs.map((log) => log.userId).filter((id): id is number => typeof id === 'number'))];
+    const authors = userIds.length
+      ? await db.select({ id: users.id, email: users.email }).from(users).where(inArray(users.id, userIds))
+      : [];
+    const authorById = new Map(authors.map((author) => [author.id, author.email.split('@')[0]]));
+    res.json(logs.map((log) => ({
+      id: `audit-${log.id}`,
+      userId: String(log.userId || ''),
+      userName: log.userId ? (authorById.get(log.userId) || 'UNKNOWN') : 'UNKNOWN',
+      action: log.action,
+      module: log.entityType || 'UNKNOWN',
+      details: typeof log.details === 'string' ? log.details : (log.details ? JSON.stringify(log.details) : 'UNKNOWN'),
+      tenderId: undefined,
+      timestamp: log.createdAt?.toISOString(),
+    })));
   } catch (err) {
     console.error("Load audit logs error:", err);
     res.status(500).json({ error: "Failed to load audit logs" });
