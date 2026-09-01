@@ -123,6 +123,8 @@ Auth error handling now catches Firebase token acquisition failures, clears the 
 
 Production verify after the self-test fix completed in 262 ms: database/auth/Prozorro connectivity/search and multi-platform checks passed; cursor pagination is explicitly UNKNOWN and remaining external evidence gates keep release status BLOCKED.
 
+Firebase Auth exposes the configured Auth instance as `window.firebaseAuth` for local diagnostics, and the Google sign-in control is locked during popup/redirect initiation to prevent duplicate requests.
+
 Auth bootstrap now probes the loopback session immediately as well as using the bounded fallback timer, preventing a Firebase initialization delay from leaving local UI indefinitely on the loading screen. Browser harness re-check is currently intermittent and does not alter the production fail-closed path.
 
 Fresh authenticated browser audit 2026-09-01 exercised all 14 primary sections. Each rendered without `Application error`/`Uncaught`; observed visible button counts ranged from 22 to 54 and SVG/chart counts from 22 to 51 per section. This is navigation/render evidence, not proof that every mutating control has passed a real-data E2E.

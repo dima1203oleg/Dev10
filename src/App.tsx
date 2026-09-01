@@ -30,7 +30,7 @@ const CostEstimateAnalysisModule = lazyNamed(() => import('./components/CostEsti
 const GanttChartModule = lazyNamed(() => import('./components/GanttChartModule'), 'GanttChartModule');
 
 export default function App() {
-  const { user, loading: authLoading, token, authError, signIn } = useAuth();
+  const { user, loading: authLoading, token, authError, isSigningIn, signIn } = useAuth();
   
   const [currentSection, setCurrentSection] = useState<AppSection>('dashboard');
   const [systemMode, setSystemMode] = useState<SystemMode>('TEAM');
@@ -175,10 +175,11 @@ export default function App() {
           <div className="space-y-3">
             <button
               onClick={signIn}
-              className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-emerald-900/30 transition-all cursor-pointer text-sm"
+              disabled={isSigningIn}
+              className="w-full flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-wait text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-emerald-900/30 transition-all cursor-pointer text-sm"
             >
               <UserIcon className="w-5 h-5" />
-              <span>Увійти з Google Workspace</span>
+              <span>{isSigningIn ? 'Відкриваємо Google Workspace…' : 'Увійти з Google Workspace'}</span>
             </button>
 
             {authError && <div role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300">{authError}</div>}

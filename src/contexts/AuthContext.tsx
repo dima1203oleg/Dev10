@@ -8,6 +8,7 @@ interface AuthContextType {
   loading: boolean;
   token: string | null;
   authError: string | null;
+  isSigningIn: boolean;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   token: null,
   authError: null,
+  isSigningIn: false,
   signIn: async () => {},
   signOut: async () => {},
 });
@@ -28,6 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -94,6 +97,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signIn = async () => {
+    if (isSigningIn) return;
+    setIsSigningIn(true);
     try {
       setAuthError(null);
       await signInWithPopup(auth, googleProvider);
@@ -105,6 +110,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       setAuthError(`Не вдалося увійти через Firebase (${code}). Перевірте authorized domains, Google provider і конфігурацію tenant.`);
+    } finally {
+      setIsSigningIn(false);
     }
   };
 
@@ -119,7 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, token, authError, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, loading, token, authError, isSigningIn, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
