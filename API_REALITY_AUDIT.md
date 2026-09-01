@@ -104,3 +104,5 @@ Company AI failure paths now return typed safe errors with request IDs; missing 
 Deterministic Fit Score now keeps unavailable factors as `null`/UNKNOWN instead of converting missing evidence to zero; a score is only returned when evidence coverage reaches the configured threshold.
 
 Production verification now probes the official Prozorro API directly (five live records) instead of recursively calling the local HTTP server; this removes IPv6/loopback deadlocks. Live search is `PASS`; authenticated cursor pagination remains `UNKNOWN` until its dedicated gate runs.
+
+Health endpoint now treats PostgreSQL + official Prozorro reachability as core health and reports Gemini as optional; local development can run with free local storage and deterministic query parsing.

@@ -2045,7 +2045,9 @@ app.get("/api/health", async (_req, res) => {
     prozorroCheck = "unreachable";
   }
 
-  const isHealthy = dbCheck === "ok" && hasGeminiKey;
+  // Core platform health does not require a paid AI key: deterministic search,
+  // persistence and local document workflows remain usable in free/local mode.
+  const isHealthy = dbCheck === "ok" && prozorroCheck === "reachable";
 
   res.status(isHealthy ? 200 : 503).json({
     status: isHealthy ? "ok" : "degraded",
@@ -2053,7 +2055,8 @@ app.get("/api/health", async (_req, res) => {
     timestamp: new Date().toISOString(),
     checks: {
       database: dbCheck,
-      gemini: hasGeminiKey ? "configured" : "missing_key",
+      gemini: hasGeminiKey ? "configured" : "optional_missing_local_heuristic",
+      storage: process.env.STORAGE_DRIVER?.trim() || (process.env.NODE_ENV === 'production' ? 's3' : 'local'),
       prozorro: prozorroCheck
     }
   });
