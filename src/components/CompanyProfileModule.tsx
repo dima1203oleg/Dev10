@@ -35,7 +35,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
   const [reqMfo, setReqMfo] = useState(vaultData.mfo || company.mfo || '');
   const [reqEmail, setReqEmail] = useState(company.email || '');
   const [reqPhone, setReqPhone] = useState(company.phone || '');
-  const [reqIsVatPayer, setReqIsVatPayer] = useState<boolean>(vaultData.isVatPayer ?? company.isVatPayer ?? true);
+  const [reqIsVatPayer, setReqIsVatPayer] = useState<boolean | null>(vaultData.isVatPayer ?? company.isVatPayer ?? null);
   const [signatureCliche, setSignatureCliche] = useState<string>(vaultData.signatureCliche || company.signatureCliche || '');
   const [stampCliche, setStampCliche] = useState<string>(vaultData.stampCliche || company.stampCliche || '');
   const [isSavingRequisites, setIsSavingRequisites] = useState(false);
@@ -494,14 +494,14 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
                       Компетенції (CPV / КВЕД)
                     </div>
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center bg-slate-950 p-2 rounded-lg border border-slate-800">
-                        <span className="text-xs text-slate-300">41.20 Будівництво житлових...</span>
-                        <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded uppercase font-bold">Verified</span>
-                      </div>
-                      <div className="flex justify-between items-center bg-slate-950 p-2 rounded-lg border border-slate-800">
-                        <span className="text-xs text-slate-300">45200000 Роботи, пов'язані з...</span>
-                        <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded uppercase font-bold">Verified</span>
-                      </div>
+                      {(company.cpvCodes?.length || company.kved) ? (
+                        [...(company.kved ? [company.kved] : []), ...(company.cpvCodes || [])].map(code => (
+                          <div key={code} className="flex justify-between items-center bg-slate-950 p-2 rounded-lg border border-slate-800">
+                            <span className="text-xs text-slate-300">{code}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded uppercase font-bold">Збережено</span>
+                          </div>
+                        ))
+                      ) : <span className="text-xs text-slate-500">UNKNOWN — додайте КВЕД або CPV у реквізитах.</span>}
                     </div>
                   </div>
 
@@ -513,15 +513,15 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-slate-400">Персонал (офіційний)</span>
-                        <span className="text-sm font-black text-white">17 осіб</span>
+                        <span className="text-sm font-black text-white">{company.staff?.length ? `${company.staff.length} осіб` : 'UNKNOWN'}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-slate-400">Спецтехніка (власна)</span>
-                        <span className="text-sm font-black text-white">6 од.</span>
+                        <span className="text-sm font-black text-white">{company.equipment?.length ? `${company.equipment.length} од.` : 'UNKNOWN'}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-slate-400">Аналогічні договори</span>
-                        <span className="text-sm font-black text-white">14 підтв.</span>
+                        <span className="text-sm font-black text-white">{company.contracts?.length ? `${company.contracts.length} підтв.` : 'UNKNOWN'}</span>
                       </div>
                     </div>
                   </div>
@@ -861,7 +861,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
                       <label className="flex items-center gap-3 cursor-pointer">
                         <input 
                           type="checkbox" 
-                          checked={reqIsVatPayer} 
+                          checked={reqIsVatPayer === true} 
                           onChange={e => setReqIsVatPayer(e.target.checked)} 
                           className="w-4 h-4 accent-emerald-500 rounded cursor-pointer" 
                         />
@@ -975,7 +975,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
                         <div>
                           <h4 className="text-sm font-bold text-white">{doc.title || 'Документ'}</h4>
                           <div className="flex gap-2 mt-1">
-                            <span className="text-[10px] text-slate-500 font-mono">{doc.category || 'OTHER'}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{doc.category || 'UNKNOWN'}</span>
                           </div>
                         </div>
                       </div>
@@ -990,8 +990,8 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
                         "{doc.extractedText || 'Текст не витягнуто...'}"
                       </div>
                       <div className="flex gap-4 mt-3 pt-3 border-t border-slate-800/50">
-                        <div className="text-[10px]"><span className="text-slate-500">Confidence:</span> <span className="text-emerald-400 font-bold">{doc.aiConfidence || 90}%</span></div>
-                        <div className="text-[10px]"><span className="text-slate-500">Provenance:</span> <span className="text-slate-300">{doc.provenance || 'USER_UPLOAD → OCR → AI_EXTRACTION'}</span></div>
+                        <div className="text-[10px]"><span className="text-slate-500">Confidence:</span> <span className="text-emerald-400 font-bold">{typeof doc.aiConfidence === 'number' ? `${doc.aiConfidence}%` : 'UNKNOWN'}</span></div>
+                        <div className="text-[10px]"><span className="text-slate-500">Provenance:</span> <span className="text-slate-300">{doc.provenance || 'UNKNOWN'}</span></div>
                       </div>
                     </div>
                   </div>
@@ -1097,7 +1097,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
                     </div>
                     <div className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold rounded-lg flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      ACTIVE
+                      {vaultData.autoRadarStatus || (matchScore !== null || keywords.length > 0 ? 'CONFIGURED' : 'UNKNOWN')}
                     </div>
                   </div>
                 </div>
@@ -1111,15 +1111,15 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
               <div className="space-y-3">
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-400">Профіль компанії</span>
-                  <span className="text-emerald-400 font-bold">ОНОВЛЕНО</span>
+                  <span className="text-emerald-400 font-bold">{company.name && company.name !== 'ПРОФІЛЬ_ВІДСУТНІЙ' ? 'НАЛАШТОВАНО' : 'UNKNOWN'}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-400">Останній імпорт PDF</span>
-                  <span className="text-slate-200">2 год тому</span>
+                  <span className="text-slate-200">{company.vaultDocuments?.length ? (company.vaultDocuments[company.vaultDocuments.length - 1].uploadDate || 'UNKNOWN') : 'UNKNOWN'}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-400">Авто-Radar</span>
-                  <span className="text-emerald-400 font-bold">ACTIVE</span>
+                  <span className="text-emerald-400 font-bold">{vaultData.autoRadarStatus || (matchScore !== null || keywords.length > 0 ? 'CONFIGURED' : 'UNKNOWN')}</span>
                 </div>
               </div>
             </div>
