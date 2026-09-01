@@ -13,6 +13,8 @@
 
 > **2026-09-01 Team update:** Team Workspace loaded through the live browser session with task/member/audit controls present and no runtime errors. Team task/comment payloads are aligned with backend contracts; destructive create flows were not executed against the shared tenant.
 
+> **2026-09-01 shell update:** Notification badge now reflects the persisted notification list (empty state shows zero); user menu no longer presents invented identity fallbacks.
+
 ---
 
 ## 1. Interactive Button Verification Register

@@ -15,6 +15,8 @@
 
 **2026-09-01 follow-up:** Construction BoQ aggregate and price-status cells now remain `UNKNOWN` until every row has a confirmed market price; persisted rows are loaded from PostgreSQL.
 
+**2026-09-01 shell recheck:** Empty notifications and absent user identity now render an evidence-based empty/`UNKNOWN` state; no fabricated badge or profile fallback is emitted.
+
 **Estimate runner correction:** the synthetic estimate test runner and generated report path were removed from runtime diagnostics; no fallback prices or Go/No-Go numbers are emitted by production verification.
 
 ---
