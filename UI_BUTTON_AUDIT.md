@@ -122,3 +122,5 @@ Collusion scan responses are schema-validated in the UI (bounded numeric score, 
 Browser smoke 2026-09-01 exercised all 14 primary navigation controls on a fresh loopback session; each rendered without an application error.
 
 Extended browser audit 2026-09-01 visited every primary section and recorded visible controls/charts: Dashboard 46/50, Catalog 44/36, Radar 54/47, War Room 33/51, BoQ 26/27, Cost Analysis 28/28, Gantt 25/25, Profile 27/30, Bid Package 28/34, Audit 22/22, Competitors 22/22, FoulTender 23/26, Analytics 22/30, Team 26/25. No application errors were observed.
+
+Unsupported ROI claims in the services view were replaced with explicit UNKNOWN states; scenario-only tender/hour calculations remain labeled as user-input projections.

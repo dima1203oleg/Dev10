@@ -22,7 +22,6 @@ export const ServicesModelModule: React.FC = () => {
   const estimatedTendersNeeded = Math.ceil(targetVolumeMln / 15);
   const hoursSavedPerTender = 68;
   const totalHoursSaved = estimatedTendersNeeded * hoursSavedPerTender;
-  const potentialGrossProfit = Math.round(targetVolumeMln * 0.18 * 10) / 10;
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -226,8 +225,8 @@ export const ServicesModelModule: React.FC = () => {
 
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
               <div className="text-[11px] text-slate-400">Потенційний маржинальний прибуток</div>
-              <div className="text-2xl font-black text-teal-400 font-mono">{potentialGrossProfit} млн ₴</div>
-              <div className="text-[10px] text-slate-500">При середній маржі 18%</div>
+              <div className="text-2xl font-black text-slate-400 font-mono">UNKNOWN</div>
+              <div className="text-[10px] text-slate-500">Потрібні підтверджені дані собівартості та маржі</div>
             </div>
 
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
@@ -238,8 +237,8 @@ export const ServicesModelModule: React.FC = () => {
 
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-1">
               <div className="text-[11px] text-slate-400">Ризик втрати завдатків</div>
-              <div className="text-2xl font-black text-emerald-400 font-mono">0.0%</div>
-              <div className="text-[10px] text-emerald-400/80">Захищено AI Pre-Audit</div>
+              <div className="text-2xl font-black text-slate-400 font-mono">UNKNOWN</div>
+              <div className="text-[10px] text-slate-500">Немає підтвердженої статистики втрат</div>
             </div>
           </div>
 

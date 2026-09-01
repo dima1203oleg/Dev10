@@ -128,6 +128,8 @@ The live Prozorro search mapper no longer invents customer, geography, category,
 
 The company keyword endpoint no longer supplies hard-coded fallback keywords when Gemini is unavailable; it returns `AI_UNAVAILABLE` instead.
 
+Services/ROI overview no longer presents fixed 18% margin or 0% loss-risk claims; those unsupported values are rendered `UNKNOWN` until evidence-backed inputs exist.
+
 War Room QA no longer embeds sanctions, staffing, bank-guarantee or certificate claims; it renders only the persisted readiness checklist.
 
 War Room progress and pipeline statuses no longer claim completion without corresponding persisted evidence.
