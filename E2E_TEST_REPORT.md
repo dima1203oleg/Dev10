@@ -138,3 +138,5 @@ Production-like stack probe 2026-09-01: Docker daemon is available; Compose Post
 Temporal worker smoke 2026-09-01: `TEMPORAL_ADDRESS=127.0.0.1:7233 npm run dev:worker` connected successfully and entered `RUNNING` for task queue `tenderai-documents`.
 
 Authenticated WS user pass 2026-09-01: fresh in-app browser session visited all 14 primary sections; no application/runtime errors were observed. Catalog CPV and region filters were changed and reset through the UI without errors; the page exposes two live filter selects and the tender list remained source-backed. Browser console error log was empty.
+
+Docling conversion gate 2026-09-01: `/health` returned `{"status":"ok"}` and a real two-page Prozorro PDF was accepted by the endpoint with the configured API key, but the conversion produced no response within 180 seconds and the container subsequently became unavailable. OCR/provenance remains `FAIL/BLOCKED` pending a stable conversion run.
