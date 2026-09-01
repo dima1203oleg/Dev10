@@ -58,3 +58,11 @@ To prevent chaotic cross-dependencies, TenderAI OS uses a structured pipeline wh
 # Independent re-audit (2026-08-31)
 
 Treat every integration without a completed live contract test as `UNKNOWN`. Generated corporate/social feeds are disabled pending official connectors.
+## Hosted PostgreSQL fallback (2026-09-01)
+
+| Component | Decision | Evidence / setup |
+|---|---|---|
+| Neon Free PostgreSQL | ADAPT | PostgreSQL-compatible; configure `DATABASE_URL` with `sslmode=require`; existing Drizzle schema and RLS migrations remain applicable. |
+| Supabase Free PostgreSQL | ADAPT | PostgreSQL-compatible; configure `DATABASE_URL`; use a dedicated database role for the application and keep admin credentials separate. |
+
+`src/db/index.ts` prefers `DATABASE_URL` (or `DATABASE_ADMIN_URL` for migrations) and falls back to the existing `SQL_*` variables. No cloud credentials are committed. Free-tier quotas, suspension and provider availability must be revalidated before production acceptance.

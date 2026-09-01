@@ -14,7 +14,12 @@ declare global {
 
 export const createPool = () => {
   if (!global._postgresPool) {
-    global._postgresPool = new Pool({
+    const connectionString = process.env.DATABASE_URL?.trim();
+    global._postgresPool = new Pool(connectionString ? {
+      connectionString,
+      max: 10,
+      connectionTimeoutMillis: 15000,
+    } : {
       host: process.env.SQL_HOST,
       user: process.env.SQL_USER,
       password: process.env.SQL_PASSWORD,
@@ -33,7 +38,12 @@ export const createPool = () => {
 let adminPool: pg.Pool | undefined;
 export const createAdminPool = () => {
   if (!adminPool) {
-    adminPool = new Pool({
+    const connectionString = process.env.DATABASE_ADMIN_URL?.trim() || process.env.DATABASE_URL?.trim();
+    adminPool = new Pool(connectionString ? {
+      connectionString,
+      max: 2,
+      connectionTimeoutMillis: 15000,
+    } : {
       host: process.env.SQL_HOST,
       user: process.env.SQL_ADMIN_USER || process.env.SQL_USER,
       password: process.env.SQL_ADMIN_PASSWORD || process.env.SQL_PASSWORD,

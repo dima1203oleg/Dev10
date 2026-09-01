@@ -63,3 +63,6 @@ PydanticAI Extraction Validation ◄── Embeddings Map ◄── pgvector Ind
 # As-built qualification (2026-08-31)
 
 This is target architecture unless backed by code and passing tests. Mandatory RLS, Temporal, malware scanning, OCR bbox provenance and production object storage are not verified as deployed capabilities.
+### Database deployment without Docker
+
+The application supports hosted PostgreSQL through `DATABASE_URL`, allowing Neon or Supabase free tiers to replace the unavailable local Docker stack without changing the domain schema. Use `sslmode=require`, a tenant-scoped application role, and a separate migration/admin URL where the provider supports it. Local `SQL_HOST`/`SQL_*` configuration remains the fallback for development.
