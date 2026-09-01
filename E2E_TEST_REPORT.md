@@ -2,6 +2,8 @@
 **Код документу:** TA-TEST-SPEC-2026-V4  
 **Стандарт:** ISO/IEC 29119 • Верифікація повного життєвого циклу публічних закупівель (Prozorro / TenderAI)
 
+> **2026-09-02 UI regression:** after tenant middleware hardening, authenticated startup completed without the previous loading stall. All 14 primary navigation sections loaded; Radar quick search, reset filters, CPV/region/sort selectors, and catalog marketplace controls were exercised with no browser console errors.
+
 > **Поточний статус — 2026-09-01:** `NOT EXECUTED TO COMPLETION`. TypeScript, 18 tests (1 skipped), PostgreSQL cross-tenant RLS integration, production build and dependency audit pass. Попередні `PASSED` у таблицях нижче не є доказом для поточної ревізії; реальний Firebase login та повний browser E2E заблоковані.
 
 > **Browser retest:** оболонка й кнопка входу відображаються без console errors, але Google sign-in завершується точним кодом `auth/internal-error`. Production-захист не вимикався. Для `auth/popup-blocked` і `auth/cancelled-popup-request` додано офіційний Firebase redirect fallback.

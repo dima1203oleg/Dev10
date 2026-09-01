@@ -72,6 +72,8 @@ Until all items pass, the only accurate release status is **NOT READY**.
 
 ## Re-audit 2026-09-01
 
+2026-09-02 tenant transaction fix: identity provisioning now runs in a short autocommit operation before the scoped RLS transaction. Authenticated `/api/data` responds in under 10 ms and PostgreSQL reports zero `idle in transaction` sessions after browser navigation smoke.
+
 Status remains **NOT READY**. BoQ mutation persistence and UI unknown-state handling were hardened and verified with `npm run verify`; live Firebase/Gemini, Temporal, OCR, ClamAV, S3/pgvector and complete 237-control E2E evidence are still outstanding.
 
 Team Workspace contract hardening also passed the local type/build gate; external service and authenticated Firebase acceptance gates remain outstanding.

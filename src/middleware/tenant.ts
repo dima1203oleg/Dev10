@@ -13,6 +13,23 @@ export async function beginTenantRequest(req: AuthRequest, res: Response, next: 
     });
   }
 
+  // Provision identity in a short autocommit statement. Holding the users
+  // upsert open inside the long-lived request transaction caused concurrent
+  // browser requests to queue behind an idle transaction and left the UI on
+  // its loading screen. The scoped transaction below still enforces RLS for
+  // every tenant resource query.
+  const provisioned = await createPool().query<{ user_id: number; org_id: number }>(
+    'SELECT user_id, org_id FROM tenderai_provision_identity($1, $2)',
+    [identity.uid, identity.email],
+  );
+  const context = provisioned.rows[0];
+  if (!context) {
+    return res.status(500).json({
+      error: { code: 'TENANT_PROVISIONING_FAILED', message: 'Tenant context could not be established.' },
+      requestId: req.requestId,
+    });
+  }
+
   const client = await createPool().connect();
   let completed = false;
   const finish = async (commit: boolean) => {
@@ -32,13 +49,6 @@ export async function beginTenantRequest(req: AuthRequest, res: Response, next: 
 
   try {
     await client.query('BEGIN');
-    const provisioned = await client.query<{ user_id: number; org_id: number }>(
-      'SELECT user_id, org_id FROM tenderai_provision_identity($1, $2)',
-      [identity.uid, identity.email],
-    );
-    const context = provisioned.rows[0];
-    if (!context) throw new Error('Tenant provisioning returned no context');
-
     await client.query("SELECT set_config('app.current_user_id', $1, true)", [String(context.user_id)]);
     await client.query("SELECT set_config('app.current_org_id', $1, true)", [String(context.org_id)]);
     req.dbUserId = context.user_id;
