@@ -17,6 +17,8 @@
 
 > **2026-09-01 catalog update:** Private-project form exposes an optional deadline and opens with empty budget/category/region fields; no generated deadline is displayed.
 
+> **2026-09-01 detail-modal update:** «Продовжити аналіз»/«Беру участь» are disabled until official Prozorro details are loaded, preventing actions on unverified data.
+
 ---
 
 ## 1. Interactive Button Verification Register

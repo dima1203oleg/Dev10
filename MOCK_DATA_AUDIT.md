@@ -19,6 +19,8 @@
 
 **2026-09-01 catalog recheck:** Private project creation no longer injects a future deadline, default budget, or unverified `LOW` risk; deadline is user-entered and missing analysis remains `NOT_ANALYZED/UNKNOWN`.
 
+**2026-09-01 detail-modal recheck:** Prozorro detail actions are disabled when the official detail request fails; no synthetic tender object is created from an ID.
+
 **Estimate runner correction:** the synthetic estimate test runner and generated report path were removed from runtime diagnostics; no fallback prices or Go/No-Go numbers are emitted by production verification.
 
 ---
