@@ -101,4 +101,6 @@ War Room QA was inspected on the current revision; with no readiness audit it sh
 
 The War Room overview now shows `UNKNOWN` readiness when no score exists and evidence-derived pipeline states; this is covered by the build/type gate and targeted smoke inspection.
 
+Latest browser smoke confirmed the unaudited tender renders `UNKNOWN` readiness/checklist and no static low-risk or completion claims.
+
 Static verification completed: TypeScript PASS, Vitest 2/2 PASS, Vite build PASS, server bundle PASS. Production negative-startup test PASS (missing mandatory configuration terminates the process). These checks are not a substitute for browser/database E2E.

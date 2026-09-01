@@ -98,3 +98,5 @@ War Room QA action now navigates to the real Pre-Submission Audit route; its che
 War Room pipeline badges now derive from persisted analysis/BoQ/readiness state instead of hard-coded `COMPLETED`/`IN_PROGRESS` labels.
 
 Document download controls now call the authenticated object-storage download endpoint; bulk action downloads each available document individually (ZIP bundling is not claimed).
+
+War Room overview progress and pipeline status are now evidence-derived; QA shows persisted checklist data or `UNKNOWN`, and its audit action navigates to the real audit module.

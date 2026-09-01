@@ -117,3 +117,5 @@ The connector self-test no longer embeds a mock company/tender Radar fixture; it
 War Room QA no longer embeds sanctions, staffing, bank-guarantee or certificate claims; it renders only the persisted readiness checklist.
 
 War Room progress and pipeline statuses no longer claim completion without corresponding persisted evidence.
+
+No fabricated sanctions, staffing, financial or pipeline completion records remain in the War Room QA/overview runtime path.
