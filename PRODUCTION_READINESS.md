@@ -80,11 +80,11 @@ Additional browser smoke evidence confirms profile placeholders are absent and B
 
 Earlier `/api/production/verify` sample (2026-09-01) was `BLOCKED`: database/authentication/Prozorro connectivity/multiplatform checks PASS; AI credentials were `UNKNOWN` until a live model call succeeds; one transient live search timeout was observed, pagination and tenant-isolation evidence were unresolved, and the source-bound estimate engine was BLOCKED.
 
-Re-run 2026-09-01 after the official API self-test hardening: database, authentication, Prozorro connectivity/search (5 live tenders), multiplatform integrity and cursor pagination PASS. Authenticated UI verification now performs a live Gemini request and receives HTTP 401, so the configured key is not accepted; external RLS, document pipeline and source-bound estimate evidence remain `UNKNOWN`/`BLOCKED`. Release status correctly remains **NOT READY**.
+Re-run 2026-09-02 after the official API self-test hardening: database, authentication, Prozorro connectivity/search (5 live tenders), multiplatform integrity and cursor pagination PASS. Authenticated UI verification receives Gemini HTTP 401, but local Ollama `qwen3.5:4b` is available as the free fallback; external RLS, document pipeline and source-bound estimate evidence remain `UNKNOWN`/`BLOCKED`. Release status correctly remains **NOT READY**.
 
 Clean reproducibility run 2026-09-01: `npm ci --ignore-scripts && npm run verify` PASS; 694 packages installed, 0 dependency vulnerabilities, typecheck/tests/build/audit green. This validates the local gate only and does not satisfy the outstanding external production gates.
 
-Local production-like component probe 2026-09-01: Docker daemon is available. Compose PostgreSQL (pgvector), ClamAV, SeaweedFS/S3, Temporal PostgreSQL and Temporal server containers are healthy. Temporal healthcheck now targets the container address rather than loopback. Docling image is still downloading; host PaddleOCR and DuckDB binaries are absent. Remaining components are not claimed healthy without evidence.
+Local production-like component probe 2026-09-02: Docker daemon is available again after freeing disk space. Compose PostgreSQL (pgvector), ClamAV, SeaweedFS/S3, Temporal PostgreSQL, Temporal server and Docling containers are healthy. Temporal healthcheck targets the container address rather than loopback. Host PaddleOCR and DuckDB binaries are absent. Remaining components are not claimed healthy without evidence.
 
 Document worker smoke passed: the Temporal worker connected to the healthy server and entered `RUNNING` on `tenderai-documents`. Document extraction remains blocked until Docling is available and a real source PDF passes OCR/provenance validation.
 
