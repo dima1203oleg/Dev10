@@ -1747,7 +1747,19 @@ app.post('/api/tenders/:tenderId/boq', requireAuth, async (req: AuthRequest, res
     }
     const [tender] = await db.select().from(tendersTable).where(and(eq(tendersTable.id, tenderId), eq(tendersTable.orgId, req.orgId!))).limit(1);
     if (!tender) return res.status(404).json({ error: { code: 'TENDER_NOT_FOUND', message: 'Tender not found in this organization.' }, requestId: req.requestId });
-    const [item] = await db.insert(boqItems).values({ id: crypto.randomUUID(), orgId: req.orgId!, tenderId, code: code || null, name: String(name).trim(), unit: String(unit).trim(), quantity: parsedQuantity, unitPriceUah: parsedPrice, sourceDocumentId: sourceDocumentId || null, sourcePage: sourcePage || null, sourceBbox: sourceBbox || null }).returning();
+    if (sourceDocumentId) {
+      const [sourceDocument] = await db.select({ id: tenderDocuments.id }).from(tenderDocuments).where(and(
+        eq(tenderDocuments.id, String(sourceDocumentId)),
+        eq(tenderDocuments.tenderId, tenderId),
+        eq(tenderDocuments.orgId, req.orgId!),
+      )).limit(1);
+      if (!sourceDocument) return res.status(400).json({ error: { code: 'INVALID_BOQ_SOURCE', message: 'Source document is not owned by this tender and organization.' }, requestId: req.requestId });
+    }
+    const parsedSourcePage = sourcePage === null || sourcePage === undefined || sourcePage === '' ? null : Number(sourcePage);
+    if (parsedSourcePage !== null && (!Number.isInteger(parsedSourcePage) || parsedSourcePage < 1)) {
+      return res.status(400).json({ error: { code: 'INVALID_BOQ_SOURCE_PAGE', message: 'Source page must be a positive integer.' }, requestId: req.requestId });
+    }
+    const [item] = await db.insert(boqItems).values({ id: crypto.randomUUID(), orgId: req.orgId!, tenderId, code: code || null, name: String(name).trim(), unit: String(unit).trim(), quantity: parsedQuantity, unitPriceUah: parsedPrice, sourceDocumentId: sourceDocumentId || null, sourcePage: parsedSourcePage, sourceBbox: sourceBbox || null }).returning();
     return res.status(201).json({ data: item, requestId: req.requestId });
   } catch (error) {
     console.error('BoQ create error:', error);
