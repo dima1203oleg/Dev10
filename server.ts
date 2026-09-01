@@ -2169,7 +2169,7 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ contents: [{ parts: [{ text: "Return only the word OK." }] }], generationConfig: { maxOutputTokens: 4 } }),
-          signal: AbortSignal.timeout(15000),
+          signal: AbortSignal.timeout(120000),
         });
         const aiBody = await aiRes.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
         const aiText = aiBody.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
@@ -2183,7 +2183,7 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ model: process.env.OLLAMA_MODEL || 'qwen3.5:4b', prompt: 'Return only the word OK.', stream: false, options: { temperature: 0 } }),
-            signal: AbortSignal.timeout(15000),
+            signal: AbortSignal.timeout(120000),
           });
           const localBody = await localRes.json() as { response?: string };
           results.ai_engine = localRes.ok && localBody.response?.trim()
