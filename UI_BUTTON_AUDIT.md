@@ -15,6 +15,8 @@
 
 > **2026-09-01 shell update:** Notification badge now reflects the persisted notification list (empty state shows zero); user menu no longer presents invented identity fallbacks.
 
+> **2026-09-01 catalog update:** Private-project form exposes an optional deadline and opens with empty budget/category/region fields; no generated deadline is displayed.
+
 ---
 
 ## 1. Interactive Button Verification Register

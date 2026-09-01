@@ -17,6 +17,8 @@
 
 **2026-09-01 shell recheck:** Empty notifications and absent user identity now render an evidence-based empty/`UNKNOWN` state; no fabricated badge or profile fallback is emitted.
 
+**2026-09-01 catalog recheck:** Private project creation no longer injects a future deadline, default budget, or unverified `LOW` risk; deadline is user-entered and missing analysis remains `NOT_ANALYZED/UNKNOWN`.
+
 **Estimate runner correction:** the synthetic estimate test runner and generated report path were removed from runtime diagnostics; no fallback prices or Go/No-Go numbers are emitted by production verification.
 
 ---
