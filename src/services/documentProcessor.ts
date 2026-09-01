@@ -21,6 +21,43 @@ export interface DocumentJobContext {
   documentId: string;
 }
 
+const DOCLING_TIMEOUT_MS = 180_000;
+const DOCLING_POLL_MS = 2_000;
+
+async function fetchDoclingJson(url: string, init: RequestInit, timeoutMs = 30_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    if (!response.ok) throw new Error(`DOCLING_HTTP_${response.status}`);
+    return await response.json() as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw new Error('DOCLING_TIMEOUT');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function convertWithDocling(doclingUrl: string, form: FormData, headers: Record<string, string>) {
+  const task = await fetchDoclingJson(`${doclingUrl}/v1/convert/file/async`, {
+    method: 'POST', headers, body: form,
+  });
+  const taskId = typeof task.task_id === 'string' ? task.task_id : undefined;
+  if (!taskId) throw new Error('DOCLING_TASK_MISSING');
+  const deadline = Date.now() + DOCLING_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const status = await fetchDoclingJson(`${doclingUrl}/v1/status/poll/${encodeURIComponent(taskId)}`, { headers });
+    const taskStatus = String(status.task_status || status.status || '').toLowerCase();
+    if (['failure', 'failed', 'error'].includes(taskStatus)) throw new Error('DOCLING_CONVERSION_FAILED');
+    if (['success', 'succeeded', 'completed', 'partial_success'].includes(taskStatus)) {
+      return await fetchDoclingJson(`${doclingUrl}/v1/result/${encodeURIComponent(taskId)}`, { headers });
+    }
+    await new Promise((resolve) => setTimeout(resolve, DOCLING_POLL_MS));
+  }
+  throw new Error('DOCLING_TIMEOUT');
+}
+
 export async function processDocumentJob(context: DocumentJobContext) {
   const client = await createPool().connect();
   const scopedDb = drizzle(client, { schema });
@@ -50,9 +87,7 @@ export async function processDocumentJob(context: DocumentJobContext) {
     form.append('table_mode', 'accurate');
     const headers: Record<string, string> = {};
     if (process.env.DOCLING_API_KEY) headers['X-Api-Key'] = process.env.DOCLING_API_KEY;
-    const response = await fetch(`${doclingUrl}/v1/convert/file`, { method: 'POST', headers, body: form });
-    if (!response.ok) throw new Error(`DOCLING_HTTP_${response.status}`);
-    const conversion = await response.json() as {
+    const conversion = await convertWithDocling(doclingUrl, form, headers) as {
       status?: string;
       document?: { json_content?: string | Record<string, unknown> };
       errors?: unknown[];

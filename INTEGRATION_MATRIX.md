@@ -5,7 +5,7 @@
 
 > **Current verification override — 2026-08-31:** PostgreSQL/RLS is `USE/PASS`; official Prozorro connector code is `ADAPT/PARTIAL`; Docling, PaddleOCR, Temporal, ClamAV, DuckDB, pgvector and SeaweedFS are not accepted until their local contract gates pass. MinIO is `REJECT` for a new deployment.
 
-**Latest implementation evidence:** a pinned Apple-Silicon compose stack and SDK boundaries for Temporal and S3-compatible SeaweedFS are present; Docling now targets the documented v1.21 `/v1/convert/file` API. Static build passes, but container startup is `BLOCKED` because the host disk has only about 116 MiB free. These components remain unaccepted.
+**Latest implementation evidence:** a pinned Apple-Silicon compose stack and SDK boundaries for Temporal and S3-compatible SeaweedFS are present; the document worker now uses Docling's documented v1.21 asynchronous `/v1/convert/file/async` + status/result polling API with bounded timeouts. Static build passes, but the last real conversion run timed out and the container became unavailable. These components remain unaccepted.
 
 **DuckDB status:** `USE / UNIT PASS` for isolated deterministic price aggregation via `@duckdb/node-api`; 2 contract tests pass on Apple Silicon. Cross-checking every production chart against PostgreSQL/DuckDB remains pending.
 
