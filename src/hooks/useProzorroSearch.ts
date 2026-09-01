@@ -103,9 +103,10 @@ export function useProzorroSearch() {
       const tendersToMap = data.results || data.tenders;
       if (tendersToMap) {
         const mapped: Tender[] = tendersToMap.map((t: any) => {
-          const rawStatus = (t.status || t.detailedData?.status || 'active.tendering').toLowerCase();
-          let stage: 'NEW' | 'ACTIVE' | 'WON' | 'RETENDERED' | 'OLD' = 'ACTIVE';
-          let mappedStatus = 'ACTIVE';
+          const sourceStatus = t.status || t.detailedData?.status;
+          const rawStatus = typeof sourceStatus === 'string' ? sourceStatus.toLowerCase() : '';
+          let stage: 'NEW' | 'ACTIVE' | 'WON' | 'RETENDERED' | 'OLD' | undefined;
+          let mappedStatus = sourceStatus || 'UNKNOWN';
 
           if (rawStatus.includes('cancel') || rawStatus.includes('unsuccessful') || rawStatus.includes('retender') || rawStatus.includes('скасов') || rawStatus.includes('переігр')) {
             stage = 'RETENDERED';
@@ -119,22 +120,24 @@ export function useProzorroSearch() {
           } else if (rawStatus.includes('tendering') || rawStatus.includes('enquiries') || rawStatus.includes('draft') || rawStatus === 'active') {
             stage = 'ACTIVE';
             mappedStatus = 'ACTIVE';
+          } else if (!rawStatus) {
+            stage = undefined;
           }
 
           return {
             id: t.id.toString(),
             tenderNumber: t.tenderId || t.tenderNumber || "НЕВІДОМО",
             title: t.title || "БЕЗ НАЗВИ",
-            customer: t.customer || "НЕВІДОМИЙ ЗАМОВНИК",
+            customer: t.customer || "UNKNOWN",
             customerEdrpou: t.customerEdrpou || t.detailedData?.customerEdrpou || 'NOT_AVAILABLE',
-            customerCity: t.customerCity || t.detailedData?.customerCity || 'НЕВІДОМО',
+            customerCity: t.customerCity || t.detailedData?.customerCity || 'UNKNOWN',
             budgetUah: t.budgetUah !== undefined && t.budgetUah !== null ? parseFloat(t.budgetUah) : null,
-            deadline: t.deadline || t.detailedData?.deadline || 'НЕВІДОМО',
-            region: t.region || t.customerCity || t.detailedData?.region || 'Україна',
+            deadline: t.deadline || t.detailedData?.deadline || 'UNKNOWN',
+            region: t.region || t.customerCity || t.detailedData?.region || 'UNKNOWN',
             status: mappedStatus,
-            rawStatus: t.status || t.detailedData?.status || 'active.tendering',
+            rawStatus: sourceStatus || 'UNKNOWN',
             stage: stage,
-            category: t.category || t.detailedData?.category || 'Будівельні роботи',
+            category: t.category || t.detailedData?.category || 'UNKNOWN',
             foulScore: t.foulScore !== undefined ? t.foulScore : null,
             riskLevel: t.riskLevel || 'NOT_ANALYZED',
             summary: t.summary || '',

@@ -23,6 +23,8 @@
 
 **2026-09-01 collusion recheck:** Collusion analysis no longer emits a synthetic zero/low-risk conclusion when competitor or bidding-history evidence is absent.
 
+**2026-09-01 search recheck:** Prozorro search results no longer receive invented active/building/Ukraine values when the source omits status, category or region.
+
 **Estimate runner correction:** the synthetic estimate test runner and generated report path were removed from runtime diagnostics; no fallback prices or Go/No-Go numbers are emitted by production verification.
 
 ---

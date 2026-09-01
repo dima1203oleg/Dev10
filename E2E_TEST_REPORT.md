@@ -14,6 +14,8 @@
 
 > **2026-09-01 collusion smoke evidence:** Competitor analysis renders an explicit `НЕ АНАЛІЗОВАНО` state and disables the scan when no verified competitor/history evidence exists; API negative cases return stable `400` codes.
 
+> **2026-09-01 search smoke evidence:** Result mapping was rechecked after removing source-field fallbacks; missing official fields render `UNKNOWN` without a React error.
+
 > **2026-09-01 follow-up:** Construction BoQ now reloads persisted rows from `/api/tenders/:id/boq` and renders `UNKNOWN` for totals/status when no source price is present. Offline gate remains green; release gates remain blocked by external services.
 
 > **2026-09-01 hidden workflow:** War Room workflow controls (Radar, Analysis, Audit, BoQ, Documents, Pre-submission, Overview, Resources, Price, Gantt, Plan, QA) and the no-analysis “Відкрити чат агентів” path were exercised without React errors.

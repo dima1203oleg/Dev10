@@ -21,6 +21,8 @@
 
 > **2026-09-01 collusion update:** FoulTender scan is disabled until the selected tender contains at least two competitors and verified bidding-history evidence; the UI shows the exact missing prerequisite.
 
+> **2026-09-01 search update:** Catalog/Radar result cards no longer infer active status or construction category when the official response omits those fields.
+
 ---
 
 ## 1. Interactive Button Verification Register

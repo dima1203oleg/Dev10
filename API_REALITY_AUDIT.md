@@ -23,6 +23,8 @@
 
 **2026-09-01 collusion gate:** `/api/tenderai/collusion-detect` now rejects requests with fewer than two verified competitors or without observed bidding-history evidence, preventing a false `0/LOW` result.
 
+**2026-09-01 search mapping:** client-side Prozorro result mapping preserves missing status/category/region/deadline as `UNKNOWN` instead of assigning active/building/Ukraine defaults.
+
 **Estimate gate correction:** the production self-test no longer executes or persists synthetic estimate fixtures; `auto_estimate_engine` is explicitly `BLOCKED` until a source-bound document/BoQ dataset is supplied.
 
 ---
