@@ -128,3 +128,5 @@ Firebase Auth exposes the configured Auth instance as `window.firebaseAuth` for 
 Auth bootstrap now probes the loopback session immediately as well as using the bounded fallback timer, preventing a Firebase initialization delay from leaving local UI indefinitely on the loading screen. Browser harness re-check is currently intermittent and does not alter the production fail-closed path.
 
 Fresh authenticated browser audit 2026-09-01 exercised all 14 primary sections. Each rendered without `Application error`/`Uncaught`; observed visible button counts ranged from 22 to 54 and SVG/chart counts from 22 to 51 per section. This is navigation/render evidence, not proof that every mutating control has passed a real-data E2E.
+
+Latest gate run 2026-09-01: `npm run test:integration` passed the disposable RLS integration test (1/1). `/api/production/verify` authenticated with the loopback session and passed database, authentication, official Prozorro reachability/search (5 live tenders), and aggregator integrity; pagination is `UNKNOWN`, while live Gemini, external tenant isolation, document pipeline and source-bound estimate gates remain unresolved.

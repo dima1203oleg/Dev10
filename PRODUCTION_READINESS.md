@@ -78,4 +78,6 @@ Team Workspace contract hardening also passed the local type/build gate; externa
 
 Additional browser smoke evidence confirms profile placeholders are absent and BoQ add/delete works against the authenticated local API. This does not change the release decision because required external integration gates remain unavailable.
 
-Latest `/api/production/verify` (2026-09-01) remains `BLOCKED`: database/authentication/Prozorro connectivity/multiplatform checks PASS; AI credentials are `UNKNOWN` until a live model call succeeds; live Prozorro search FAIL (timeout), pagination BLOCKED, tenant-isolation and no-fake-data evidence UNKNOWN, and source-bound estimate engine BLOCKED.
+Earlier `/api/production/verify` sample (2026-09-01) was `BLOCKED`: database/authentication/Prozorro connectivity/multiplatform checks PASS; AI credentials were `UNKNOWN` until a live model call succeeds; one transient live search timeout was observed, pagination and tenant-isolation evidence were unresolved, and the source-bound estimate engine was BLOCKED.
+
+Re-run 2026-09-01 after the official API self-test hardening: database, authentication, Prozorro connectivity/search (5 live tenders), and multiplatform integrity PASS; pagination is `UNKNOWN`; AI live call, external RLS, document pipeline and source-bound estimate evidence remain `UNKNOWN`/`BLOCKED`. Release status correctly remains **NOT READY**.
