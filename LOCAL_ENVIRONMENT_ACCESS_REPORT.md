@@ -78,4 +78,4 @@ Server:
 - **Єдиний блокер:** Docling OCR використовує дуже багато оперативної пам'яті для обробки великих PDF-документів. Виділених 8 ГБ для Docker Desktop недостатньо. **Рекомендація:** Збільшити об'єм пам'яті для Docker Desktop до 12–16 ГБ, щоб успішно обробляти великі тендерні документи.
 
 ## Фінальний критерій доступу
-**ВИКОНАНО**. Coder (я) маю повний доступ до репозиторію `/Users/dima1203/Documents/Tender` та стабільне з'єднання з Docker daemon через `desktop-linux`. Усі необхідні команди, скрипти та тести успішно виконані.
+**ДОСТУП ВИКОНАНО; PRODUCTION READY — НІ.** Coder має повний доступ до репозиторію `/Users/dima1203/Documents/Tender` та стабільне з'єднання з Docker daemon через `desktop-linux`. Автоматичні build/lint/unit/integration gates проходять. Окремо authenticated `/api/production/verify` коректно повертає `BLOCKED`: live Gemini call, зовнішня tenant-isolation перевірка, zero-mock audit і source-bound estimate evidence ще не підтверджені. Один великий PDF Docling завершився OOM при 8 GB Docker RAM; односторінковий async OCR тест пройшов.
