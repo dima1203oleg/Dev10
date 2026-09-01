@@ -97,4 +97,6 @@ test.describe("TenderAI OS Comprehensive E2E Verification", () => {
 
 Browser smoke on the current revision: local session loaded the app, profile rendered `UNKNOWN` without placeholder company/resource values, and the Construction BoQ tab added then deleted a persisted row through the live API. This is targeted evidence, not full 237-control coverage.
 
+War Room QA was inspected on the current revision; with no readiness audit it shows the explicit `UNKNOWN` state and the audit button is wired to navigation. Full control-by-control E2E remains BLOCKED.
+
 Static verification completed: TypeScript PASS, Vitest 2/2 PASS, Vite build PASS, server bundle PASS. Production negative-startup test PASS (missing mandatory configuration terminates the process). These checks are not a substitute for browser/database E2E.

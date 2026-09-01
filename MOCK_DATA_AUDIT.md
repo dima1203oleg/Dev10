@@ -113,3 +113,5 @@ export const TenderList: React.FC = () => {
 Removed remaining runtime fallback values from Company Profile, Dashboard and Pre-Submission gauges; absent persisted evidence is rendered as `UNKNOWN`. Test-only fixtures remain isolated under test files. Production release remains NOT READY pending live service gates.
 
 The connector self-test no longer embeds a mock company/tender Radar fixture; it reports an explicit non-production failure when no live tenant context is supplied.
+
+War Room QA no longer embeds sanctions, staffing, bank-guarantee or certificate claims; it renders only the persisted readiness checklist.

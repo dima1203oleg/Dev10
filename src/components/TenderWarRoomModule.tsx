@@ -28,7 +28,6 @@ import {
   Download, 
   Send,
   Zap,
-  Info,
   Check,
   FileText,
   Search,
@@ -557,71 +556,22 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
               </p>
             </div>
 
-            <button className="px-8 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-950/40 transition-all flex items-center gap-2 relative z-10">
-              <Zap size={16} />
-              <span>ГОТОВО ДО ПОДАННЯ</span>
+            <button onClick={onNavigateToAudit} className="px-8 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-950/40 transition-all flex items-center gap-2 relative z-10">
+              <FileCheck2 size={16} />
+              <span>ВІДКРИТИ АУДИТ</span>
             </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              { 
-                category: 'Юридична відповідність', 
-                items: [
-                  { label: 'Відсутність у санкційних списках', status: 'ПРОЙДЕНО', evidence: 'Скриншот перевірки РНБО' },
-                  { label: 'Стаття 17 (відсутність судимостей)', status: 'ПРОЙДЕНО', evidence: 'Довідка МВС України' },
-                  { label: 'Повноваження підписанта', status: 'ПРОЙДЕНО', evidence: 'Наказ про призначення керівника' }
-                ]
-              },
-              { 
-                category: 'Технічна частина', 
-                items: [
-                  { label: 'Повна відповідність відомості робіт', status: 'ПРОЙДЕНО', evidence: 'Звіт аналізатора дефектних актів' },
-                  { label: 'Сертифікати якості на матеріали', status: 'УВАГА', evidence: 'Відсутній паспорт на суміш бетонну' },
-                  { label: 'Гарантійні листи виробників', status: 'ПРОЙДЕНО', evidence: 'Підписано електронним підписом' }
-                ]
-              },
-              { 
-                category: 'Кваліфікаційні критерії (ст. 16)', 
-                items: [
-                  { label: 'Аналогічний досвід (3 договори)', status: 'ПРОЙДЕНО', evidence: 'Prozorro: договори та відгуки' },
-                  { label: 'Наявність будівельної техніки', status: 'ПРОЙДЕНО', evidence: 'Техпаспорти та договори оренди' },
-                  { label: 'Наявність кваліфікованих працівників', status: 'ПРОЙДЕНО', evidence: 'Накази та посвідчення з ОП' }
-                ]
-              },
-              { 
-                category: 'Фінансова частина', 
-                items: [
-                  { label: 'Електронна банківська гарантія', status: 'ПРОЙДЕНО', evidence: 'Банківська гарантія з КЕП банку' },
-                  { label: 'Довідка про відсутність заборгованості', status: 'ПРОЙДЕНО', evidence: 'Витяг ДПС України' },
-                  { label: 'Фінансова звітність за звітний період', status: 'ПРОЙДЕНО', evidence: 'Баланс підприємства (ф. №1)' }
-                ]
-              }
-            ].map((cat, idx) => (
-              <div key={idx} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
-                <h3 className="text-xs font-black text-slate-500 uppercase tracking-[0.2em]">{cat.category}</h3>
-                <div className="space-y-3">
-                  {cat.items.map((item, i) => (
-                    <div key={i} className="flex flex-col gap-2 p-4 bg-slate-950/50 border border-slate-800/50 rounded-2xl hover:border-slate-700 transition-all">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-200">{item.label}</span>
-                        <div className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${
-                          item.status === 'ПРОЙДЕНО' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'
-                        }`}>
-                          {item.status}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="p-1 rounded bg-slate-900 text-slate-500">
-                          <Info size={12} />
-                        </div>
-                        <span className="text-[10px] text-slate-500 font-medium italic truncate">{item.evidence}</span>
-                      </div>
-                    </div>
-                  ))}
+            {(currentTender.readinessScore?.criticalChecklist || []).length > 0 ? currentTender.readinessScore!.criticalChecklist.map(item => (
+              <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-bold text-slate-200">{item.title}</span>
+                  <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${item.passed ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-300'}`}>{item.passed ? 'ПРОЙДЕНО' : item.severity}</span>
                 </div>
+                <span className="text-[10px] text-slate-500 font-medium">{item.detail || 'UNKNOWN'}</span>
               </div>
-            ))}
+            )) : <div className="md:col-span-2 bg-slate-900 border border-dashed border-slate-800 rounded-3xl p-8 text-center text-sm text-slate-500">Доказовий чекліст UNKNOWN. Запустіть передподанний аудит для перевірки збережених даних.</div>}
           </div>
         </div>
       )}
