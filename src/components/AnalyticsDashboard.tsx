@@ -39,7 +39,8 @@ const STATUS_LABELS: Record<string, string> = {
 
 export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ tenders }) => {
   // Calculate metrics
-  const totalBudget = useMemo(() => tenders.reduce((acc, t) => acc + (t.budgetUah || 0), 0), [tenders]);
+  const budgets = useMemo(() => tenders.map(t => t.budgetUah).filter((value): value is number => typeof value === 'number' && Number.isFinite(value)), [tenders]);
+  const totalBudget = useMemo(() => budgets.length > 0 ? budgets.reduce((acc, value) => acc + value, 0) : null, [budgets]);
   
   const tendersWithFoulScore = useMemo(() => tenders.filter(t => t.foulScore !== null && t.foulScore !== undefined), [tenders]);
   const avgFoulScore = useMemo(() => tendersWithFoulScore.length > 0 ? Math.round(tendersWithFoulScore.reduce((acc, t) => acc + (t.foulScore || 0), 0) / tendersWithFoulScore.length) : null, [tendersWithFoulScore]);
@@ -93,7 +94,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ tenders 
       t.budgetUah,
       `"${t.category}"`,
       `"${STATUS_LABELS[t.status] || t.status}"`,
-      t.foulScore || 0,
+      t.foulScore ?? 'UNKNOWN',
       `"${t.riskLevel || 'Не аналізовано'}"`
     ]);
 
@@ -150,7 +151,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ tenders 
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Загальний бюджет</p>
               <h3 className="text-2xl font-bold text-emerald-400">
-                {(totalBudget / 1000000).toFixed(1)} млн ₴
+                {totalBudget === null ? 'Немає даних' : `${(totalBudget / 1000000).toFixed(1)} млн ₴`}
               </h3>
             </div>
             <div className="p-2 bg-emerald-500/20 rounded-lg">

@@ -87,3 +87,5 @@ export default router;
 **Status: FAIL.** Cost-estimate and supplier figures include synthetic constants and random calculations; charts derived from them are not production evidence.
 
 Fit Score component values now preserve missing evidence as `null`; UI consumers must render UNKNOWN rather than plotting absent evidence as zero. Live chart acceptance remains blocked until independent DuckDB/SQL reconciliation is demonstrated.
+
+Portfolio analytics now shows `Немає даних` when no numeric budgets exist and exports missing Foul Score as `UNKNOWN`; zero is no longer used as a placeholder for absent values.
