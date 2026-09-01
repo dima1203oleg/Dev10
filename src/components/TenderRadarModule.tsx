@@ -476,7 +476,7 @@ export const TenderRadarModule: React.FC<TenderRadarModuleProps> = ({
             )}
             {searchTelemetry && !isSearching && (
               <div className="text-[10px] font-mono text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
-                Знайдено: {searchTelemetry.recordsMatched} ({searchTelemetry.durationMs || 120}ms)
+                Знайдено: {searchTelemetry.recordsMatched} ({searchTelemetry.durationMs != null ? `${searchTelemetry.durationMs}ms` : 'UNKNOWN'})
               </div>
             )}
           </div>

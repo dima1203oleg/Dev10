@@ -107,3 +107,7 @@ export const TenderList: React.FC = () => {
 # Independent re-audit (2026-08-31)
 
 **Status: FAIL.** Synthetic production paths remain in `CostEstimateAnalysisModule.tsx` (sample AVK/Excel reports, invented suppliers/URLs, random financial calculations and simulated parsing). Generated corporate/social tender results and fabricated `/api/data` seeding were identified and disabled. This section supersedes any earlier PASS claim.
+
+## Re-audit 2026-09-01
+
+Removed remaining runtime fallback values from Company Profile, Dashboard and Pre-Submission gauges; absent persisted evidence is rendered as `UNKNOWN`. Test-only fixtures remain isolated under test files. Production release remains NOT READY pending live service gates.

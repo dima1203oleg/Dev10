@@ -51,15 +51,17 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
   const [quickEdrpou, setQuickEdrpou] = useState('');
 
   // Radar setup state
-  const [matchScore, setMatchScore] = useState<number>(vaultData.minMatchScore || 75);
+  const [matchScore, setMatchScore] = useState<number | null>(vaultData.minMatchScore ?? null);
   const [keywords, setKeywords] = useState<string[]>(
-    vaultData.preferredKeywords || ['реконструкція', 'капітальний ремонт', 'лікарня', 'укриття']
+    vaultData.preferredKeywords ?? []
   );
   const [newKeyword, setNewKeyword] = useState('');
   const [aiDescription, setAiDescription] = useState('');
   const [isGeneratingKeywords, setIsGeneratingKeywords] = useState(false);
 
-  const overallReadiness = vaultData?.readiness?.overall || 87;
+  const readiness = vaultData?.readiness || {};
+  const overallReadiness = Number.isFinite(readiness.overall) ? Number(readiness.overall) : null;
+  const readinessValue = (key: string) => Number.isFinite(readiness[key]) ? `${Number(readiness[key])}%` : 'UNKNOWN';
   
   const { token } = useAuth();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -170,7 +172,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
             isVatPayer: reqIsVatPayer,
             signatureCliche,
             stampCliche,
-            minMatchScore: matchScore,
+            minMatchScore: matchScore ?? null,
             preferredKeywords: keywords
           }
         })
@@ -213,7 +215,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
               isVatPayer: reqIsVatPayer,
               signatureCliche,
               stampCliche,
-              minMatchScore: matchScore,
+              minMatchScore: matchScore ?? null,
               preferredKeywords: keywords
             }
           });
@@ -350,7 +352,7 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
                 status: data.data.status === 'VALID' ? 'ACTIVE' : 'EXPIRED',
                 uploadDate: new Date().toISOString().split('T')[0],
                 verificationStatus: 'VERIFIED',
-                aiConfidence: data.data.confidence || 95,
+                aiConfidence: data.data.confidence ?? null,
                 extractedText: data.data.extractedText || '',
                 provenance: data.data.provenance || 'USER_UPLOAD → OCR → AI_EXTRACTION'
             } as any;
@@ -396,8 +398,8 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
                   {company.edrpou || 'ЕДРПОУ не вказано'}
                 </div>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-                {company.name !== 'ПРОФІЛЬ_ВІДСУТНІЙ' ? company.name : 'ТОВ «БУДКОМПЛЕКС»'}
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                {company.name && company.name !== 'ПРОФІЛЬ_ВІДСУТНІЙ' ? company.name : 'Назва компанії не налаштована'}
               </h1>
               <p className="text-slate-400 text-sm max-w-2xl">
                 Єдине джерело правди (SSOT) вашої компанії. Система автоматично аналізує завантажені документи, витягує сутності та будує цифровий профіль для Radar та Bid Package.
@@ -407,19 +409,19 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
             <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 min-w-[280px] space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Готовність профілю:</span>
-                <span className="text-xl font-black text-emerald-400">{overallReadiness}%</span>
+                <span className="text-xl font-black text-emerald-400">{overallReadiness != null ? `${overallReadiness}%` : 'UNKNOWN'}</span>
               </div>
               <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-emerald-500 transition-all duration-1000" 
-                  style={{ width: `${overallReadiness}%` }}
+                  style={{ width: `${overallReadiness ?? 0}%` }}
                 />
               </div>
               <div className="grid grid-cols-2 gap-2 mt-2">
-                <div className="text-[10px] text-slate-400">Ліцензії <span className="text-emerald-400 font-bold ml-1">100%</span></div>
-                <div className="text-[10px] text-slate-400">Досвід <span className="text-emerald-400 font-bold ml-1">92%</span></div>
-                <div className="text-[10px] text-slate-400">Персонал <span className="text-amber-400 font-bold ml-1">86%</span></div>
-                <div className="text-[10px] text-slate-400">Техніка <span className="text-amber-400 font-bold ml-1">73%</span></div>
+                <div className="text-[10px] text-slate-400">Ліцензії <span className="text-emerald-400 font-bold ml-1">{readinessValue('licenses')}</span></div>
+                <div className="text-[10px] text-slate-400">Досвід <span className="text-emerald-400 font-bold ml-1">{readinessValue('experience')}</span></div>
+                <div className="text-[10px] text-slate-400">Персонал <span className="text-amber-400 font-bold ml-1">{readinessValue('staff')}</span></div>
+                <div className="text-[10px] text-slate-400">Техніка <span className="text-amber-400 font-bold ml-1">{readinessValue('equipment')}</span></div>
               </div>
             </div>
           </div>
@@ -1013,11 +1015,11 @@ export const CompanyProfileModule: React.FC<CompanyProfileModuleProps> = ({ comp
                         type="range" 
                         min="50" 
                         max="100" 
-                        value={matchScore} 
+                        value={matchScore ?? 50}
                         onChange={e => setMatchScore(Number(e.target.value))} 
                         className="w-full accent-emerald-500 cursor-pointer" 
                       />
-                      <span className="text-xl font-black text-emerald-400 w-16 text-right">{matchScore}%</span>
+                      <span className="text-xl font-black text-emerald-400 w-16 text-right">{matchScore != null ? `${matchScore}%` : 'UNKNOWN'}</span>
                     </div>
                   </div>
 

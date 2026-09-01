@@ -90,13 +90,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Real KPI Calculations
   const totalCount = tenders.length;
-  const highFitCount = tenders.filter(t => (t.opportunityScore?.overallScore ?? 0) >= 75).length;
+  const highFitCount = tenders.filter(t => typeof t.opportunityScore?.overallScore === 'number' && t.opportunityScore.overallScore > 85).length;
   const criticalDeadlinesCount = tenders.filter(t => {
     const days = getDaysRemaining(t.deadline || t.submissionDeadline);
     return days !== null && days <= 3 && days >= 0;
   }).length;
   const inWorkCount = tenders.filter(t => t.status === 'ACTIVE' || t.status === 'IN_REVIEW').length;
-  const readyToSubmitCount = tenders.filter(t => (t.readinessScore?.overallPercentage ?? 0) >= 80).length;
+  const readyToSubmitCount = tenders.filter(t => t.readinessScore?.readyToSubmit === true).length;
   const highRiskCount = tenders.filter(t => (t.foulScore !== null && t.foulScore !== undefined && t.foulScore >= 50) || t.riskLevel === 'HIGH' || t.riskLevel === 'CRITICAL').length;
 
   // Filtered and Sorted Tenders
@@ -151,7 +151,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const displayedTenders = filteredTenders.slice(0, pageSize);
 
   // Top Active Tenders for War Room Mini
-  const activeWarRoomTenders = tenders.slice(0, 3);
+  const activeWarRoomTenders = tenders.filter(t => t.status === 'ACTIVE' || t.status === 'IN_REVIEW').slice(0, 3);
 
   return (
     <div className="space-y-6 pb-12">
@@ -689,11 +689,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   >
                     <div className="flex items-center justify-between text-xs font-bold text-white">
                       <span className="truncate max-w-[180px]">{t.title}</span>
-                      <span className="text-emerald-400 font-mono">92%</span>
+                      <span className="text-emerald-400 font-mono">{typeof t.opportunityScore?.overallScore === 'number' ? `${t.opportunityScore.overallScore}%` : 'UNKNOWN'}</span>
                     </div>
                     <div className="flex items-center justify-between text-[10px] text-slate-400">
-                      <span>Вимоги: 23 / 25</span>
-                      <span className="text-amber-400">Дедлайн &lt; 7 днів</span>
+                      <span>Вимоги: {t.requirements ? `${t.requirements.filter(r => r.status === 'PASS').length} / ${t.requirements.length}` : 'UNKNOWN'}</span>
+                      <span className="text-amber-400">{(() => { const days = getDaysRemaining(t.deadline); return days === null ? 'Дедлайн UNKNOWN' : `Дедлайн: ${days} дн.`; })()}</span>
                     </div>
                   </div>
                 );

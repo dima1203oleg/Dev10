@@ -68,6 +68,10 @@ export const PreSubmissionAuditModule: React.FC<PreSubmissionAuditModuleProps> =
 
   const totalScore = readiness?.totalScore ?? null;
   const categories = readiness?.categories ?? null;
+  const categoryValue = (key: keyof NonNullable<typeof categories>) => {
+    const value = categories?.[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  };
 
   const checklist = readiness?.criticalChecklist || [];
   const blockingIssues = checklist.filter(c => !c.passed && c.severity === 'BLOCKING');
@@ -136,49 +140,49 @@ export const PreSubmissionAuditModule: React.FC<PreSubmissionAuditModuleProps> =
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Юридична готовність</div>
-            <div className="text-2xl font-black text-emerald-400">{categories.legalDraftContract || 100}%</div>
+            <div className="text-2xl font-black text-emerald-400">{categoryValue('legalDraftContract') ?? 'UNKNOWN'}{categoryValue('legalDraftContract') !== null ? '%' : ''}</div>
             <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.legalDraftContract || 100}%` }} />
+              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categoryValue('legalDraftContract') ?? 0}%` }} />
             </div>
           </div>
 
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Документи</div>
-            <div className="text-2xl font-black text-emerald-400">{categories.documentsVault || 92}%</div>
+            <div className="text-2xl font-black text-emerald-400">{categoryValue('documentsVault') ?? 'UNKNOWN'}{categoryValue('documentsVault') !== null ? '%' : ''}</div>
             <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.documentsVault || 92}%` }} />
+              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categoryValue('documentsVault') ?? 0}%` }} />
             </div>
           </div>
 
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Кошторис</div>
-            <div className="text-2xl font-black text-emerald-400">{categories.costAndBoQ || 98}%</div>
+            <div className="text-2xl font-black text-emerald-400">{categoryValue('costAndBoQ') ?? 'UNKNOWN'}{categoryValue('costAndBoQ') !== null ? '%' : ''}</div>
             <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.costAndBoQ || 98}%` }} />
+              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categoryValue('costAndBoQ') ?? 0}%` }} />
             </div>
           </div>
 
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Фінанси</div>
-            <div className="text-2xl font-black text-emerald-400">{categories.qualificationArt16 || 91}%</div>
+            <div className="text-2xl font-black text-emerald-400">{categoryValue('qualificationArt16') ?? 'UNKNOWN'}{categoryValue('qualificationArt16') !== null ? '%' : ''}</div>
             <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.qualificationArt16 || 91}%` }} />
+              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categoryValue('qualificationArt16') ?? 0}%` }} />
             </div>
           </div>
 
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Технічні вимоги</div>
-            <div className="text-2xl font-black text-emerald-400">{categories.technicalSpecs || 100}%</div>
+            <div className="text-2xl font-black text-emerald-400">{categoryValue('technicalSpecs') ?? 'UNKNOWN'}{categoryValue('technicalSpecs') !== null ? '%' : ''}</div>
             <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categories.technicalSpecs || 100}%` }} />
+              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${categoryValue('technicalSpecs') ?? 0}%` }} />
             </div>
           </div>
 
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
             <div className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">Строки</div>
-            <div className="text-2xl font-black text-emerald-400">100%</div>
+            <div className="text-2xl font-black text-emerald-400">UNKNOWN</div>
             <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: `100%` }} />
+              <div className="bg-emerald-500 h-full rounded-full" style={{ width: '0%' }} />
             </div>
           </div>
         </div>

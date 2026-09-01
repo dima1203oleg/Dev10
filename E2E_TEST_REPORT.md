@@ -91,4 +91,8 @@ test.describe("TenderAI OS Comprehensive E2E Verification", () => {
 
 **Status: NOT EXECUTED TO COMPLETION.** No reproducible browser E2E evidence tied to the current source revision exists, and the supplied directory has no Git revision. Prior PASS statements do not certify the current code.
 
+## Re-audit 2026-09-01
+
+`npm run verify` PASS (TypeScript, 18 Vitest tests, production bundles, npm audit 0 vulnerabilities). BoQ API edit persistence and truthfulness fallbacks are covered by static/type gates; full browser E2E and external-service acceptance remain BLOCKED.
+
 Static verification completed: TypeScript PASS, Vitest 2/2 PASS, Vite build PASS, server bundle PASS. Production negative-startup test PASS (missing mandatory configuration terminates the process). These checks are not a substitute for browser/database E2E.

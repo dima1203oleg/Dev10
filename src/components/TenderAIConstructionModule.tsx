@@ -105,29 +105,36 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
   };
 
   // Add new BoQ line item
-  const handleAddBoqItem = () => {
-    const newItem: BoQItem = {
-      id: `boq-new-${Date.now()}`,
-      code: '',
-      description: '',
-      unit: 'UNKNOWN',
-      quantity: 0,
-      standardPriceUah: null,
-      marketPriceUah: null,
-      laborHours: null,
-      anomaly: null,
-      notes: 'Чернетка. Заповніть позицію вручну або імпортуйте її через перевірений document pipeline.',
-    };
-    const updated = [...boqItems, newItem];
-    setBoqItems(updated);
-    onUpdateTenderBoq(currentTender.id, updated);
+  const mapBoqRow = (row: any): BoQItem => ({
+    id: String(row.id), code: row.code || '', description: row.name || 'UNKNOWN', unit: row.unit || 'UNKNOWN',
+    quantity: Number(row.quantity) || 0, standardPriceUah: null,
+    marketPriceUah: row.unitPriceUah == null ? null : Number(row.unitPriceUah), laborHours: null, anomaly: null,
+    notes: row.sourceDocumentId ? `Джерело: ${row.sourceDocumentId}` : undefined,
+  });
+
+  const handleAddBoqItem = async () => {
+    if (!token) { setAnalysisError('Потрібна авторизація для зміни кошторису.'); return; }
+    try {
+      const response = await fetch(`/api/tenders/${currentTender.id}/boq`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: 'UNKNOWN', unit: 'UNKNOWN', quantity: 0, unitPriceUah: null }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error?.message || 'Не вдалося додати позицію BoQ');
+      const updated = [...boqItems, mapBoqRow(body.data)];
+      setBoqItems(updated); onUpdateTenderBoq(currentTender.id, updated); setAnalysisError(null);
+    } catch (error) { setAnalysisError(error instanceof Error ? error.message : 'Не вдалося додати позицію BoQ'); }
   };
 
   // Remove BoQ line item
-  const handleRemoveBoqItem = (id: string) => {
-    const updated = boqItems.filter(item => item.id !== id);
-    setBoqItems(updated);
-    onUpdateTenderBoq(currentTender.id, updated);
+  const handleRemoveBoqItem = async (id: string) => {
+    if (!token) { setAnalysisError('Потрібна авторизація для зміни кошторису.'); return; }
+    try {
+      const response = await fetch(`/api/tenders/${currentTender.id}/boq/${encodeURIComponent(id)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error?.message || 'Не вдалося видалити позицію BoQ');
+      const updated = boqItems.filter(item => item.id !== id); setBoqItems(updated); onUpdateTenderBoq(currentTender.id, updated);
+    } catch (error) { setAnalysisError(error instanceof Error ? error.message : 'Не вдалося видалити позицію BoQ'); }
   };
 
   // Update BoQ item field
@@ -140,6 +147,21 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
     });
     setBoqItems(updated);
     onUpdateTenderBoq(currentTender.id, updated);
+  };
+
+  const handlePersistBoqItem = async (id: string) => {
+    if (!token) { setAnalysisError('Потрібна авторизація для зміни кошторису.'); return; }
+    const changed = boqItems.find(item => item.id === id);
+    if (!changed) return;
+    try {
+      const response = await fetch(`/api/tenders/${currentTender.id}/boq/${encodeURIComponent(id)}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: changed.code, name: changed.description, unit: changed.unit, quantity: changed.quantity, unitPriceUah: changed.marketPriceUah }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body?.error?.message || 'Не вдалося зберегти позицію BoQ');
+      setAnalysisError(null);
+    } catch (error) { setAnalysisError(error instanceof Error ? error.message : 'Не вдалося зберегти позицію BoQ'); }
   };
 
   const hasConfirmedBoqPrices = boqItems.length > 0 && boqItems.every(item => Number.isFinite(item.marketPriceUah));
@@ -601,6 +623,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                         type="text"
                         value={item.code}
                         onChange={(e) => handleUpdateBoqItem(item.id, 'code', e.target.value)}
+                        onBlur={() => void handlePersistBoqItem(item.id)}
                         className="bg-transparent border-b border-transparent focus:border-slate-600 focus:outline-none w-20"
                       />
                     </td>
@@ -609,6 +632,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                         type="text"
                         value={item.description}
                         onChange={(e) => handleUpdateBoqItem(item.id, 'description', e.target.value)}
+                        onBlur={() => void handlePersistBoqItem(item.id)}
                         className="bg-transparent border-b border-transparent focus:border-slate-600 focus:outline-none w-full"
                       />
                     </td>
@@ -617,6 +641,7 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                         type="text"
                         value={item.unit}
                         onChange={(e) => handleUpdateBoqItem(item.id, 'unit', e.target.value)}
+                        onBlur={() => void handlePersistBoqItem(item.id)}
                         className="bg-transparent border-b border-transparent focus:border-slate-600 focus:outline-none w-10 text-center"
                       />
                     </td>
@@ -625,22 +650,21 @@ export const TenderAIConstructionModule: React.FC<TenderAIConstructionModuleProp
                         type="number"
                         value={item.quantity}
                         onChange={(e) => handleUpdateBoqItem(item.id, 'quantity', parseFloat(e.target.value) || 0)}
+                        onBlur={() => void handlePersistBoqItem(item.id)}
                         className="bg-slate-800 border border-slate-700 rounded px-2 py-1 w-20 font-mono text-white text-right"
                       />
                     </td>
                     <td className="p-3 font-mono text-slate-400">
-                      <input
-                        type="number"
-                        value={item.standardPriceUah ?? ""}
-                        onChange={(e) => handleUpdateBoqItem(item.id, 'standardPriceUah', parseFloat(e.target.value) || 0)}
-                        className="bg-slate-800 border border-slate-700 rounded px-2 py-1 w-24 font-mono text-slate-300 text-right"
-                      />
+                      <span title="Джерельна ціна з тендерної документації ще не підтверджена">
+                        {item.standardPriceUah == null ? 'UNKNOWN' : item.standardPriceUah.toLocaleString()}
+                      </span>
                     </td>
                     <td className="p-3 font-mono text-emerald-400 font-bold">
                       <input
                         type="number"
                         value={item.marketPriceUah ?? ""}
                         onChange={(e) => handleUpdateBoqItem(item.id, 'marketPriceUah', parseFloat(e.target.value) || 0)}
+                        onBlur={() => void handlePersistBoqItem(item.id)}
                         className="bg-slate-800 border border-slate-700 rounded px-2 py-1 w-24 font-mono text-emerald-400 text-right"
                       />
                     </td>

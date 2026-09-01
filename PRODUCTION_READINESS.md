@@ -69,3 +69,7 @@ Estimate integrity: synthetic estimate fixtures were removed from production dia
 - container image/SBOM/signature, staging soak, backup/restore and rollback drill.
 
 Until all items pass, the only accurate release status is **NOT READY**.
+
+## Re-audit 2026-09-01
+
+Status remains **NOT READY**. BoQ mutation persistence and UI unknown-state handling were hardened and verified with `npm run verify`; live Firebase/Gemini, Temporal, OCR, ClamAV, S3/pgvector and complete 237-control E2E evidence are still outstanding.

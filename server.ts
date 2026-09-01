@@ -1641,6 +1641,27 @@ app.post('/api/tenders/:tenderId/boq', requireAuth, async (req: AuthRequest, res
   }
 });
 
+app.patch('/api/tenders/:tenderId/boq/:itemId', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const tenderId = Number.parseInt(req.params.tenderId, 10);
+    const { code, name, unit, quantity, unitPriceUah } = req.body || {};
+    const parsedQuantity = Number(quantity);
+    const parsedPrice = unitPriceUah === null || unitPriceUah === undefined || unitPriceUah === '' ? null : Number(unitPriceUah);
+    if (!Number.isInteger(tenderId) || !String(name || '').trim() || !String(unit || '').trim() || !Number.isFinite(parsedQuantity) || parsedQuantity < 0 || (parsedPrice !== null && (!Number.isFinite(parsedPrice) || parsedPrice < 0))) {
+      return res.status(400).json({ error: { code: 'INVALID_BOQ_ITEM', message: 'Name, unit and non-negative numeric quantity/price are required.' }, requestId: req.requestId });
+    }
+    const [updated] = await db.update(boqItems)
+      .set({ code: code ? String(code).trim() : null, name: String(name).trim(), unit: String(unit).trim(), quantity: parsedQuantity, unitPriceUah: parsedPrice, updatedAt: new Date() })
+      .where(and(eq(boqItems.id, req.params.itemId), eq(boqItems.tenderId, tenderId), eq(boqItems.orgId, req.orgId!)))
+      .returning();
+    if (!updated) return res.status(404).json({ error: { code: 'BOQ_ITEM_NOT_FOUND', message: 'BoQ item not found.' }, requestId: req.requestId });
+    return res.json({ data: updated, requestId: req.requestId });
+  } catch (error) {
+    console.error('BoQ update error:', error);
+    return res.status(500).json({ error: { code: 'BOQ_UPDATE_FAILED', message: 'Failed to update BoQ item.' }, requestId: req.requestId });
+  }
+});
+
 app.delete('/api/tenders/:tenderId/boq/:itemId', requireAuth, async (req: AuthRequest, res) => {
   try {
     const tenderId = Number.parseInt(req.params.tenderId, 10);
