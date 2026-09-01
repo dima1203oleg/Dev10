@@ -1976,6 +1976,13 @@ async function generateContentWithFallback(
           errMsg.includes("high demand") ||
           errMsg.includes("UNAVAILABLE") ||
           errMsg.includes("overloaded");
+        const isUnauthorized = err?.status === 401 || err?.code === 401 || errMsg.includes("401") || errMsg.includes("UNAUTHENTICATED");
+
+        if (isUnauthorized) {
+          // An invalid cloud key must not trigger a cascade of doomed model
+          // requests. Fall through to the explicitly local, free provider.
+          break;
+        }
 
         if (hasNextModel) {
           console.info(
@@ -1999,6 +2006,31 @@ async function generateContentWithFallback(
         }
       }
     }
+  }
+
+  const ollamaUrl = (process.env.OLLAMA_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+  try {
+    const prompt = typeof params.contents === 'string'
+      ? params.contents
+      : JSON.stringify(params.contents);
+    const localResponse = await fetch(`${ollamaUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: process.env.OLLAMA_MODEL || 'qwen3.5:4b',
+        prompt,
+        stream: false,
+        options: { temperature: 0 },
+      }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    const localBody = await localResponse.json() as { response?: string };
+    if (localResponse.ok && typeof localBody.response === 'string' && localBody.response.trim()) {
+      console.info('[AI] Using local Ollama provider after cloud provider failure.');
+      return { text: localBody.response.trim(), provider: 'ollama-local' };
+    }
+  } catch (localError) {
+    console.warn('[AI] Local Ollama fallback unavailable.', localError);
   }
 
   throw lastError;
@@ -2141,9 +2173,23 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
         });
         const aiBody = await aiRes.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
         const aiText = aiBody.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        results.ai_engine = aiRes.ok && aiText
-          ? { status: "PASS", details: "Gemini live model call succeeded." }
-          : { status: "FAIL", details: `Gemini live model call failed with HTTP ${aiRes.status}.` };
+        if (aiRes.ok && aiText) {
+          results.ai_engine = { status: "PASS", details: "Gemini live model call succeeded." };
+        } else {
+          // Keep the free local deployment usable when a cloud key is absent or
+          // revoked, while making the provider choice explicit in the gate.
+          const ollamaUrl = (process.env.OLLAMA_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
+          const localRes = await fetch(`${ollamaUrl}/api/generate`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ model: process.env.OLLAMA_MODEL || 'qwen3.5:4b', prompt: 'Return only the word OK.', stream: false, options: { temperature: 0 } }),
+            signal: AbortSignal.timeout(15000),
+          });
+          const localBody = await localRes.json() as { response?: string };
+          results.ai_engine = localRes.ok && localBody.response?.trim()
+            ? { status: "PASS", details: `Gemini HTTP ${aiRes.status}; local Ollama model ${process.env.OLLAMA_MODEL || 'qwen3.5:4b'} succeeded.` }
+            : { status: "FAIL", details: `Gemini live model call failed with HTTP ${aiRes.status}; local provider unavailable.` };
+        }
       } catch (aiError: any) {
         results.ai_engine = { status: "FAIL", details: `Gemini live model call failed: ${aiError.name === "TimeoutError" ? "timeout" : "request error"}.` };
       }
