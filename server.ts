@@ -2105,9 +2105,21 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
       if (searchRes.ok && Array.isArray(firstPage) && firstPage.length > 0) {
         results.prozorro_search = { status: "PASS", details: `Found ${firstPage.length} real tenders` };
         
-        results.prozorro_pagination = searchData.next_page?.offset
-          ? { status: "UNKNOWN", details: "Live cursor returned; authenticated pagination gate remains separate." }
-          : { status: "BLOCKED", details: "No cursor returned by official API." };
+        if (searchData.next_page?.offset) {
+          try {
+            const page2Res = await fetch(`https://public.api.openprocurement.org/api/2.5/tenders?descending=1&limit=5&offset=${encodeURIComponent(searchData.next_page.offset)}`, { signal: AbortSignal.timeout(10000) });
+            const page2Data = await page2Res.json() as { data?: Array<{ id?: string; tenderID?: string }> };
+            const firstIds = new Set(firstPage.map((item: any) => item?.id || item?.tenderID).filter(Boolean));
+            const duplicateCount = (Array.isArray(page2Data.data) ? page2Data.data : []).filter((item) => firstIds.has(item.id || item.tenderID)).length;
+            results.prozorro_pagination = page2Res.ok && duplicateCount === 0
+              ? { status: "PASS", details: "Official cursor pagination returned a second page with no duplicate tender IDs." }
+              : { status: "FAIL", details: `Cursor pagination returned ${duplicateCount} duplicate tender IDs.` };
+          } catch (paginationError: any) {
+            results.prozorro_pagination = { status: "FAIL", details: `Cursor pagination failed: ${paginationError.message}` };
+          }
+        } else {
+          results.prozorro_pagination = { status: "BLOCKED", details: "No cursor returned by official API." };
+        }
       } else {
         results.prozorro_search = { status: "FAIL", details: "Official API returned no tenders" };
         results.prozorro_pagination = { status: "BLOCKED", details: "Skipped because the live search returned no records." };
@@ -2119,8 +2131,22 @@ app.get("/api/production/verify", requireAuth, async (req: AuthRequest, res) => 
 
     // 6. AI Engine
     const ai = getGeminiClient();
-    if (ai) {
-      results.ai_engine = { status: "UNKNOWN", details: "Gemini credentials are configured but a live model call is required to verify authentication and quota." };
+    if (ai && process.env.GEMINI_API_KEY) {
+      try {
+        const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(process.env.GEMINI_API_KEY)}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: "Return only the word OK." }] }], generationConfig: { maxOutputTokens: 4 } }),
+          signal: AbortSignal.timeout(15000),
+        });
+        const aiBody = await aiRes.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+        const aiText = aiBody.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        results.ai_engine = aiRes.ok && aiText
+          ? { status: "PASS", details: "Gemini live model call succeeded." }
+          : { status: "FAIL", details: `Gemini live model call failed with HTTP ${aiRes.status}.` };
+      } catch (aiError: any) {
+        results.ai_engine = { status: "FAIL", details: `Gemini live model call failed: ${aiError.name === "TimeoutError" ? "timeout" : "request error"}.` };
+      }
     } else {
       results.ai_engine = { status: "FAIL", details: "Gemini API key missing" };
     }
