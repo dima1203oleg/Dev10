@@ -132,3 +132,5 @@ Fresh authenticated browser audit 2026-09-01 exercised all 14 primary sections. 
 Latest gate run 2026-09-01: `npm run test:integration` passed the disposable RLS integration test (1/1). `/api/production/verify` authenticated with the loopback session and passed database, authentication, official Prozorro reachability/search (5 live tenders), and aggregator integrity; pagination is `UNKNOWN`, while live Gemini, external tenant isolation, document pipeline and source-bound estimate gates remain unresolved.
 
 Clean-install reproducibility gate 2026-09-01: `npm ci --ignore-scripts && npm run verify` passed (694 packages installed, 0 vulnerabilities; typecheck, 18 tests, production bundles and dependency audit all green).
+
+Production-like stack probe 2026-09-01: host PostgreSQL and RLS pass; Docker daemon/compose did not respond within the bounded startup probe, and host ClamAV/Temporal/Docling/PaddleOCR/DuckDB executables are unavailable. No container health is reported without evidence.

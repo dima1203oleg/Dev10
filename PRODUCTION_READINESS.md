@@ -83,3 +83,5 @@ Earlier `/api/production/verify` sample (2026-09-01) was `BLOCKED`: database/aut
 Re-run 2026-09-01 after the official API self-test hardening: database, authentication, Prozorro connectivity/search (5 live tenders), and multiplatform integrity PASS; pagination is `UNKNOWN`; AI live call, external RLS, document pipeline and source-bound estimate evidence remain `UNKNOWN`/`BLOCKED`. Release status correctly remains **NOT READY**.
 
 Clean reproducibility run 2026-09-01: `npm ci --ignore-scripts && npm run verify` PASS; 694 packages installed, 0 dependency vulnerabilities, typecheck/tests/build/audit green. This validates the local gate only and does not satisfy the outstanding external production gates.
+
+Local production-like component probe 2026-09-01: PostgreSQL/pgvector host database is accepting connections and RLS integration passes. Docker Desktop is installed but the daemon did not return from `docker ps`/`docker compose up -d` within the bounded probe; ClamAV, Temporal CLI, Docling, PaddleOCR and DuckDB host binaries are absent. Compose services therefore remain `BLOCKED`, not claimed healthy.
