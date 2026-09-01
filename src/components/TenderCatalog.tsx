@@ -72,6 +72,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
   const [newBudget, setNewBudget] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [newRegion, setNewRegion] = useState('');
+  const [newDeadline, setNewDeadline] = useState('');
 
   const [prozorroSearchQuery, setProzorroSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -210,7 +211,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
         title: importedPreview.title,
         customer: importedPreview.customer || "Невідомий замовник",
         budgetUah: (importedPreview.budgetUah !== undefined && importedPreview.budgetUah !== null) ? importedPreview.budgetUah : null,
-        status: 'ACTIVE',
+        status: importedPreview.status || 'UNKNOWN',
         foulScore: importedPreview.foulScore !== undefined ? importedPreview.foulScore : null,
         riskLevel: importedPreview.riskLevel || 'NOT_ANALYZED',
         summary: importedPreview.summary || 'Імпортовано з Prozorro.',
@@ -280,14 +281,14 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
         budgetUah: newBudget ? parseFloat(newBudget) : null,
         status: 'INTERNAL_PROJECT',
         foulScore: null,
-        riskLevel: 'LOW',
+        riskLevel: 'NOT_ANALYZED',
         summary: 'Внутрішній приватний проект організації (не є публічною закупівлею Prozorro).',
         detailedData: {
           category: newCategory,
           region: newRegion,
           customerCity: newRegion,
           customerEdrpou: 'INTERNAL',
-          deadline: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0]
+          deadline: newDeadline || null
         }
       };
       
@@ -314,12 +315,12 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
         customerEdrpou: 'INTERNAL',
         customerCity: newRegion,
         budgetUah: (saved.budgetUah !== undefined && saved.budgetUah !== null) ? parseFloat(saved.budgetUah) : null,
-        deadline: saved.detailedData?.deadline || '',
+        deadline: saved.detailedData?.deadline || 'UNKNOWN',
         region: newRegion,
         status: 'INTERNAL_PROJECT',
         category: newCategory,
         foulScore: undefined,
-        riskLevel: 'LOW',
+        riskLevel: 'NOT_ANALYZED',
         summary: saved.summary || '',
         tenderText: '',
         boqItems: [],
@@ -333,7 +334,10 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
       
       setNewTitle('');
       setNewCustomer('');
-      setNewBudget('25000000');
+      setNewBudget('');
+      setNewCategory('');
+      setNewRegion('');
+      setNewDeadline('');
       setImportingState('IDLE');
     } catch (err: any) {
       console.error(err);
@@ -1109,6 +1113,18 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                   </div>
                 </div>
 
+                <div>
+                  <label className="block font-semibold text-slate-300 mb-1">
+                    Кінцевий термін проекту (необов'язково)
+                  </label>
+                  <input
+                    type="date"
+                    value={newDeadline}
+                    onChange={(e) => setNewDeadline(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
                 {importError && (
                   <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-300">
                     {importError}
@@ -1118,7 +1134,7 @@ export const TenderCatalog: React.FC<TenderCatalogProps> = ({
                 <div className="pt-3 border-t border-slate-800 flex items-center justify-end space-x-2">
                   <button
                     type="button"
-                    onClick={() => setShowAddModal(false)}
+                    onClick={() => { setShowAddModal(false); setNewDeadline(''); }}
                     className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
                   >
                     Скасувати
