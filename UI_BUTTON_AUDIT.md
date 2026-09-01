@@ -100,3 +100,5 @@ War Room pipeline badges now derive from persisted analysis/BoQ/readiness state 
 Document download controls now call the authenticated object-storage download endpoint; bulk action downloads each available document individually (ZIP bundling is not claimed).
 
 War Room overview progress and pipeline status are now evidence-derived; QA shows persisted checklist data or `UNKNOWN`, and its audit action navigates to the real audit module.
+
+Pipeline controls remain navigational but their completion badges are derived from the selected tender's persisted Radar, analysis, BoQ, collusion and readiness fields.

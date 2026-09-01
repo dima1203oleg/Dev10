@@ -103,4 +103,6 @@ The War Room overview now shows `UNKNOWN` readiness when no score exists and evi
 
 Latest browser smoke confirmed the unaudited tender renders `UNKNOWN` readiness/checklist and no static low-risk or completion claims.
 
+Type/build verification covers the evidence-derived pipeline refactor; targeted browser smoke confirms QA navigation. Full responsive and 237-control E2E remains BLOCKED.
+
 Static verification completed: TypeScript PASS, Vitest 2/2 PASS, Vite build PASS, server bundle PASS. Production negative-startup test PASS (missing mandatory configuration terminates the process). These checks are not a substitute for browser/database E2E.
