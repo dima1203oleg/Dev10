@@ -310,7 +310,7 @@ export const TenderWarRoomModule: React.FC<TenderWarRoomModuleProps> = ({
               <div>
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Конкуренти</div>
                 <div className="text-xl font-black text-white mt-1">Граф зв'язків</div>
-                <p className="text-xs text-slate-500 mt-2 leading-relaxed">Ризик змови: Низький</p>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">Ризик змови: {currentTender.collusionAnalysis?.riskLevel || (currentTender.riskLevel !== 'LOW' ? currentTender.riskLevel : 'UNKNOWN')}</p>
               </div>
             </div>
 

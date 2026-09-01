@@ -96,3 +96,5 @@ Targeted browser evidence 2026-09-01: `Додати позицію` increased th
 War Room QA action now navigates to the real Pre-Submission Audit route; its checklist reads persisted readiness evidence and displays `UNKNOWN` when no audit exists.
 
 War Room pipeline badges now derive from persisted analysis/BoQ/readiness state instead of hard-coded `COMPLETED`/`IN_PROGRESS` labels.
+
+Targeted static audit found document download controls still lack an object-storage download handler; this remains an open UI blocker and is not claimed as PASS.
