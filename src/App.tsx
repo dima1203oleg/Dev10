@@ -567,6 +567,7 @@ export default function App() {
                   onUpload={handleUploadDocuments}
                   onProcessAI={handleProcessDocumentAI}
                   onDelete={handleDeleteDocument}
+                  token={token}
                 />
               )}
             </>

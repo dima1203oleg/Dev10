@@ -97,4 +97,4 @@ War Room QA action now navigates to the real Pre-Submission Audit route; its che
 
 War Room pipeline badges now derive from persisted analysis/BoQ/readiness state instead of hard-coded `COMPLETED`/`IN_PROGRESS` labels.
 
-Targeted static audit found document download controls still lack an object-storage download handler; this remains an open UI blocker and is not claimed as PASS.
+Document download controls now call the authenticated object-storage download endpoint; bulk action downloads each available document individually (ZIP bundling is not claimed).

@@ -21,6 +21,7 @@ interface DocumentWorkspaceProps {
   onUpload: (files: File[]) => void;
   onProcessAI: (documentId: string) => void;
   onDelete: (documentId: string) => void;
+  token?: string | null;
 }
 
 export const DocumentWorkspace: React.FC<DocumentWorkspaceProps> = ({
@@ -28,10 +29,25 @@ export const DocumentWorkspace: React.FC<DocumentWorkspaceProps> = ({
   documents,
   onUpload,
   onProcessAI,
-  onDelete
+  onDelete,
+  token
 }) => {
   const [dragActive, setDragActive] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+
+  const downloadDocument = async (doc: TenderDocument) => {
+    if (!token) return;
+    const response = await fetch(`/api/tenders/${tender.id}/documents/${encodeURIComponent(doc.id)}/download`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!response.ok) return;
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a'); link.href = url; link.download = doc.name; link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadAllDocuments = async () => {
+    for (const doc of documents) await downloadDocument(doc);
+  };
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -83,9 +99,9 @@ export const DocumentWorkspace: React.FC<DocumentWorkspaceProps> = ({
           <p className="text-xs text-slate-400">{tender.tenderNumber} • {tender.title}</p>
         </div>
         <div className="flex items-center gap-2">
-           <button className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+           <button onClick={() => void downloadAllDocuments()} disabled={!documents.length || !token} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2 disabled:opacity-50">
               <Download size={14} />
-              <span>Завантажити все ZIP</span>
+              <span>Завантажити всі документи</span>
            </button>
         </div>
       </div>
@@ -175,7 +191,7 @@ export const DocumentWorkspace: React.FC<DocumentWorkspaceProps> = ({
                         <span className="hidden sm:inline">AI Extract</span>
                       </button>
                     )}
-                    <button className="p-2 text-slate-500 hover:text-white transition-colors">
+                    <button onClick={() => void downloadDocument(doc)} disabled={!token} aria-label={`Завантажити ${doc.name}`} className="p-2 text-slate-500 hover:text-white transition-colors disabled:opacity-50">
                       <Download size={16} />
                     </button>
                     <button 
