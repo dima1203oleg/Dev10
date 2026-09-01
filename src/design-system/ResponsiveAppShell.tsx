@@ -169,10 +169,10 @@ export const ResponsiveAppShell: React.FC<ResponsiveAppShellProps> = ({
                 <div className="absolute right-0 top-full mt-2 w-80 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-4 z-50 animate-fadeIn space-y-3">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                     <span className="text-xs font-bold text-white">Сповіщення</span>
-                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-bold">2 нових</span>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-bold">{notifications.filter((n) => !n.read).length} нових</span>
                   </div>
                   <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                    {notifications.map(n => (
+                    {notifications.length > 0 ? notifications.map(n => (
                       <div key={n.id} className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800/80 hover:border-slate-700 transition-colors space-y-1">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-white">{n.title}</span>
@@ -180,7 +180,7 @@ export const ResponsiveAppShell: React.FC<ResponsiveAppShellProps> = ({
                         </div>
                         <p className="text-[10px] text-slate-400 leading-relaxed">{n.desc}</p>
                       </div>
-                    ))}
+                    )) : <div className="p-4 text-center text-[10px] text-slate-500">Немає підтверджених сповіщень</div>}
                   </div>
                 </div>
               )}
@@ -207,8 +207,8 @@ export const ResponsiveAppShell: React.FC<ResponsiveAppShellProps> = ({
               {isUserMenuOpen && (
                 <div className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2 z-50 animate-fadeIn space-y-1">
                   <div className="px-3 py-2 border-b border-slate-800 mb-1">
-                    <div className="text-xs font-bold text-white truncate">{user?.displayName || 'Андрій Мельник'}</div>
-                    <div className="text-[10px] text-slate-400 truncate">{user?.email || 'andrii.m@tenderai.ua'}</div>
+                    <div className="text-xs font-bold text-white truncate">{user?.displayName || user?.email?.split('@')[0] || 'UNKNOWN'}</div>
+                    <div className="text-[10px] text-slate-400 truncate">{user?.email || 'UNKNOWN'}</div>
                   </div>
                   <button
                     onClick={() => { onNavigate?.('team'); setIsUserMenuOpen(false); }}
