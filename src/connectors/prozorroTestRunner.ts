@@ -195,8 +195,11 @@ export async function runProzorroConnectorTestSuite(): Promise<FullProzorroTestS
 
   // 6. TEST: Live Prozorro API Search, Pagination & Deduplication
   try {
+    // This gate verifies live feed integrity and cursor pagination, not keyword
+    // relevance (covered by TEST-02). Use an unfiltered live feed so the result
+    // is not coupled to whichever vocabulary happens to be present today.
     const searchRes = await executeAdvancedProzorroSearch(
-      { keywords: ["послуги", "ремонт", "обладнання", "постачання", "укриття"] },
+      { keywords: [] },
       { limit: 10, maxPages: 2 }
     );
 
@@ -209,7 +212,7 @@ export async function runProzorroConnectorTestSuite(): Promise<FullProzorroTestS
     if (isSuccess && returnedCount > 0 && hasNextOffset) {
       // Test page 2 fetching with nextOffset cursor to verify deduplication
       const page2Res = await executeAdvancedProzorroSearch(
-        { keywords: ["послуги", "ремонт", "обладнання", "постачання", "укриття"] },
+        { keywords: [] },
         { limit: 10, offset: searchRes.telemetry.nextOffset, maxPages: 2 }
       );
 
